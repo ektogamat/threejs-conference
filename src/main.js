@@ -178,7 +178,7 @@ async function init(loaderOverlay) {
   camera = new THREE.PerspectiveCamera(
     DESKTOP_FOV,
     window.innerWidth / window.innerHeight,
-    0.25,
+    0.1,
     2000,
   );
   camera.position.set(...FREE_CAMERA_START.position);
@@ -385,8 +385,8 @@ async function init(loaderOverlay) {
     domElement: renderer.domElement,
     model,
     settings: {
-      moveSpeed: 32,
-      sprintMultiplier: 1.8,
+      moveSpeed: 7,
+      sprintMultiplier: 1.55,
       eyeHeight: 1.8,
     },
     onLookChange: () => {
@@ -463,10 +463,7 @@ async function init(loaderOverlay) {
       timer.update();
       const delta = timer.getDelta();
       const elapsed = timer.getElapsed();
-      if (
-        CONTINUOUS_FRAME_LOOP ||
-        renderLoop.getState() === "interacting"
-      ) {
+      if (CONTINUOUS_FRAME_LOOP || renderLoop.getState() === "interacting") {
         cloudAnimTime = elapsed;
       }
       cloudSky?.update(camera, cloudAnimTime);

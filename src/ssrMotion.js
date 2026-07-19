@@ -25,14 +25,14 @@ export function createSsrMotionProfile({
 }) {
   const idle = {
     resolutionScale: 0.9,
-    quality: 0.8,
+    quality: 0.7,
     denoiseStrength: 0.725,
   };
 
   const drag = {
-    resolutionScale: 0.85,
+    resolutionScale: 0.9,
     quality: 0.7,
-    denoiseStrength: 0.6,
+    denoiseStrength: 0.725,
   };
 
   const params = {

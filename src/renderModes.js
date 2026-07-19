@@ -7,7 +7,7 @@ export const RENDER_MODES = {
   insane: "insane",
 };
 
-export const DEFAULT_RENDER_MODE = RENDER_MODES.ultra;
+export const DEFAULT_RENDER_MODE = RENDER_MODES.highEnd;
 
 export const RENDER_MODE_LABELS = {
   [RENDER_MODES.default]: "Default",

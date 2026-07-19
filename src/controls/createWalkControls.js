@@ -1,11 +1,15 @@
 import * as THREE from "three/webgpu";
 
 const DEFAULTS = {
-  moveSpeed: 28,
-  sprintMultiplier: 1.75,
+  moveSpeed: 7,
+  sprintMultiplier: 1.55,
   mouseSensitivity: 0.002,
   eyeHeight: 1.75,
   playerRadius: 0.6,
+  /** Max climb per step (curbs / stairs). Higher surfaces are ignored. */
+  maxStepUp: 0.4,
+  /** Max fall per frame while walking (slopes / small drops). */
+  maxStepDown: 1.75,
   groundProbeHeight: 200,
   groundProbeDistance: 400,
   wallProbeDistance: 0.35,
@@ -87,9 +91,9 @@ export function createWalkControls({
     camera.quaternion.setFromEuler(euler);
   }
 
-  function sampleGroundY(x, z, referenceY) {
+  function collectGroundHits(x, z, referenceY) {
     if (!model) {
-      return referenceY - settings.eyeHeight;
+      return [];
     }
 
     probeOrigin.set(x, referenceY + settings.groundProbeHeight, z);
@@ -97,19 +101,54 @@ export function createWalkControls({
     raycaster.set(probeOrigin, probeDirection);
     raycaster.far = settings.groundProbeDistance;
 
-    const hits = raycaster.intersectObject(model, true);
-    if (hits.length === 0) {
-      return referenceY - settings.eyeHeight;
-    }
-
-    return hits[0].point.y;
+    return raycaster.intersectObject(model, true);
   }
 
-  function snapCameraToGround() {
+  /**
+   * Pick walkable ground near the current feet height.
+   * Skips overhangs/roofs (first hit from above) so we don't climb objects.
+   */
+  function sampleGroundY(x, z, referenceY, { allowLongDrop = false } = {}) {
+    const feetY = referenceY - settings.eyeHeight;
+    const hits = collectGroundHits(x, z, referenceY);
+
+    if (hits.length === 0) {
+      return feetY;
+    }
+
+    const maxStepUp = settings.maxStepUp;
+    const maxStepDown = allowLongDrop
+      ? settings.groundProbeDistance
+      : settings.maxStepDown;
+
+    for (const hit of hits) {
+      const y = hit.point.y;
+      if (y > feetY + maxStepUp) {
+        continue;
+      }
+      if (y < feetY - maxStepDown) {
+        continue;
+      }
+      return y;
+    }
+
+    if (allowLongDrop) {
+      for (const hit of hits) {
+        if (hit.point.y <= feetY + maxStepUp) {
+          return hit.point.y;
+        }
+      }
+    }
+
+    return feetY;
+  }
+
+  function snapCameraToGround({ allowLongDrop = false } = {}) {
     const groundY = sampleGroundY(
       camera.position.x,
       camera.position.z,
       camera.position.y,
+      { allowLongDrop },
     );
     camera.position.y = groundY + settings.eyeHeight;
   }
@@ -133,7 +172,17 @@ export function createWalkControls({
     raycaster.far = distance + settings.wallProbeDistance;
 
     const hits = raycaster.intersectObject(model, true);
-    return hits.length === 0 || hits[0].distance >= distance;
+    if (hits.length > 0 && hits[0].distance < distance) {
+      return false;
+    }
+
+    const currentFeetY = from.y - settings.eyeHeight;
+    const nextGroundY = sampleGroundY(to.x, to.z, from.y);
+    if (nextGroundY > currentFeetY + settings.maxStepUp) {
+      return false;
+    }
+
+    return true;
   }
 
   function onKeyDown(event) {
@@ -229,7 +278,7 @@ export function createWalkControls({
       moving = false;
     } else {
       syncEulerFromCamera();
-      snapCameraToGround();
+      snapCameraToGround({ allowLongDrop: true });
     }
 
     notifyChange();
@@ -324,7 +373,7 @@ export function createWalkControls({
     isMoving: () => moving,
     update,
     syncEulerFromCamera,
-    snapCameraToGround,
+    snapCameraToGround: () => snapCameraToGround({ allowLongDrop: true }),
     subscribe: (listener) => {
       listeners.add(listener);
       listener({ active, pointerLocked, moving });

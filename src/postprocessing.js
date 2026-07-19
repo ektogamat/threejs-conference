@@ -160,9 +160,9 @@ function createSoftSsgiAo({
 
 const defaultSsrParams = {
   ssr: {
-    quality: 0.8,
+    quality: 0.5,
     intensity: 5,
-    opacity: 1,
+    opacity: 0.5,
     maxDistance: 50,
     thickness: 0.1,
     resolutionScale: 0.9,

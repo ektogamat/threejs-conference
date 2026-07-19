@@ -1,4 +1,4 @@
-import { DEFAULT_RENDER_MODE, isRenderMode, RENDER_MODES } from "./renderModes.js";
+import { DEFAULT_RENDER_MODE, isRenderMode } from "./renderModes.js";
 
 const DEVELOPMENT_MODE_KEY = "lumen-development-mode";
 const RENDER_MODE_KEY = "lumen-render-mode";
@@ -38,13 +38,11 @@ export function getRenderMode() {
 }
 
 export function getInitialRenderMode() {
-  const mode = getRenderMode();
-
-  if (mode === RENDER_MODES.highEnd && !hasUserChosenRenderMode()) {
+  if (!hasUserChosenRenderMode()) {
     return DEFAULT_RENDER_MODE;
   }
 
-  return mode;
+  return getRenderMode();
 }
 
 export function setRenderMode(mode) {
