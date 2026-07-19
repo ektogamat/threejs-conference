@@ -1,0 +1,61 @@
+@import url("https://fonts.googleapis.com/css2?family=Gloock&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
+@import url("https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css");
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  background-color: rgb(27, 27, 27);
+  overflow: hidden;
+}
+
+canvas {
+  touch-action: none;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+.app-header,
+.app-header *,
+.about-overlay,
+.about-overlay *,
+.settings-overlay,
+.settings-overlay *,
+.screenshot-btn-root,
+.screenshot-btn-root *,
+.audio-btn-root,
+.audio-btn-root *,
+.wrapper-card,
+.wrapper-card *,
+.radial-color-menu-root,
+.radial-color-menu-root *,
+.intro-container,
+.intro-container * {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  font-family: "Montserrat", sans-serif;
+}
+
+.ph-icon {
+  font-style: normal;
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.app-header svg,
+.about-overlay svg {
+  pointer-events: none;
+}

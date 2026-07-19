@@ -1,0 +1,36 @@
+.fps-walk-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: min(92vw, 560px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(12, 12, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fps-walk-hint--hidden {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  visibility: hidden;
+}
+
+.fps-walk-hint__title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.fps-walk-hint__copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}

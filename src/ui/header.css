@@ -1,0 +1,211 @@
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+  padding: 40px 40px;
+  background-image: linear-gradient(
+    175deg,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0) 30%
+  );
+  width: 100%;
+  z-index: 1000;
+  pointer-events: none;
+  transform: translateY(-100px);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0s;
+}
+
+.app-header-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  pointer-events: all;
+}
+
+.app-header--force-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 8px;
+  gap: 3px;
+}
+
+.app-header-brand-text {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0;
+}
+
+.app-header.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.app-header-brand p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: clamp(0.95rem, 2.4vw, 1.5em);
+  font-family: "Montserrat", sans-serif;
+  font-weight: 400;
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.app-header-brand small {
+  border-left: 1px solid rgba(255, 255, 255, 0.316);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 6px;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  margin: 0;
+  padding-left: 10px;
+  text-align: center;
+}
+
+.app-header-about-btn {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 32px;
+  color: white;
+  font-size: 8px;
+  text-align: center;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background-color: rgba(116, 111, 155, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  transition: all 1.6s ease-in-out;
+  pointer-events: all;
+  cursor: pointer;
+  font-family: "Montserrat", sans-serif;
+}
+
+.app-header-action-btn {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  background: rgba(116, 111, 155, 0.12);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    transform 0.25s ease;
+  pointer-events: all;
+  cursor: pointer;
+  font-family: "Montserrat", sans-serif;
+}
+
+.app-header-icon-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.app-header-action-btn:hover {
+  background: rgba(116, 111, 155, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.app-header-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.app-header-icon-btn .app-header-action-icon .ph-icon {
+  font-size: 19px;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 20px 16px;
+    gap: 10px;
+  }
+
+  .app-header-brand {
+    padding: 4px;
+  }
+
+  .app-header-brand-text {
+    gap: 2px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .app-header-brand p {
+    font-size: clamp(0.78rem, 5vw, 1.5rem);
+  }
+
+  .app-header-brand small {
+    font-size: 5px;
+    letter-spacing: 0.28em;
+    padding-left: 0;
+    border-left: none;
+    text-align: left;
+  }
+
+  .app-header-actions {
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .app-header-about-btn {
+    padding: 8px 16px;
+    font-size: 7px;
+  }
+
+  .app-header-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}

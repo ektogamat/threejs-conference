@@ -1,0 +1,211 @@
+.camera-limits-dev {
+  position: fixed;
+  top: 88px;
+  right: 16px;
+  z-index: 55;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(12, 12, 14, 0.88);
+  backdrop-filter: blur(14px);
+  color: #f2f2f2;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: all;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.camera-limits-dev--tuning-on {
+  border-color: rgba(120, 190, 255, 0.45);
+}
+
+.camera-limits-dev--tuning-off .camera-limits-dev__axes,
+.camera-limits-dev--tuning-off .camera-limits-dev__status {
+  display: none;
+}
+
+.camera-limits-dev--tuning-off {
+  width: min(280px, calc(100vw - 32px));
+}
+
+.camera-limits-dev__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.camera-limits-dev__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.camera-limits-dev__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 10px;
+}
+
+.camera-limits-dev__toggle input {
+  accent-color: #78beff;
+}
+
+.camera-limits-dev__hint {
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+}
+
+.camera-limits-dev__preset {
+  margin: 0 0 6px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.camera-limits-dev__preset strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.camera-limits-dev__status {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(120, 190, 255, 0.1);
+  color: rgba(220, 235, 255, 0.92);
+  font-size: 10px;
+}
+
+.camera-limits-dev--ready .camera-limits-dev__status {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.camera-limits-dev__axes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.camera-limits-dev__axis {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.camera-limits-dev__axis-title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.camera-limits-dev__row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.camera-limits-dev__row:last-child {
+  margin-bottom: 0;
+}
+
+.camera-limits-dev__row--now {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.camera-limits-dev__row--now .camera-limits-dev__row-value {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.camera-limits-dev__row-label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.camera-limits-dev__row-value {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.camera-limits-dev__btn {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.camera-limits-dev__btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.camera-limits-dev__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.camera-limits-dev__btn--register {
+  min-width: 104px;
+}
+
+.camera-limits-dev__btn--set {
+  border-color: rgba(120, 255, 170, 0.5);
+  background: rgba(120, 255, 170, 0.14);
+}
+
+.camera-limits-dev__btn--primary {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.camera-limits-dev__btn--flash {
+  transform: scale(0.97);
+  border-color: rgba(120, 255, 170, 0.85);
+  background: rgba(120, 255, 170, 0.22);
+}
+
+.camera-limits-dev__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.camera-limits-dev__footer .camera-limits-dev__btn {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 120px;
+}
+
+.camera-limits-dev__footer .camera-limits-dev__btn--primary:last-child {
+  flex-basis: 100%;
+}

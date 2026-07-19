@@ -1,0 +1,107 @@
+.intro-container {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #ffffff;
+  pointer-events: none;
+  padding: 0 5%;
+}
+
+.intro-sub-title {
+  margin: 0 0 30px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 300;
+  font-size: clamp(4.5rem, 14vw, 12rem);
+  line-height: 0.9em;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.intro-letter {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity, filter;
+}
+
+.intro-main-title {
+  margin: 0 0 3em;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 500;
+  font-size: clamp(0.7rem, 1.2vw, 1.1rem);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  line-height: 1.3em;
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  max-width: min(92vw, 52rem);
+}
+
+.intro-word {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+.intro-loading {
+  margin-top: 0;
+}
+
+.intro-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 36px;
+  border: 3px solid rgb(255, 255, 255);
+  border-radius: 100px;
+  background-color: rgba(255, 255, 255, 0.92);
+  color: #4c1818;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 500;
+  font-size: clamp(0.95rem, 1.5vw, 1.35rem);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  pointer-events: all;
+  transition:
+    transform 0.8s ease-in-out,
+    background-color 0.8s ease-in-out,
+    color 0.8s ease-in-out;
+}
+
+.intro-button:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-button:not(:disabled):hover {
+  transform: scale(1.1);
+  background-color: rgb(255, 255, 255);
+  color: #49637d;
+}
+
+@media only screen and (max-width: 1200px) {
+  .intro-sub-title {
+    font-size: 16vw;
+    width: 90%;
+    letter-spacing: -0.02em;
+  }
+
+  .intro-main-title {
+    font-size: 2.8vw;
+    letter-spacing: 0.18em;
+    margin-bottom: 2em;
+  }
+
+  .intro-button {
+    padding: 14px 28px;
+    font-size: 4.5vw;
+    border-width: 2px;
+  }
+}

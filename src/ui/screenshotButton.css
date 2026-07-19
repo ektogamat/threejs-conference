@@ -1,0 +1,124 @@
+.screenshot-btn-root {
+  position: fixed;
+  right: 40px;
+  bottom: 30px;
+  z-index: 40;
+  width: auto;
+  height: 40px;
+  pointer-events: none;
+  font-family: "Montserrat", sans-serif;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.8s ease,
+    visibility 0s linear 0s;
+}
+
+.screenshot-btn-root--hidden,
+.screenshot-btn-root--force-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s;
+}
+
+.screenshot-btn {
+  pointer-events: all;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(116, 111, 155, 0.12);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    transform 0.25s ease,
+    box-shadow 0.35s ease,
+    opacity 0.2s ease;
+}
+
+.screenshot-btn:hover:not(:disabled) {
+  width: auto;
+  gap: 8px;
+  padding: 0 14px 0 12px;
+  background: rgba(116, 111, 155, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+
+.screenshot-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.screenshot-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.screenshot-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screenshot-btn-icon .ph-icon {
+  font-size: 18px;
+}
+
+.screenshot-btn-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition:
+    max-width 0.25s ease,
+    opacity 0.2s ease;
+}
+
+.screenshot-btn:hover:not(:disabled) .screenshot-btn-label {
+  max-width: 80px;
+  opacity: 1;
+}
+
+.screenshot-btn-root--capturing .screenshot-btn-icon .ph-icon {
+  animation: screenshot-btn-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes screenshot-btn-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .screenshot-btn-root {
+    display: none !important;
+  }
+}
