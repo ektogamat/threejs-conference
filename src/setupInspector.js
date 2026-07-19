@@ -36,6 +36,8 @@ export function setupInspector(renderer, pipeline, pcss, probe, sun = null) {
     fsrSharpness,
     getFsrEnabled,
     getScenePassResolutionScale,
+    look,
+    applyLookPreset,
   } = pipeline;
 
   function notifyParamInteraction() {
@@ -115,6 +117,116 @@ export function setupInspector(renderer, pipeline, pcss, probe, sun = null) {
   };
 
   const gui = renderer.inspector.createParameters("Post-processing");
+
+  if (look && applyLookPreset) {
+    const lookUniforms = look.uniforms;
+    const lookPresetLabels = look.getPresetLabels();
+    const lookParams = { preset: look.getCurrentPresetId() };
+
+    function applyLookPresetFromInspector(presetId) {
+      applyLookPreset(presetId, {
+        bloomPass,
+        bloomPassWide,
+        onSunApply: ({ hour, strength }) => {
+          if (!sun?.sunState) {
+            return;
+          }
+
+          sun.sunState.hour = hour;
+          sun.sunState.strength = strength;
+          sun.refreshSun?.();
+          notifyLightingParamChanged();
+        },
+      });
+      lookParams.preset = presetId;
+      syncFogColorParams();
+    }
+
+    const fogColorParams = { r: 0, g: 0, b: 0 };
+
+    function syncFogColorParams() {
+      const color = look.linearFogColorToSrgb();
+      fogColorParams.r = color.r;
+      fogColorParams.g = color.g;
+      fogColorParams.b = color.b;
+    }
+
+    syncFogColorParams();
+
+    function updateFogColor() {
+      look.setFogColorFromSrgb(
+        fogColorParams.r,
+        fogColorParams.g,
+        fogColorParams.b,
+      );
+    }
+
+    const lookFolder = addClosedFolder(gui, "Look");
+    bindParamControl(
+      lookFolder.add(lookParams, "preset", lookPresetLabels).name("preset"),
+      applyLookPresetFromInspector,
+    );
+
+    const fogFolder = addClosedFolder(lookFolder, "Fog / Haze");
+    addParam(fogFolder, lookUniforms.fogEnabled, "value", 0, 1).name(
+      "enabled",
+    );
+    addParam(fogFolder, lookUniforms.fogNear, "value", 0, 1).name("near");
+    addParam(fogFolder, lookUniforms.fogFar, "value", 0, 1).name("far");
+    addParam(fogFolder, lookUniforms.fogAmount, "value", 0, 1).name("amount");
+    bindParamControl(
+      fogFolder.add(fogColorParams, "r", 0, 1, 0.01).name("color r"),
+      updateFogColor,
+    );
+    bindParamControl(
+      fogFolder.add(fogColorParams, "g", 0, 1, 0.01).name("color g"),
+      updateFogColor,
+    );
+    bindParamControl(
+      fogFolder.add(fogColorParams, "b", 0, 1, 0.01).name("color b"),
+      updateFogColor,
+    );
+
+    const gradeFolder = addClosedFolder(lookFolder, "Color Grade");
+    addParam(gradeFolder, lookUniforms.gradeMix, "value", 0, 1).name(
+      "grade mix",
+    );
+    addParam(gradeFolder, lookUniforms.saturation, "value", 0, 2).name(
+      "saturation",
+    );
+    addParam(gradeFolder, lookUniforms.contrast, "value", 0.5, 2).name(
+      "contrast",
+    );
+    addParam(gradeFolder, lookUniforms.greenSuppress, "value", 0, 1).name(
+      "green suppress",
+    );
+
+    const chromaFolder = addClosedFolder(lookFolder, "Chromatic");
+    addParam(chromaFolder, lookUniforms.chromaticStrength, "value", 0, 2).name(
+      "strength",
+    );
+
+    const vignetteFolder = addClosedFolder(lookFolder, "Vignette");
+    addParam(
+      vignetteFolder,
+      lookUniforms.vignetteIntensity,
+      "value",
+      0,
+      1,
+    ).name("intensity");
+    addParam(
+      vignetteFolder,
+      lookUniforms.vignetteSmoothness,
+      "value",
+      0,
+      1,
+    ).name("smoothness");
+
+    const grainFolder = addClosedFolder(lookFolder, "Grain");
+    addParam(grainFolder, lookUniforms.grainIntensity, "value", 0, 1).name(
+      "intensity",
+    );
+  }
 
   bindParamControl(
     gui.add(params, "output", outputModes).name("output view"),

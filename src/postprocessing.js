@@ -41,6 +41,7 @@ import { ssgi, applySSGIQualityMode } from "./ssgi/SSGINode.js";
 import { traa } from "three/addons/tsl/display/TRAANode.js";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { fsr1 } from "three/addons/tsl/display/FSR1Node.js";
+import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 
 function enableResolutionScale(passNode) {
   const setSize = passNode.setSize.bind(passNode);
@@ -375,6 +376,7 @@ export function createPostProcessing(
   const scenePassDepth = scenePass.getTextureNode("depth");
   const scenePassVelocity = scenePass.getTextureNode("velocity");
   const scenePassEmissive = scenePass.getTextureNode("emissive");
+  const scenePassLinearDepth = scenePass.getLinearDepthNode();
 
   scenePass.getTexture("normal").type = UnsignedByteType;
   scenePass.getTexture("diffuseColor").type = UnsignedByteType;
@@ -608,11 +610,17 @@ export function createPostProcessing(
   const bloomPass = bloom(traaPassEmissive, 3, 0.5);
   const bloomPassWide = bloom(traaPassEmissive, 1.25, 1);
 
+  const look = createCyberpunkLook({ scenePassLinearDepth });
+
   function buildModeOutput(traaNode) {
     const core = fsrEnabled
       ? fsr1(traaNode, fsrSharpness, fsrDenoise)
       : traaNode;
-    return core.add(bloomPass).add(bloomPassWide);
+    // Haze from scene depth first, then additive bloom on top so glow
+    // is not clipped at geometry/sky silhouettes by the depth fog.
+    return look.buildComposite(core, {
+      bloomContribution: bloomPass.add(bloomPassWide),
+    });
   }
 
   const outputByMode = {
@@ -622,7 +630,9 @@ export function createPostProcessing(
     [RENDER_MODES.insane]: buildModeOutput(traaPass),
   };
 
-  const compositeWithBloom = ultraComposite.add(bloomPass).add(bloomPassWide);
+  const compositeWithBloom = look.buildComposite(ultraComposite, {
+    bloomContribution: bloomPass.add(bloomPassWide),
+  });
 
   let currentMode = DEFAULT_RENDER_MODE;
 
@@ -706,6 +716,14 @@ export function createPostProcessing(
 
   post.outputNode = outputByMode[currentMode];
 
+  function applyLookPreset(id, options = {}) {
+    return look.applyPreset(id, {
+      bloomPass,
+      bloomPassWide,
+      ...options,
+    });
+  }
+
   return {
     post,
     scenePass,
@@ -778,5 +796,7 @@ export function createPostProcessing(
     syncSsrEnvironmentIntensity: () => {
       // Intentionally no-op: scene.environmentIntensity must not drive SSR misses.
     },
+    look,
+    applyLookPreset,
   };
 }

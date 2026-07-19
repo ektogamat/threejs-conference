@@ -107,8 +107,8 @@ export function createScene() {
   const skyDayBottom = new THREE.Color(0xb5e6ff);
   const skyGoldenTop = new THREE.Color(0x7b729f);
   const skyGoldenBottom = new THREE.Color(0xffaf62);
-  const skyNightTop = new THREE.Color(0x141d30);
-  const skyNightBottom = new THREE.Color(0x28384f);
+  const skyNightTop = new THREE.Color(0x080610);
+  const skyNightBottom = new THREE.Color(0x14101c);
 
   const sunDay = new THREE.Color(0xfff5e6);
   const sunGolden = new THREE.Color(0xffc07a);

@@ -348,6 +348,16 @@ async function init(loaderOverlay) {
 
   const refreshSun = () => syncLighting();
 
+  pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
+    onSunApply: ({ hour, strength }) => {
+      sceneResult.sunState.hour = hour;
+      sceneResult.sunState.strength = strength;
+      refreshSun();
+    },
+    bloomPass: pipeline.bloomPass,
+    bloomPassWide: pipeline.bloomPassWide,
+  });
+
   renderModeController = createRenderModeController({
     applyRenderMode: (mode, options) => {
       pipeline.applyRenderMode(mode, options);
@@ -485,11 +495,11 @@ async function init(loaderOverlay) {
     minMaxPixels: 3200000,
     maxMaxPixels: 6500000,
     targetFps: 45,
-    idleMaxDPR: 1.2,
-    idleMinMaxDPR: 0.95,
-    interactionReductionFactor: 0.25,
-    interactionDPRTarget: 0.9,
-    minInteractionDPR: 0.85,
+    idleMaxDPR: 1.0,
+    idleMinMaxDPR: 0.8,
+    interactionReductionFactor: 0.5,
+    interactionDPRTarget: 0.8,
+    minInteractionDPR: 0.75,
     interactionEndDelayMs: 250,
     onLoopStateChange: (state, info) => {
       ssrMotion.onLoopStateChange(state, info);

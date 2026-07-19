@@ -35,9 +35,9 @@ const CLOUD_NIGHT = {
   distortionStrength: 1.6,
   contrast: 1.1,
   opacity: 0.4,
-  cloudDarkColor: new THREE.Color("#ffffff"),
-  cloudLightColor: new THREE.Color("#6a7fa8"),
-  lightMultiplier: new THREE.Vector3(0.65, 0.72, 0.88),
+  cloudDarkColor: new THREE.Color("#d8d0e8"),
+  cloudLightColor: new THREE.Color("#5a5888"),
+  lightMultiplier: new THREE.Vector3(0.58, 0.58, 0.82),
   densityStrength: 0.12,
 };
 
