@@ -7,8 +7,8 @@ export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
   root.innerHTML = `
     <div class="app-header-brand">
       <div class="app-header-brand-text">
-        <p>LUMEN STUDIO 2</p>
-        <small>BY ANDERSON MANCINI</small>
+        <p>THREEJS CONFERENCE</p>
+        <small>BY ANDERSON MANCIN & SUNAG</small>
       </div>
     </div>
     <div class="app-header-actions">
