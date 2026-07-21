@@ -26,7 +26,7 @@ export const MODEL_OFFSET_Y = -20;
 export const QUADRA_START = {
   position: [-128, -5.47, 33],
   rotationY: Math.PI / 2 + 0.6,
-  scale: 1.27,
+  scale: 1.26,
 };
 
 export function getMeshMaterials(mesh) {

@@ -6,8 +6,8 @@ export const performanceProfile = {
   maxPixelRatio: 1.5,
 
   groundReflection: true,
-  groundResolutionScale: 0.25,
-  groundReflectionFrameSkip: 2,
+  groundResolutionScale: 0.5,
+  groundReflectionFrameSkip: 1,
 
   bloom: true,
   bloomResolutionScale: 0.5,

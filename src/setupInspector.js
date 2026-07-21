@@ -364,6 +364,12 @@ export function setupInspector(
       refreshSun,
     );
     bindParamControl(
+      sunFolder
+        .add(sun.sunState, "shadowIntensity", 0, 3, 0.05)
+        .name("shadow intensity"),
+      refreshSun,
+    );
+    bindParamControl(
       sunFolder.addColor(sun.sunState, "color").name("color"),
       refreshSun,
     );
@@ -493,6 +499,33 @@ export function setupInspector(
       rainFolder.add(rain.params, "intensity", 0.1, 2, 0.05).name("intensity"),
       (value) => rain.setIntensity(value),
     );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "thickness", 0.1, 1.5, 0.01)
+        .name("thickness"),
+      (value) => rain.setThickness(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "refractCount", 0, 2000, 25)
+        .name("refract count"),
+      (value) => rain.setRefractCount(value),
+    );
+
+    if (pipeline.refraction?.params) {
+      bindParamControl(
+        rainFolder
+          .add(pipeline.refraction.params, "enabled")
+          .name("refract enabled"),
+        (value) => pipeline.refraction.setEnabled(value),
+      );
+      bindParamControl(
+        rainFolder
+          .add(pipeline.refraction.params, "strength", 0, 0.12, 0.001)
+          .name("refraction strength"),
+        (value) => pipeline.refraction.setStrength(value),
+      );
+    }
   }
 
   if (cameraControls?.params) {
