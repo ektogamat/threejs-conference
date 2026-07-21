@@ -461,6 +461,8 @@ async function init(loaderOverlay) {
     }
 
     rain?.update(delta, camera);
+    ground.update?.(delta);
+    ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
     ground.updateReflection?.(renderer, camera);
     pipeline.dof.updateFocusPoint(focusPoint, camera);
     post.render();
@@ -503,6 +505,8 @@ async function init(loaderOverlay) {
     loaderOverlay.setStatus("Warming up...");
     for (let i = 0; i < 4; i++) {
       rain?.update(1 / 60, camera);
+      ground.update?.(1 / 60);
+      ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
       ground.updateReflection?.(renderer, camera);
       post.render();
     }

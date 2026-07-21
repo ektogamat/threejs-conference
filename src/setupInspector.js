@@ -339,6 +339,46 @@ export function setupInspector(
     addParam(groundFolder, ground.uniforms.fogFar, "value", 10, 400, 1).name(
       "fade far",
     );
+    addParam(
+      groundFolder,
+      ground.uniforms.rippleAmount,
+      "value",
+      0,
+      1,
+      0.01,
+    ).name("ripple amount");
+    addParam(
+      groundFolder,
+      ground.uniforms.rippleScale,
+      "value",
+      0.5,
+      120,
+      0.1,
+    ).name("ripple scale");
+    addParam(
+      groundFolder,
+      ground.uniforms.rippleSpeed,
+      "value",
+      0.5,
+      8,
+      0.1,
+    ).name("ripple speed");
+    addParam(
+      groundFolder,
+      ground.uniforms.rippleStrength,
+      "value",
+      0,
+      0.25,
+      0.005,
+    ).name("ripple reflection");
+    addParam(
+      groundFolder,
+      ground.uniforms.rippleNormalStrength,
+      "value",
+      0,
+      1,
+      0.01,
+    ).name("ripple normal");
   }
 
   if (rain?.params) {

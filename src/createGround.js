@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import {
   Fn,
   normalMap,
+  positionWorld,
   rangeFogFactor,
   screenUV,
   texture,
@@ -10,6 +11,7 @@ import {
   uv,
   vec4,
 } from "three/tsl";
+import { createRainRipples } from "./tsl/rainRipples.js";
 
 const ALBEDO_PATH = "/textures/wet-puddles-albedo.jpg";
 const ROUGHNESS_PATH = "/textures/wet-puddles-roughness.jpg";
@@ -44,6 +46,11 @@ export function createGround(scene, {
   reflectionBlur = 1.52,
   reflectionStrength = 0.005,
   normalWarp = 0.035,
+  rippleAmount = 0,
+  rippleScale = 3,
+  rippleSpeed = 3,
+  rippleStrength = 0.08,
+  rippleNormalStrength = 0.2,
 } = {}) {
   const textureLoader = new THREE.TextureLoader();
 
@@ -78,23 +85,45 @@ export function createGround(scene, {
   const uNormalWarp = uniform(normalWarp);
   const uFogNear = uniform(fogNear);
   const uFogFar = uniform(fogFar);
+  const uTime = uniform(0);
+  const uRippleAmount = uniform(rippleAmount);
+  const uRippleScale = uniform(rippleScale);
+  const uRippleSpeed = uniform(rippleSpeed);
+  const uRippleStrength = uniform(rippleStrength);
+  const uRippleNormalStrength = uniform(rippleNormalStrength);
+
+  const getRipples = createRainRipples({ uTime, uRippleSpeed });
 
   // Shared tiling for albedo, roughness, and normal.
   const tiledUV = uv().mul(uUvRepeat);
   const roughness = texture(roughnessMap, tiledUV).r;
   const albedo = texture(albedoMap, tiledUV);
   const normalSample = texture(normalMapTex, tiledUV);
+  const rippleSample = getRipples(positionWorld.xz.mul(uRippleScale));
+  const rippleReflectionOffset = rippleSample.xy
+    .mul(uRippleAmount)
+    .mul(uRippleStrength);
+  const rippleNormalOffset = rippleSample.xy
+    .mul(uRippleAmount)
+    .mul(uRippleNormalStrength);
+  const perturbedNormalSample = vec4(
+    normalSample.xy.add(rippleNormalOffset),
+    normalSample.zw,
+  );
 
-  // Warp reflection UV by normal map (webgpu_reflection style).
+  // Warp reflection UV by normal map and rain ripples.
   const normalOffset = normalSample.xy.mul(2).sub(1).mul(uNormalWarp);
-  const reflectionUV = screenUV.flipX().add(normalOffset);
+  const reflectionUV = screenUV
+    .flipX()
+    .add(normalOffset)
+    .add(rippleReflectionOffset);
   const reflectionTex = texture(renderTarget.texture, reflectionUV);
 
   const material = new THREE.MeshStandardNodeMaterial();
   material.transparent = true;
   material.metalness = 0;
   material.roughnessNode = roughness.mul(uRoughnessScale);
-  material.normalNode = normalMap(normalSample);
+  material.normalNode = normalMap(perturbedNormalSample);
   material.colorNode = Fn(() => {
     const opacity = rangeFogFactor(uFogNear, uFogFar).oneMinus();
     return vec4(albedo.rgb, opacity);
@@ -115,6 +144,26 @@ export function createGround(scene, {
   mesh.position.y = y;
   mesh.receiveShadow = true;
   scene.add(mesh);
+
+  function update(delta) {
+    uTime.value += delta;
+    uTime.needsUpdate = true;
+  }
+
+  function setRippleAmount(value) {
+    uRippleAmount.value = value;
+    uRippleAmount.needsUpdate = true;
+  }
+
+  function setRippleScale(value) {
+    uRippleScale.value = value;
+    uRippleScale.needsUpdate = true;
+  }
+
+  function setRippleSpeed(value) {
+    uRippleSpeed.value = value;
+    uRippleSpeed.needsUpdate = true;
+  }
 
   function updateReflection(renderer, camera) {
     renderer.getDrawingBufferSize(_size);
@@ -220,7 +269,16 @@ export function createGround(scene, {
       normalWarp: uNormalWarp,
       fogNear: uFogNear,
       fogFar: uFogFar,
+      rippleAmount: uRippleAmount,
+      rippleScale: uRippleScale,
+      rippleSpeed: uRippleSpeed,
+      rippleStrength: uRippleStrength,
+      rippleNormalStrength: uRippleNormalStrength,
     },
+    update,
+    setRippleAmount,
+    setRippleScale,
+    setRippleSpeed,
     updateReflection,
     dispose,
   };
