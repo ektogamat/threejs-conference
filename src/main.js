@@ -24,6 +24,7 @@ import {
 } from "./ui/createUiVisibilityCoordinator.js";
 import { createIntroOverlay } from "./ui/createIntroOverlay.js";
 import { createFirefliesOverlay } from "./intro/createFirefliesOverlay.js";
+import { createRainStreaks } from "./weather/createRainStreaks.js";
 import {
   isDevelopmentModeEnabled,
   setDevelopmentModeEnabled,
@@ -99,6 +100,7 @@ let walkControls;
 let fpsWalkHint;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
+let rain = null;
 
 async function getWebGPULimits() {
   if (!navigator.gpu) {
@@ -229,11 +231,14 @@ async function init(loaderOverlay) {
 
   const ground = createGround(scene);
 
+  rain = await createRainStreaks({ scene });
+
   if (import.meta.env.DEV) {
     window.__app = {
       scene,
       model,
       ground,
+      rain,
       listObjectNames() {
         const rows = [];
 
@@ -455,6 +460,7 @@ async function init(loaderOverlay) {
       controls.update();
     }
 
+    rain?.update(delta, camera);
     ground.updateReflection?.(renderer, camera);
     pipeline.dof.updateFocusPoint(focusPoint, camera);
     post.render();
@@ -496,6 +502,7 @@ async function init(loaderOverlay) {
     loaderOverlay.setProgress(0.96);
     loaderOverlay.setStatus("Warming up...");
     for (let i = 0; i < 4; i++) {
+      rain?.update(1 / 60, camera);
       ground.updateReflection?.(renderer, camera);
       post.render();
     }
@@ -528,6 +535,7 @@ async function init(loaderOverlay) {
         syncFov: applyCameraFovForLayout,
         syncWalkEyeHeight,
       },
+      rain,
     );
     inspectorSetupDone = true;
   }

@@ -7,6 +7,7 @@ export function setupInspector(
   sun = null,
   ground = null,
   cameraControls = null,
+  rain = null,
 ) {
   const {
     post,
@@ -337,6 +338,40 @@ export function setupInspector(
     );
     addParam(groundFolder, ground.uniforms.fogFar, "value", 10, 400, 1).name(
       "fade far",
+    );
+  }
+
+  if (rain?.params) {
+    const rainFolder = addClosedFolder(gui, "Rain");
+    bindParamControl(
+      rainFolder.add(rain.params, "enabled").name("enabled"),
+      (value) => rain.setEnabled(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "count", 200, 40000, 100)
+        .name("drop count"),
+      (value) => rain.setDropCount(value),
+    );
+    bindParamControl(
+      rainFolder.add(rain.params, "opacity", 0.02, 1, 0.01).name("opacity"),
+      (value) => rain.setOpacity(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "overallSpeed", 5, 80, 1)
+        .name("overall speed"),
+      (value) => rain.setOverallSpeed(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "radius", 8, 50, 1)
+        .name("volume radius"),
+      (value) => rain.setVolumeRadius(value),
+    );
+    bindParamControl(
+      rainFolder.add(rain.params, "intensity", 0.1, 2, 0.05).name("intensity"),
+      (value) => rain.setIntensity(value),
     );
   }
 
