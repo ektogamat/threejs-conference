@@ -7,12 +7,14 @@ export function createPerformanceDevTools({ pipeline, ground }) {
   let fps = 0;
   let frameCount = 0;
   let lastSampleTime = performance.now();
+  const perfStats = { fps: 0 };
 
   function sampleFps() {
     frameCount += 1;
     const now = performance.now();
     if (now - lastSampleTime >= 1000) {
       fps = frameCount;
+      perfStats.fps = frameCount;
       frameCount = 0;
       lastSampleTime = now;
     }
@@ -33,10 +35,9 @@ export function createPerformanceDevTools({ pipeline, ground }) {
     return performanceProfile;
   }
 
-  syncPipelineFromProfile();
-
   const perfApi = {
     profile: performanceProfile,
+    stats: perfStats,
     getFps: () => fps,
     sampleFps,
     set: setProfileFlag,
@@ -61,19 +62,23 @@ export function createPerformanceDevTools({ pipeline, ground }) {
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
           "  groundReflection, bloom, dof, lensflare, smaa",
           "  groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
+          "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
           "  __app.perf.getFps() — sampled each second in render loop",
+          "  Inspector: Settings → Development Mode → Post-processing → Performance",
         ].join("\n"),
       );
     },
   };
 
+  syncPipelineFromProfile();
   if (import.meta.env.DEV) {
     console.info("[perf] Run __app.perf.printHelp() for FPS A/B toggles");
   }
 
   return {
     perfApi,
+    perfStats,
     sampleFps,
     shouldUpdateGroundReflection() {
       return performanceProfile.groundReflection;

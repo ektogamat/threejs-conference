@@ -8,8 +8,10 @@ export const performanceProfile = {
   groundReflectionFrameSkip: 2,
 
   bloom: true,
+  bloomResolutionScale: 0.5,
   dof: true,
   lensflare: true,
+  lensflareResolutionScale: 0.5,
   smaa: true,
 
   lensflareBlurRadius: 4,
@@ -22,7 +24,10 @@ export function applyPerformanceProfileToPipeline(pipeline) {
 
   const { perf } = pipeline;
   perf.setBloomEnabled(performanceProfile.bloom);
+  perf.setBloomResolutionScale(performanceProfile.bloomResolutionScale);
   perf.setDofEnabled(performanceProfile.dof);
   perf.setLensflareEnabled(performanceProfile.lensflare);
+  perf.setLensflareResolutionScale(performanceProfile.lensflareResolutionScale);
+  perf.setLensflareBlurRadius(performanceProfile.lensflareBlurRadius);
   perf.setSmaaEnabled(performanceProfile.smaa);
 }

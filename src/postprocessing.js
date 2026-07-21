@@ -26,6 +26,7 @@ export function createPostProcessing(renderer, scene, camera) {
   scenePass.getTexture("emissive").type = UnsignedByteType;
 
   const bloomPass = bloom(scenePassEmissive, 2.5, 0.45);
+  bloomPass.setResolutionScale(performanceProfile.bloomResolutionScale);
   const bloomEnabled = uniform(performanceProfile.bloom ? 1 : 0);
 
   const lensflareThreshold = uniform(0.09);
@@ -33,13 +34,16 @@ export function createPostProcessing(renderer, scene, camera) {
   const lensflareGhostSpacing = uniform(0.27);
   const lensflareStrength = uniform(0.71);
   const lensflareEnabled = uniform(performanceProfile.lensflare ? 1 : 0);
+  const lensflareBlurRadius = uniform(performanceProfile.lensflareBlurRadius);
 
   const flarePass = lensflare(bloomPass, {
     threshold: lensflareThreshold,
     ghostAttenuationFactor: lensflareGhostAttenuation,
     ghostSpacing: lensflareGhostSpacing,
   });
-  const flareBlurred = gaussianBlur(flarePass, performanceProfile.lensflareBlurRadius);
+  const flareBlurred = gaussianBlur(flarePass, lensflareBlurRadius, 4, {
+    resolutionScale: performanceProfile.lensflareResolutionScale,
+  });
   const flareContribution = flareBlurred.mul(lensflareStrength).mul(lensflareEnabled);
 
   const look = createCyberpunkLook({ scenePass });
@@ -89,6 +93,10 @@ export function createPostProcessing(renderer, scene, camera) {
     bloomEnabled.needsUpdate = true;
   }
 
+  function setBloomResolutionScale(scale) {
+    bloomPass.setResolutionScale(scale);
+  }
+
   function setDofEnabled(enabled) {
     dofEnabled.value = enabled ? 1 : 0;
     dofEnabled.needsUpdate = true;
@@ -97,6 +105,15 @@ export function createPostProcessing(renderer, scene, camera) {
   function setLensflareEnabled(enabled) {
     lensflareEnabled.value = enabled ? 1 : 0;
     lensflareEnabled.needsUpdate = true;
+  }
+
+  function setLensflareResolutionScale(scale) {
+    flareBlurred.resolutionScale = scale;
+  }
+
+  function setLensflareBlurRadius(radius) {
+    lensflareBlurRadius.value = radius;
+    lensflareBlurRadius.needsUpdate = true;
   }
 
   function setSmaaEnabled(enabled) {
@@ -152,8 +169,11 @@ export function createPostProcessing(renderer, scene, camera) {
     },
     perf: {
       setBloomEnabled,
+      setBloomResolutionScale,
       setDofEnabled,
       setLensflareEnabled,
+      setLensflareResolutionScale,
+      setLensflareBlurRadius,
       setSmaaEnabled,
     },
   };

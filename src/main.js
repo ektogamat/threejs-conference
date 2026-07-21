@@ -550,6 +550,7 @@ async function init(loaderOverlay) {
         syncWalkEyeHeight,
       },
       rain,
+      performanceTools,
     );
     inspectorSetupDone = true;
   }
