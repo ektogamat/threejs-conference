@@ -280,7 +280,11 @@ async function init(loaderOverlay) {
   applyEnvironmentMap(scene, renderer, envTexture, {
     intensity: envMapBaseIntensity.value,
   });
-  scene.environmentRotation.set(0, THREE.MathUtils.degToRad(69), 0);
+  scene.environmentRotation.set(
+    0,
+    THREE.MathUtils.degToRad(70),
+    THREE.MathUtils.degToRad(51),
+  );
 
   loaderOverlay.setProgress(0.85);
   loaderOverlay.setStatus("Configuring post-processing...");
@@ -370,7 +374,7 @@ async function init(loaderOverlay) {
     baseFov: getBaseFovForLayout(),
     settings: {
       moveSpeed: 7,
-      sprintMultiplier: 1.2,
+      sprintMultiplier: 4,
       eyeHeight: cameraParams.walkEyeHeight,
       acceleration: cameraParams.walkAcceleration,
       deceleration: cameraParams.walkDeceleration,

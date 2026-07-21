@@ -2,11 +2,15 @@ import * as THREE from "three/webgpu";
 
 const DEFAULTS = {
   moveSpeed: 7,
-  sprintMultiplier: 1.2,
+  sprintMultiplier: 1.8,
   mouseSensitivity: 0.002,
   eyeHeight: 1.75,
   acceleration: 10,
   deceleration: 14,
+  /** How quickly walk speed ramps into sprint. */
+  sprintRampUp: 1.6,
+  /** How quickly sprint speed eases back to walk. */
+  sprintRampDown: 2.2,
   walkFovBoost: 3,
   sprintFovBoost: 8,
   walkFovBlendSpeed: 2,
@@ -97,6 +101,7 @@ export function createWalkControls({
   let pointerLocked = false;
   let moving = false;
   let currentBaseFov = baseFov;
+  let currentSpeed = settings.moveSpeed;
 
   const listeners = new Set();
 
@@ -137,18 +142,31 @@ export function createWalkControls({
 
     const speed = currentVelocity.length();
     const isMoving = speed > SPRINT_SPEED_THRESHOLD;
-    const isSprinting = keys.sprint && isMoving;
-    const isWalking = isMoving && !keys.sprint;
+    const walkSpeed = settings.moveSpeed;
+    const sprintSpeed = settings.moveSpeed * settings.sprintMultiplier;
+    const sprintSpan = Math.max(sprintSpeed - walkSpeed, 1e-6);
+    const sprintT = THREE.MathUtils.clamp(
+      (currentSpeed - walkSpeed) / sprintSpan,
+      0,
+      1,
+    );
 
     let targetFov = currentBaseFov;
     let blendSpeed = settings.walkFovBlendSpeed;
 
-    if (isSprinting) {
-      targetFov = currentBaseFov + settings.sprintFovBoost;
-      blendSpeed = settings.sprintFovBlendSpeed;
-    } else if (isWalking) {
-      targetFov = currentBaseFov + settings.walkFovBoost;
-      blendSpeed = settings.walkFovBlendSpeed;
+    if (isMoving) {
+      targetFov =
+        currentBaseFov +
+        THREE.MathUtils.lerp(
+          settings.walkFovBoost,
+          settings.sprintFovBoost,
+          sprintT,
+        );
+      blendSpeed = THREE.MathUtils.lerp(
+        settings.walkFovBlendSpeed,
+        settings.sprintFovBlendSpeed,
+        sprintT,
+      );
     }
 
     const blend = expLerpFactor(delta, blendSpeed);
@@ -316,12 +334,28 @@ export function createWalkControls({
     }
   }
 
+  function isSprintKey(event) {
+    return (
+      event.key === "Shift" ||
+      event.code === "ShiftLeft" ||
+      event.code === "ShiftRight"
+    );
+  }
+
+  function syncSprintFromEvent(event) {
+    if (typeof event.shiftKey === "boolean") {
+      keys.sprint = event.shiftKey;
+    }
+  }
+
   function onKeyDown(event) {
     if (!active || isEditableTarget(event.target)) {
       return;
     }
 
-    if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+    syncSprintFromEvent(event);
+
+    if (isSprintKey(event)) {
       keys.sprint = true;
       return;
     }
@@ -334,7 +368,9 @@ export function createWalkControls({
   }
 
   function onKeyUp(event) {
-    if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+    syncSprintFromEvent(event);
+
+    if (isSprintKey(event)) {
       keys.sprint = false;
       return;
     }
@@ -349,6 +385,9 @@ export function createWalkControls({
     if (!active || !pointerLocked) {
       return;
     }
+
+    // Keep sprint in sync while pointer-locked (modifier keyup can be missed).
+    syncSprintFromEvent(event);
 
     euler.y -= event.movementX * settings.mouseSensitivity;
     euler.x -= event.movementY * settings.mouseSensitivity;
@@ -407,11 +446,13 @@ export function createWalkControls({
         keys[key] = false;
       }
       currentVelocity.set(0, 0, 0);
+      currentSpeed = settings.moveSpeed;
       moving = false;
       restoreBaseFov();
     } else {
       syncEulerFromCamera();
       currentVelocity.set(0, 0, 0);
+      currentSpeed = settings.moveSpeed;
       camera.fov = currentBaseFov;
       camera.updateProjectionMatrix();
       snapCameraToGround({ allowLongDrop: true });
@@ -429,6 +470,7 @@ export function createWalkControls({
     if (!pointerLocked) {
       snapCameraToGround();
       currentVelocity.set(0, 0, 0);
+      currentSpeed = settings.moveSpeed;
       restoreBaseFov();
       if (moving) {
         moving = false;
@@ -473,12 +515,21 @@ export function createWalkControls({
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize();
       }
+    }
 
-      const speed = keys.sprint
+    const targetSpeed =
+      wantsMove && keys.sprint
         ? settings.moveSpeed * settings.sprintMultiplier
         : settings.moveSpeed;
+    const sprintRamp =
+      targetSpeed > currentSpeed
+        ? settings.sprintRampUp
+        : settings.sprintRampDown;
+    currentSpeed +=
+      (targetSpeed - currentSpeed) * expLerpFactor(delta, sprintRamp);
 
-      desiredVelocity.copy(moveDirection).multiplyScalar(speed);
+    if (wantsMove) {
+      desiredVelocity.copy(moveDirection).multiplyScalar(currentSpeed);
     } else {
       desiredVelocity.set(0, 0, 0);
     }
