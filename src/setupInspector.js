@@ -14,9 +14,12 @@ export function setupInspector(
     scenePassEmissive,
     bloomPass,
     bloomPassWide,
+    lensflare,
     look,
     applyLookPreset,
     restoreCombinedOutput,
+    composedOutput,
+    dof,
   } = pipeline;
 
   function notifyParamInteraction() {
@@ -60,6 +63,8 @@ export function setupInspector(
     Emissive: 2,
     Bloom: 3,
     "Bloom Wide": 4,
+    DOF: 5,
+    Lensflare: 6,
   };
 
   const gui = renderer.inspector.createParameters("Post-processing");
@@ -73,6 +78,7 @@ export function setupInspector(
       applyLookPreset(presetId, {
         bloomPass,
         bloomPassWide,
+        lensflare,
       });
       lookParams.preset = presetId;
       syncFogColorParams();
@@ -229,6 +235,35 @@ export function setupInspector(
     );
   }
 
+  if (lensflare) {
+    const lensflareFolder = addClosedFolder(gui, "Lensflare");
+    addParam(lensflareFolder, lensflare.strength, "value", 0, 2).name(
+      "strength",
+    );
+    addParam(lensflareFolder, lensflare.threshold, "value", 0, 1).name(
+      "threshold",
+    );
+    addParam(lensflareFolder, lensflare.ghostSpacing, "value", 0, 0.4).name(
+      "spacing",
+    );
+    addParam(
+      lensflareFolder,
+      lensflare.ghostAttenuation,
+      "value",
+      10,
+      50,
+    ).name("attenuation");
+  }
+
+  if (dof) {
+    const dofFolder = addClosedFolder(gui, "DOF");
+    addParam(dofFolder, dof.enabled, "value", 0, 1).name("enabled");
+    addParam(dofFolder, dof.minDistance, "value", 0, 50).name("min distance");
+    addParam(dofFolder, dof.maxDistance, "value", 0, 100).name("max distance");
+    addParam(dofFolder, dof.blurSize, "value", 1, 3, 1).name("blur size");
+    addParam(dofFolder, dof.blurSpread, "value", 1, 7, 1).name("blur spread");
+  }
+
   if (sun?.sunState && sun?.refreshSun) {
     const sunFolder = addClosedFolder(gui, "Sun");
     const refreshSun = () => {
@@ -383,6 +418,10 @@ export function setupInspector(
       post.outputNode = bloomPassWide
         ? vec4(bloomPassWide.rgb, 1)
         : vec4(bloomPass.rgb, 1);
+    } else if (value === 5 && composedOutput) {
+      post.outputNode = composedOutput;
+    } else if (value === 6 && lensflare?.pass) {
+      post.outputNode = vec4(lensflare.pass.rgb, 1);
     } else {
       restoreCombinedOutput?.();
       return;

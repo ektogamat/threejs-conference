@@ -13,7 +13,7 @@ import {
   smoothstep,
   length,
   step,
-  max,
+  max
 } from "three/tsl";
 import { chromaticAberration } from "three/addons/tsl/display/ChromaticAberrationNode.js";
 import { film } from "three/addons/tsl/display/FilmNode.js";
@@ -102,6 +102,12 @@ export const LOOK_PRESETS = {
     label: "Neutral",
     bloom: { strength: 3, radius: 0.5 },
     bloomWide: { strength: 1.25, radius: 1 },
+    lensflare: {
+      strength: 0,
+      threshold: 0.6,
+      ghostSpacing: 0.25,
+      ghostAttenuation: 25,
+    },
     uniforms: presetUniforms({
       ...fogUniforms([0.36, 0.38, 0.42]),
       gradeTint: [1, 1, 1],
@@ -118,8 +124,14 @@ export const LOOK_PRESETS = {
   },
   neonNoir: {
     label: "Neon Noir",
-    bloom: { strength: 4.5, radius: 0.65 },
+    bloom: { strength: 1.5, radius: 0.16 },
     bloomWide: { strength: 2.2, radius: 0.85 },
+    lensflare: {
+      strength: 0.71,
+      threshold: 0.09,
+      ghostSpacing: 0.27,
+      ghostAttenuation: 50,
+    },
     uniforms: presetUniforms({
       ...fogUniforms(DEFAULT_FOG.colorSrgb),
       gradeTint: [1.02, 0.9, 1.06],
@@ -129,8 +141,8 @@ export const LOOK_PRESETS = {
       greenSuppress: 0.72,
       gradeMix: 0.7,
       chromaticStrength: 0.3,
-      vignetteIntensity: 0.4,
-      vignetteSmoothness: 0.6,
+      vignetteIntensity: 0.72,
+      vignetteSmoothness: 0.64,
       grainIntensity: 0.2,
     }),
   },
@@ -138,6 +150,12 @@ export const LOOK_PRESETS = {
     label: "Magenta Rain",
     bloom: { strength: 5, radius: 0.72 },
     bloomWide: { strength: 2.6, radius: 1 },
+    lensflare: {
+      strength: 1.1,
+      threshold: 0.45,
+      ghostSpacing: 0.2,
+      ghostAttenuation: 22,
+    },
     uniforms: presetUniforms({
       ...fogUniforms([0.4, 0.34, 0.44]),
       gradeTint: [1.08, 0.9, 1.08],
@@ -156,6 +174,12 @@ export const LOOK_PRESETS = {
     label: "Teal Dusk",
     bloom: { strength: 3.6, radius: 0.58 },
     bloomWide: { strength: 1.85, radius: 0.78 },
+    lensflare: {
+      strength: 0.55,
+      threshold: 0.6,
+      ghostSpacing: 0.24,
+      ghostAttenuation: 30,
+    },
     uniforms: presetUniforms({
       ...fogUniforms([0.32, 0.38, 0.46]),
       gradeTint: [0.94, 0.98, 1.06],
@@ -194,8 +218,8 @@ export function createCyberpunkLook({ scenePass }) {
     greenSuppress: uniform(0.72),
     gradeMix: uniform(0.7),
     chromaticStrength: uniform(0.35),
-    vignetteIntensity: uniform(0.42),
-    vignetteSmoothness: uniform(0.6),
+    vignetteIntensity: uniform(0.72),
+    vignetteSmoothness: uniform(0.64),
     grainIntensity: uniform(0.22),
   };
 
@@ -231,7 +255,29 @@ export function createCyberpunkLook({ scenePass }) {
     }
   }
 
-  function applyPreset(id, { bloomPass, bloomPassWide } = {}) {
+  function applyLensflareSettings(preset, lensflare) {
+    if (!lensflare || !preset.lensflare) {
+      return;
+    }
+
+    const { strength, threshold, ghostSpacing, ghostAttenuation } =
+      preset.lensflare;
+
+    if (lensflare.strength) {
+      lensflare.strength.value = strength;
+    }
+    if (lensflare.threshold) {
+      lensflare.threshold.value = threshold;
+    }
+    if (lensflare.ghostSpacing) {
+      lensflare.ghostSpacing.value = ghostSpacing;
+    }
+    if (lensflare.ghostAttenuation) {
+      lensflare.ghostAttenuation.value = ghostAttenuation;
+    }
+  }
+
+  function applyPreset(id, { bloomPass, bloomPassWide, lensflare } = {}) {
     const preset = LOOK_PRESETS[id];
     if (!preset) {
       return false;
@@ -240,6 +286,7 @@ export function createCyberpunkLook({ scenePass }) {
     currentPresetId = id;
     applyUniformValues(preset.uniforms);
     applyBloomSettings(preset, bloomPass, bloomPassWide);
+    applyLensflareSettings(preset, lensflare);
 
     return true;
   }

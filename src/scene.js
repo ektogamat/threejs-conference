@@ -22,7 +22,7 @@ export function createScene() {
   const SUN_DISTANCE = 150;
 
   const sunLight = new THREE.DirectionalLight("#cfefff", 10);
-  sunLight.position.set(18, 25, 6);
+  sunLight.position.set(23, 31, 3);
   sunLight.target.position.set(0, 0, 0);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(4096, 4096);

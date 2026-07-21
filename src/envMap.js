@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 
 const DEFAULT_HDR_URL =
-  "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloppenheim_02_puresky_2k.hdr";
+  "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/sunflowers_puresky_1k.hdr";
 
 export async function loadEnvironmentMap(url = DEFAULT_HDR_URL) {
   const loader = new HDRLoader();
