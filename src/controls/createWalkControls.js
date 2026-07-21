@@ -4,7 +4,7 @@ const DEFAULTS = {
   moveSpeed: 7,
   sprintMultiplier: 1.8,
   mouseSensitivity: 0.002,
-  eyeHeight: 1.75,
+  eyeHeight: 1.55,
   acceleration: 10,
   deceleration: 14,
   /** How quickly walk speed ramps into sprint. */
@@ -61,6 +61,7 @@ export function createWalkControls({
   camera,
   domElement,
   model,
+  colliders = null,
   ground,
   baseFov = 85,
   settings: settingsOverrides = {},
@@ -68,6 +69,11 @@ export function createWalkControls({
 } = {}) {
   const settings = { ...DEFAULTS, ...settingsOverrides };
 
+  const collisionRoots =
+    colliders?.length > 0 ? colliders : model ? [model] : [];
+
+  // Ground probes collect every hit (roofs vs floors). Keep dense props
+  // like the car out of this list — use a box collider for walls only.
   const walkTargets = [];
   if (model) {
     walkTargets.push(model);
@@ -265,7 +271,7 @@ export function createWalkControls({
   }
 
   function canMoveTo(from, to) {
-    if (!model) {
+    if (collisionRoots.length === 0) {
       return true;
     }
 
@@ -283,7 +289,7 @@ export function createWalkControls({
     raycaster.far = distance + settings.wallProbeDistance;
     raycaster.firstHitOnly = true;
 
-    const hits = raycaster.intersectObject(model, true);
+    const hits = raycaster.intersectObjects(collisionRoots, true);
     if (hits.length > 0 && hits[0].distance < distance) {
       return false;
     }

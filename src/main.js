@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Inspector } from "three/addons/inspector/Inspector.js";
 import { addModel, createScene } from "./scene.js";
-import { loadLoftModel } from "./loadModel.js";
+import { loadLoftModel, loadQuadraCar } from "./loadModel.js";
 import { createGround } from "./createGround.js";
 import { createPostProcessing } from "./postprocessing.js";
 import { setupInspector } from "./setupInspector.js";
@@ -44,12 +44,12 @@ import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
 import { performanceProfile } from "./performanceProfile.js";
 
 const INTRO_ENABLED = false;
-const DESKTOP_FOV = 75;
+const DESKTOP_FOV = 55;
 const MOBILE_FOV = 100;
 const cameraParams = {
   fovDesktop: DESKTOP_FOV,
   fovMobile: MOBILE_FOV,
-  walkEyeHeight: 2.95,
+  walkEyeHeight: 1.55,
   walkAcceleration: 10,
   walkDeceleration: 14,
   walkFovBoost: 3,
@@ -183,7 +183,7 @@ async function init(loaderOverlay) {
     powerPreference: "high-performance",
     stencil: false,
     requiredLimits,
-    // samples: 0,
+    samples: 0,
   });
   renderer.setPixelRatio(
     Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
@@ -220,10 +220,12 @@ async function init(loaderOverlay) {
 
   loaderOverlay.setProgress(0.35);
 
-  const [model, envTexture] = await Promise.all([
+  const [model, quadra, envTexture] = await Promise.all([
     loadLoftModel(renderer),
+    loadQuadraCar(renderer),
     loadEnvironmentMap(),
   ]);
+  const { car: quadraCar, collider: quadraCollider } = quadra;
   // cloudSky = await createCloudSky(scene, {
   //   radius: 45,
   //   verticalOffset: 2,
@@ -232,6 +234,9 @@ async function init(loaderOverlay) {
   loaderOverlay.setProgress(0.7);
 
   addModel(scene, model);
+  addModel(scene, quadraCar);
+  scene.add(quadraCollider);
+  requestShadowMapUpdate("quadra-car");
 
   const ground = createGround(scene);
 
@@ -241,6 +246,7 @@ async function init(loaderOverlay) {
     window.__app = {
       scene,
       model,
+      quadraCar,
       ground,
       rain,
       listObjectNames() {
@@ -300,7 +306,7 @@ async function init(loaderOverlay) {
   loaderOverlay.setProgress(0.85);
   loaderOverlay.setStatus("Configuring post-processing...");
 
-  pipeline = createPostProcessing(renderer, scene, camera);
+  pipeline = createPostProcessing(renderer, scene, camera, { rain });
   post = pipeline.post;
 
   pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
@@ -387,6 +393,7 @@ async function init(loaderOverlay) {
     camera,
     domElement: renderer.domElement,
     model,
+    colliders: [model, quadraCollider],
     ground: ground.mesh,
     baseFov: getBaseFovForLayout(),
     settings: {
@@ -466,6 +473,7 @@ async function init(loaderOverlay) {
     if (performanceTools?.shouldUpdateGroundReflection()) {
       ground.updateReflection?.(renderer, camera);
     }
+    pipeline.syncCameras?.(camera);
     pipeline.dof.updateFocusPoint(focusPoint, camera);
     post.render();
     performanceTools?.sampleFps();
@@ -502,7 +510,13 @@ async function init(loaderOverlay) {
 
     loaderOverlay.setProgress(0.93);
     loaderOverlay.setStatus("Compiling shaders...");
-    await renderer.compileAsync(scene, camera);
+    // Size reflection RT before compile so we don't destroy a 1x1 texture
+    // that shaders already bound (WebGPU: Destroyed texture used in submit).
+    ground.syncReflectionSize?.(renderer);
+    await renderer.compileAsync(scene, pipeline.beautyCamera ?? camera);
+    if (pipeline.rainCamera) {
+      await renderer.compileAsync(scene, pipeline.rainCamera);
+    }
 
     loaderOverlay.setProgress(0.96);
     loaderOverlay.setStatus("Warming up...");
@@ -511,6 +525,7 @@ async function init(loaderOverlay) {
       ground.update?.(1 / 60);
       ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
       ground.updateReflection?.(renderer, camera);
+      pipeline.syncCameras?.(camera);
       post.render();
     }
   }

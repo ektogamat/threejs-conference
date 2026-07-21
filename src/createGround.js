@@ -44,9 +44,9 @@ export function createGround(scene, {
   fogFar = 51,
   roughnessScale = 0.55,
   reflectionBlur = 1.52,
-  reflectionStrength = 0.005,
+  reflectionStrength = 0.13,
   normalWarp = 0.035,
-  rippleAmount = 0,
+  rippleAmount = 1,
   rippleScale = 3,
   rippleSpeed = 3,
   rippleStrength = 0.08,
@@ -172,6 +172,21 @@ export function createGround(scene, {
 
   let reflectionFrameCounter = 0;
 
+  function syncReflectionSize(renderer) {
+    renderer.getDrawingBufferSize(_size);
+    const width = Math.max(
+      1,
+      Math.round(_size.width * performanceProfile.groundResolutionScale),
+    );
+    const height = Math.max(
+      1,
+      Math.round(_size.height * performanceProfile.groundResolutionScale),
+    );
+    if (renderTarget.width !== width || renderTarget.height !== height) {
+      renderTarget.setSize(width, height);
+    }
+  }
+
   function setReflectionEnabled(enabled) {
     uReflectionEnabled.value = enabled ? 1 : 0;
     uReflectionEnabled.needsUpdate = true;
@@ -188,18 +203,7 @@ export function createGround(scene, {
       return;
     }
 
-    renderer.getDrawingBufferSize(_size);
-    const width = Math.max(
-      1,
-      Math.round(_size.width * performanceProfile.groundResolutionScale),
-    );
-    const height = Math.max(
-      1,
-      Math.round(_size.height * performanceProfile.groundResolutionScale),
-    );
-    if (renderTarget.width !== width || renderTarget.height !== height) {
-      renderTarget.setSize(width, height);
-    }
+    syncReflectionSize(renderer);
 
     _reflectorWorldPos.setFromMatrixPosition(mesh.matrixWorld);
     _camWorldPos.setFromMatrixPosition(camera.matrixWorld);
@@ -309,6 +313,7 @@ export function createGround(scene, {
     setRippleScale,
     setRippleSpeed,
     setReflectionEnabled,
+    syncReflectionSize,
     updateReflection,
     dispose,
   };
