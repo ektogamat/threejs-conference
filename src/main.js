@@ -40,9 +40,10 @@ import {
   onMobileLayoutChange,
   syncLayoutClass,
 } from "./ui/deviceLayout.js";
+import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
 
 const INTRO_ENABLED = false;
-const MAX_PIXEL_RATIO = 1.5;
+const MAX_PIXEL_RATIO = 1.0;
 const DESKTOP_FOV = 75;
 const MOBILE_FOV = 100;
 const cameraParams = {
@@ -101,6 +102,7 @@ let fpsWalkHint;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
+let performanceTools = null;
 
 async function getWebGPULimits() {
   if (!navigator.gpu) {
@@ -301,9 +303,14 @@ async function init(loaderOverlay) {
 
   pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
     bloomPass: pipeline.bloomPass,
-    bloomPassWide: pipeline.bloomPassWide,
     lensflare: pipeline.lensflare,
   });
+
+  performanceTools = createPerformanceDevTools({ pipeline, ground });
+
+  if (import.meta.env.DEV && window.__app) {
+    window.__app.perf = performanceTools.perfApi;
+  }
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(...FREE_CAMERA_START.target);
@@ -463,9 +470,12 @@ async function init(loaderOverlay) {
     rain?.update(delta, camera);
     ground.update?.(delta);
     ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
-    ground.updateReflection?.(renderer, camera);
+    if (performanceTools?.shouldUpdateGroundReflection()) {
+      ground.updateReflection?.(renderer, camera);
+    }
     pipeline.dof.updateFocusPoint(focusPoint, camera);
     post.render();
+    performanceTools?.sampleFps();
   }
 
   // Animation loop starts after finalizeStartupLighting (see below).

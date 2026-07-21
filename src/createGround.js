@@ -12,6 +12,7 @@ import {
   vec4,
 } from "three/tsl";
 import { createRainRipples } from "./tsl/rainRipples.js";
+import { performanceProfile } from "./performanceProfile.js";
 
 const ALBEDO_PATH = "/textures/wet-puddles-albedo.jpg";
 const ROUGHNESS_PATH = "/textures/wet-puddles-roughness.jpg";
@@ -39,7 +40,6 @@ export function createGround(scene, {
   size = 400,
   y = -5.5,
   uvRepeat = 14.9,
-  resolutionScale = 0.5,
   fogNear = 0,
   fogFar = 51,
   roughnessScale = 0.55,
@@ -72,9 +72,9 @@ export function createGround(scene, {
     depthBuffer: true,
   });
   renderTarget.texture.name = "GroundPlanarReflection";
-  renderTarget.texture.minFilter = THREE.LinearMipmapLinearFilter;
+  renderTarget.texture.minFilter = THREE.LinearFilter;
   renderTarget.texture.magFilter = THREE.LinearFilter;
-  renderTarget.texture.generateMipmaps = true;
+  renderTarget.texture.generateMipmaps = false;
 
   const mirrorCamera = new THREE.PerspectiveCamera();
 
@@ -165,10 +165,24 @@ export function createGround(scene, {
     uRippleSpeed.needsUpdate = true;
   }
 
+  let reflectionFrameCounter = 0;
+
   function updateReflection(renderer, camera) {
+    const frameSkip = Math.max(1, performanceProfile.groundReflectionFrameSkip);
+    reflectionFrameCounter += 1;
+    if (reflectionFrameCounter % frameSkip !== 0) {
+      return;
+    }
+
     renderer.getDrawingBufferSize(_size);
-    const width = Math.max(1, Math.round(_size.width * resolutionScale));
-    const height = Math.max(1, Math.round(_size.height * resolutionScale));
+    const width = Math.max(
+      1,
+      Math.round(_size.width * performanceProfile.groundResolutionScale),
+    );
+    const height = Math.max(
+      1,
+      Math.round(_size.height * performanceProfile.groundResolutionScale),
+    );
     if (renderTarget.width !== width || renderTarget.height !== height) {
       renderTarget.setSize(width, height);
     }

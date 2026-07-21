@@ -5,8 +5,9 @@ import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
-import { boxBlur } from "./tsl/boxBlur.js";
+import { boxBlurSeparable } from "./tsl/boxBlur.js";
 import { smaa } from "three/addons/tsl/display/SMAANode.js";
+import { performanceProfile } from "./performanceProfile.js";
 
 export function createPostProcessing(renderer, scene, camera) {
   const post = new RenderPipeline(renderer);
@@ -24,22 +25,22 @@ export function createPostProcessing(renderer, scene, camera) {
 
   scenePass.getTexture("emissive").type = UnsignedByteType;
 
-  const bloomPass = bloom(scenePassEmissive, 1.5, 0.16);
-  const bloomPassWide = bloom(scenePassEmissive, 2.2, 0.85);
+  const bloomPass = bloom(scenePassEmissive, 2.5, 0.45);
+  const bloomEnabled = uniform(performanceProfile.bloom ? 1 : 0);
 
-  // Bloom-based lens flares from neon/emissive glows (webgpu_postprocessing_lensflare).
   const lensflareThreshold = uniform(0.09);
   const lensflareGhostAttenuation = uniform(50);
   const lensflareGhostSpacing = uniform(0.27);
   const lensflareStrength = uniform(0.71);
+  const lensflareEnabled = uniform(performanceProfile.lensflare ? 1 : 0);
 
   const flarePass = lensflare(bloomPass, {
     threshold: lensflareThreshold,
     ghostAttenuationFactor: lensflareGhostAttenuation,
     ghostSpacing: lensflareGhostSpacing,
   });
-  const flareBlurred = gaussianBlur(flarePass, 8);
-  const flareContribution = flareBlurred.mul(lensflareStrength);
+  const flareBlurred = gaussianBlur(flarePass, performanceProfile.lensflareBlurRadius);
+  const flareContribution = flareBlurred.mul(lensflareStrength).mul(lensflareEnabled);
 
   const look = createCyberpunkLook({ scenePass });
 
@@ -47,7 +48,7 @@ export function createPostProcessing(renderer, scene, camera) {
   const blurSpread = uniform(2);
   const minDistance = uniform(36);
   const maxDistance = uniform(75);
-  const dofEnabled = uniform(1);
+  const dofEnabled = uniform(performanceProfile.dof ? 1 : 0);
   const focusPointView = uniform(vec3());
 
   const scenePassViewZ = scenePass.getViewZNode();
@@ -59,23 +60,19 @@ export function createPostProcessing(renderer, scene, camera) {
   );
   const dofMix = blurFactor.mul(dofEnabled);
 
-  // DOF on the beauty pass only (before grade/chroma/grain/bloom), matching the
-  // three.js example. Mixing sharp vs blurred *after* those effects causes edge
-  // shimmer that reads as aliasing at the focus band.
-  const blurredBeauty = boxBlur(scenePassColor, {
+  const blurredBeauty = boxBlurSeparable(scenePassColor, {
     size: blurSize,
     separation: blurSpread,
     premultipliedAlpha: true,
   });
   const beautyWithDof = mix(scenePassColor, blurredBeauty, dofMix);
 
-  // FXAA wants tone-mapped / graded input (unlike SMAA, which prefers linear).
-  // Applying after look also avoids SMAA's multi-target RenderAttachment conflicts.
   const composed = look.buildComposite(beautyWithDof, {
-    bloomContribution: bloomPass.add(bloomPassWide).add(flareContribution),
+    bloomContribution: bloomPass.mul(bloomEnabled).add(flareContribution),
   });
-  const finalOutput = smaa(composed);
-  post.outputNode = finalOutput;
+  const finalOutputWithSmaa = smaa(composed);
+  let smaaActive = performanceProfile.smaa;
+  post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
 
   function updateFocusPoint(focusPoint, activeCamera) {
     activeCamera.updateMatrixWorld();
@@ -83,14 +80,34 @@ export function createPostProcessing(renderer, scene, camera) {
   }
 
   function restoreCombinedOutput() {
-    post.outputNode = finalOutput;
+    post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
+    post.needsUpdate = true;
+  }
+
+  function setBloomEnabled(enabled) {
+    bloomEnabled.value = enabled ? 1 : 0;
+    bloomEnabled.needsUpdate = true;
+  }
+
+  function setDofEnabled(enabled) {
+    dofEnabled.value = enabled ? 1 : 0;
+    dofEnabled.needsUpdate = true;
+  }
+
+  function setLensflareEnabled(enabled) {
+    lensflareEnabled.value = enabled ? 1 : 0;
+    lensflareEnabled.needsUpdate = true;
+  }
+
+  function setSmaaEnabled(enabled) {
+    smaaActive = Boolean(enabled);
+    post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
     post.needsUpdate = true;
   }
 
   function applyLookPreset(id, options = {}) {
     return look.applyPreset(id, {
       bloomPass,
-      bloomPassWide,
       lensflare: {
         strength: lensflareStrength,
         threshold: lensflareThreshold,
@@ -110,7 +127,6 @@ export function createPostProcessing(renderer, scene, camera) {
   return {
     post,
     bloomPass,
-    bloomPassWide,
     lensflare: {
       pass: flareBlurred,
       strength: lensflareStrength,
@@ -133,6 +149,12 @@ export function createPostProcessing(renderer, scene, camera) {
       enabled: dofEnabled,
       focusPointView,
       updateFocusPoint,
+    },
+    perf: {
+      setBloomEnabled,
+      setDofEnabled,
+      setLensflareEnabled,
+      setSmaaEnabled,
     },
   };
 }

@@ -251,16 +251,14 @@ export function createCyberpunkLook({ scenePass }) {
     uniforms.grainIntensity.value = values.grainIntensity;
   }
 
-  function applyBloomSettings(preset, bloomPass, bloomPassWide) {
-    if (bloomPass) {
-      bloomPass.strength.value = preset.bloom.strength;
-      bloomPass.radius.value = preset.bloom.radius;
+  function applyBloomSettings(preset, bloomPass) {
+    if (!bloomPass) {
+      return;
     }
 
-    if (bloomPassWide) {
-      bloomPassWide.strength.value = preset.bloomWide.strength;
-      bloomPassWide.radius.value = preset.bloomWide.radius;
-    }
+    const { bloom, bloomWide } = preset;
+    bloomPass.strength.value = bloom.strength + bloomWide.strength * 0.35;
+    bloomPass.radius.value = Math.max(bloom.radius, bloomWide.radius * 0.55);
   }
 
   function applyLensflareSettings(preset, lensflare) {
@@ -285,7 +283,7 @@ export function createCyberpunkLook({ scenePass }) {
     }
   }
 
-  function applyPreset(id, { bloomPass, bloomPassWide, lensflare } = {}) {
+  function applyPreset(id, { bloomPass, lensflare } = {}) {
     const preset = LOOK_PRESETS[id];
     if (!preset) {
       return false;
@@ -293,7 +291,7 @@ export function createCyberpunkLook({ scenePass }) {
 
     currentPresetId = id;
     applyUniformValues(preset.uniforms);
-    applyBloomSettings(preset, bloomPass, bloomPassWide);
+    applyBloomSettings(preset, bloomPass);
     applyLensflareSettings(preset, lensflare);
 
     return true;
