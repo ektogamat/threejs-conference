@@ -1,0 +1,287 @@
+.walk-controls {
+  --walk-accent: #fcee0a;
+  --walk-accent-soft: rgba(252, 238, 10, 0.14);
+  --walk-accent-glow: rgba(252, 238, 10, 0.35);
+  --walk-line: rgba(255, 255, 255, 0.18);
+
+  position: fixed;
+  left: 40px;
+  bottom: 30px;
+  z-index: 45;
+  pointer-events: none;
+}
+
+.walk-controls--hidden .walk-controls__chip {
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.walk-controls--force-hidden .walk-controls__chip {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.walk-controls__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: "Montserrat", sans-serif;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.walk-controls__chip-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.walk-controls__chip:hover {
+  transform: translateY(-2px);
+  background: rgba(252, 238, 10, 0.12);
+  border-color: rgba(252, 238, 10, 0.55);
+  color: var(--walk-accent);
+  box-shadow: 0 0 18px rgba(252, 238, 10, 0.18);
+}
+
+.walk-controls__chip:focus-visible {
+  outline: 2px solid var(--walk-accent);
+  outline-offset: 2px;
+}
+
+.walk-controls__chip-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.walk-controls__chip-key {
+  stroke: currentColor;
+  stroke-width: 1.25;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.walk-controls__chip-key--shift {
+  stroke-width: 1.1;
+  opacity: 0.72;
+}
+
+.walk-controls__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: auto;
+}
+
+.walk-controls__overlay[hidden] {
+  display: none;
+}
+
+.walk-controls__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.82) 100%),
+    rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px) saturate(110%);
+  -webkit-backdrop-filter: blur(16px) saturate(110%);
+}
+
+.walk-controls__content {
+  position: relative;
+  z-index: 1;
+  width: min(920px, 100%);
+  padding: 0 12px;
+  color: rgba(255, 255, 255, 0.94);
+  pointer-events: none;
+}
+
+.walk-controls__close {
+  position: fixed;
+  top: 28px;
+  right: 28px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+  pointer-events: auto;
+}
+
+.walk-controls__close:hover {
+  background: rgba(252, 238, 10, 0.12);
+  border-color: rgba(252, 238, 10, 0.45);
+  color: var(--walk-accent);
+}
+
+.walk-controls__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.walk-controls__header {
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+.walk-controls__eyebrow {
+  margin: 0 0 4px;
+  font-family: "Rajdhani", "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--walk-accent);
+}
+
+.walk-controls__title {
+  margin: 0;
+  font-family: "Rajdhani", "Montserrat", sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.walk-controls__footer {
+  margin: 4px 0 0;
+  font-family: "Rajdhani", "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.walk-controls__diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(58vh, 500px);
+}
+
+.walk-controls__diagram .walk-key {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: var(--walk-line);
+  stroke-width: 1.5;
+}
+
+.walk-controls__diagram .walk-key--active {
+  fill: var(--walk-accent);
+  stroke: var(--walk-accent);
+  filter: drop-shadow(0 0 10px var(--walk-accent-glow));
+}
+
+.walk-controls__diagram .walk-key-label {
+  fill: rgba(255, 255, 255, 0.62);
+  font-family: "Rajdhani", "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.walk-controls__diagram .walk-key--active + .walk-key-label,
+.walk-controls__diagram .walk-key-label--active {
+  fill: rgba(8, 8, 10, 0.95);
+}
+
+.walk-controls__diagram .walk-mouse {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.walk-controls__diagram .walk-mouse--active {
+  stroke: var(--walk-accent);
+  filter: drop-shadow(0 0 8px var(--walk-accent-glow));
+}
+
+.walk-controls__diagram .walk-callout-accent {
+  stroke: var(--walk-accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--walk-accent-glow));
+}
+
+.walk-controls__diagram .walk-callout-title {
+  fill: rgba(255, 255, 255, 0.96);
+  font-family: "Rajdhani", "Montserrat", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-anchor: middle;
+  text-transform: uppercase;
+}
+
+.walk-controls__diagram .walk-callout-copy {
+  fill: rgba(255, 255, 255, 0.52);
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-anchor: middle;
+}
+
+.walk-controls__diagram .walk-leader {
+  fill: none;
+  stroke: rgba(252, 238, 10, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+@media (max-width: 768px) {
+  .walk-controls {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .walk-controls {
+    left: 16px;
+    bottom: 24px;
+  }
+}
