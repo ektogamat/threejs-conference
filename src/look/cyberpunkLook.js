@@ -1,19 +1,19 @@
 import * as THREE from "three/webgpu";
 import {
-  uniform,
-  vec2,
-  vec3,
-  vec4,
-  float,
-  mix,
-  Fn,
-  screenUV,
-  saturation,
-  luminance,
-  smoothstep,
-  length,
-  step,
-  max
+    uniform,
+    vec2,
+    vec3,
+    vec4,
+    float,
+    mix,
+    Fn,
+    screenUV,
+    saturation,
+    luminance,
+    smoothstep,
+    length,
+    step,
+    max
 } from "three/tsl";
 import { chromaticAberration } from "three/addons/tsl/display/ChromaticAberrationNode.js";
 import { film } from "three/addons/tsl/display/FilmNode.js";
