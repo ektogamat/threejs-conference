@@ -96,16 +96,13 @@ export function createUiIdleManager({
 export function createUiVisibilityCoordinator({
   state,
   header,
-  screenshotButton,
   audioButton,
   isAppReady = () => true,
 } = {}) {
   function applyVisibility({ openedPanel, uiVisible }) {
     if (!isAppReady()) {
       header?.setForceHidden?.(true);
-      screenshotButton?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
-      screenshotButton?.setVisible?.(false);
       audioButton?.setVisible?.(false);
       return;
     }
@@ -115,14 +112,11 @@ export function createUiVisibilityCoordinator({
 
     if (!uiVisible) {
       header?.setForceHidden?.(true);
-      screenshotButton?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
       return;
     }
 
     header?.setForceHidden?.(false);
-    screenshotButton?.setForceHidden?.(overlayOpen);
-    screenshotButton?.setVisible?.(!overlayOpen);
     audioButton?.setForceHidden?.(overlayOpen);
     audioButton?.setVisible?.(!overlayOpen);
   }

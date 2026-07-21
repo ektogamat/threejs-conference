@@ -2,34 +2,20 @@ import "./ui/global.css";
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Inspector } from "three/addons/inspector/Inspector.js";
-import {
-  addModel,
-  createScene,
-  computeProbeIntensity,
-  PROBE_INTENSITY,
-} from "./scene.js";
+import { addModel, createScene } from "./scene.js";
 import { loadLoftModel } from "./loadModel.js";
+import { createGround } from "./createGround.js";
 import { createPostProcessing } from "./postprocessing.js";
 import { setupInspector } from "./setupInspector.js";
-import { createSunControls } from "./sunControls.js";
 import { loadEnvironmentMap, applyEnvironmentMap } from "./envMap.js";
-import { createAdaptiveDprLoop } from "./adaptiveDprLoop.js";
-import { createCloudSky } from "./clouds/createCloudSky.js";
+// import { createCloudSky } from "./clouds/createCloudSky.js";
 import { createLoaderOverlay } from "./loaderOverlay.js";
 import { createAppUiState } from "./ui/appUiState.js";
 import { createHeader } from "./ui/createHeader.js";
 import { createAboutPanel } from "./ui/createAboutPanel.js";
 import { createSettingsPanel } from "./ui/createSettingsPanel.js";
-import { createPerformanceSuggestion } from "./ui/createPerformanceBanner.js";
 import { createResizeWarningBanner } from "./ui/createResizeWarningBanner.js";
-import { createScreenshotButton } from "./ui/createScreenshotButton.js";
 import { createAudioButton } from "./ui/createAudioButton.js";
-import { createCardInstructions } from "./ui/createCardInstructions.js";
-import { createRadialColorMenu } from "./ui/createRadialColorMenu.js";
-import { subscribeRadialMenu } from "./ui/radialMenuState.js";
-import { createPaintController } from "./createPaintController.js";
-import { createMeshColorPicker } from "./createMeshColorPicker.js";
-import { createPaintHoverHint } from "./ui/createPaintHoverHint.js";
 import { createFpsWalkHint } from "./ui/createFpsWalkHint.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
@@ -38,35 +24,11 @@ import {
 } from "./ui/createUiVisibilityCoordinator.js";
 import { createIntroOverlay } from "./ui/createIntroOverlay.js";
 import { createFirefliesOverlay } from "./intro/createFirefliesOverlay.js";
-import { createRenderModeController } from "./renderModeController.js";
 import {
-  installIndirectSpecularPatch,
-  syncIndirectSpecularPatch,
-  invalidatePhysicalMaterials,
-} from "./materials/indirectSpecularPatch.js";
-import {
-  RENDER_MODES,
-  applyRenderModeSettings,
-  getRenderModeRuntimeTuning,
-} from "./renderModes.js";
-import {
-  getRenderMode,
-  getInitialRenderMode,
-  hasUserChosenRenderMode,
   isDevelopmentModeEnabled,
   setDevelopmentModeEnabled,
   clearAllStoredPreferences,
 } from "./userPreferences.js";
-import {
-  applyProjectState,
-  buildSnapshot,
-  clearProjectState,
-  loadProjectState,
-  saveProjectState,
-} from "./projectPersistence.js";
-import { createSsrMotionProfile } from "./ssrMotion.js";
-import { captureCanvasScreenshot } from "./captureScreenshot.js";
-import { runFsrBenchmark, shouldRunFsrBenchmark } from "./fsrBenchmark.js";
 import {
   openInspector,
   hideInspector,
@@ -79,27 +41,50 @@ import {
 } from "./ui/deviceLayout.js";
 
 const INTRO_ENABLED = false;
-
-/** TEMP perf test: continuous rAF, no idle sleep. Set false to restore. */
-const CONTINUOUS_FRAME_LOOP = true;
-
-/** TEMP perf test: keep full SSR while dragging. Set true to restore. */
-const SSR_DRAG_DEGRADATION_ENABLED = false;
-
+const MAX_PIXEL_RATIO = 1.5;
 const DESKTOP_FOV = 85;
 const MOBILE_FOV = 100;
+const cameraParams = {
+  fovDesktop: DESKTOP_FOV,
+  fovMobile: MOBILE_FOV,
+  walkEyeHeight: 1.95,
+  walkAcceleration: 10,
+  walkDeceleration: 14,
+  walkFovBoost: 3,
+  sprintFovBoost: 8,
+  walkFovBlendSpeed: 2,
+  sprintFovBlendSpeed: 2.5,
+};
 const FREE_CAMERA_START = {
   position: [-138.564, -3.417, 34.181],
   target: [-120, 0, 30],
 };
+
+function getBaseFovForLayout() {
+  return isMobileLayout() ? cameraParams.fovMobile : cameraParams.fovDesktop;
+}
 
 function applyCameraFovForLayout() {
   if (!camera) {
     return;
   }
 
-  camera.fov = isMobileLayout() ? MOBILE_FOV : DESKTOP_FOV;
-  camera.updateProjectionMatrix();
+  const baseFov = getBaseFovForLayout();
+
+  if (walkControls?.isActive()) {
+    walkControls.setBaseFov(baseFov);
+  } else {
+    camera.fov = baseFov;
+    camera.updateProjectionMatrix();
+  }
+}
+
+function syncWalkEyeHeight() {
+  if (!walkControls) {
+    return;
+  }
+
+  walkControls.setEyeHeight(cameraParams.walkEyeHeight);
 }
 
 let camera;
@@ -107,13 +92,9 @@ let scene;
 let renderer;
 let post;
 let controls;
-let renderLoop;
-let giPass;
 let pipeline;
-let ssrMotion;
-let cloudSky;
+// let cloudSky;
 let sunLight;
-let paintController;
 let walkControls;
 let fpsWalkHint;
 let inspectorInstance = null;
@@ -146,7 +127,6 @@ async function getWebGPULimits() {
 function requestShadowMapUpdate(source = "shadows") {
   sunLight.shadow.needsUpdate = true;
   renderer.shadowMap.needsUpdate = true;
-  renderLoop?.invalidate(source);
 }
 
 const loader = createLoaderOverlay();
@@ -188,26 +168,22 @@ async function init(loaderOverlay) {
   scene = sceneResult.scene;
   sunLight = sceneResult.sunLight;
 
-  // Block env-map specular before materials compile (SSR owns reflections).
-  installIndirectSpecularPatch();
-  syncIndirectSpecularPatch(getInitialRenderMode());
-
   loaderOverlay.setProgress(0.1);
   loaderOverlay.setStatus("Preparing renderer...");
 
   const requiredLimits = await getWebGPULimits();
 
   renderer = new THREE.WebGPURenderer({
-    antialias: false,
+    antialias: true,
     alpha: false,
     powerPreference: "high-performance",
-    stencil: false,
-    // samples: 0,
+    stencil: true,
     requiredLimits,
   });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.VSMShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   clearInspectorLayout();
@@ -215,7 +191,7 @@ async function init(loaderOverlay) {
   inspectorInstance = new Inspector();
   renderer.inspector = inspectorInstance;
 
-  renderer.colorBufferType = THREE.UnsignedByteType;
+  // renderer.colorBufferType = THREE.UnsignedByteType;
   renderer.domElement.style.opacity = "0";
   renderer.domElement.style.zIndex = "14";
   renderer.domElement.style.transition = "opacity 220ms ease";
@@ -236,26 +212,26 @@ async function init(loaderOverlay) {
 
   loaderOverlay.setProgress(0.35);
 
-  const [cloudSkyResult, model, envTexture] = await Promise.all([
-    createCloudSky(scene, {
-      radius: 45,
-      verticalOffset: 2,
-    }),
+  const [model, envTexture] = await Promise.all([
     loadLoftModel(renderer),
     loadEnvironmentMap(),
   ]);
-  cloudSky = cloudSkyResult;
+  // cloudSky = await createCloudSky(scene, {
+  //   radius: 45,
+  //   verticalOffset: 2,
+  // });
 
   loaderOverlay.setProgress(0.7);
 
-  const modelCenter = addModel(scene, model).clone();
-  // Sun / env lighting aim at scene origin (camera target).
-  modelCenter.set(0, 0, 0);
+  addModel(scene, model);
+
+  const ground = createGround(scene);
 
   if (import.meta.env.DEV) {
     window.__app = {
       scene,
       model,
+      ground,
       listObjectNames() {
         const rows = [];
 
@@ -280,108 +256,49 @@ async function init(loaderOverlay) {
   }
 
   const envMapBaseIntensity = { value: 0.04 };
-  const envIntensityCurve = { ...PROBE_INTENSITY };
-  let renderModeController;
-  let performanceSuggestion;
   let resizeWarningBanner;
   let settingsPanel;
-  let screenshotButton;
   let audioButton;
-  let cardInstructions;
   let uiIdleManager;
-  let sunControls;
   let firefliesOverlay = null;
-  let persistProjectDebounceId = null;
   let finishedIntro = false;
-  const orbitYawOffset = new THREE.Vector3();
-
-  function notifyLightingChange() {
-    pipeline?.softenGiForLightingChange?.();
-    renderLoop?.invalidate("lighting");
-  }
 
   function syncEnvironmentIntensity() {
-    scene.environmentIntensity =
-      computeProbeIntensity(sceneResult.sunState.hour, envIntensityCurve) *
-      envMapBaseIntensity.value;
-    pipeline?.syncSsrEnvironmentIntensity(scene.environmentIntensity);
+    scene.environmentIntensity = envMapBaseIntensity.value;
   }
 
-  function syncLighting({ hour, azimuth } = {}) {
-    const sunVisual = sceneResult.updateSun({
-      hour: hour ?? sceneResult.sunState.hour,
-      azimuth: azimuth ?? sceneResult.sunState.azimuth,
-      strength: sceneResult.sunState.strength,
-      target: modelCenter,
-    });
-    cloudSky?.updateFromSun(sunVisual);
+  function syncLighting() {
+    sceneResult.applySun();
     syncEnvironmentIntensity();
     requestShadowMapUpdate("lighting");
   }
 
-  function syncLightingNoRebake(options) {
-    syncLighting(options);
-  }
-
-  const sunVisual = sceneResult.updateSun({ target: modelCenter });
+  syncLighting();
   requestShadowMapUpdate("init");
-  cloudSky?.updateFromSun(sunVisual);
 
   loaderOverlay.setProgress(0.8);
 
-  const { hdrTexture } = applyEnvironmentMap(scene, renderer, envTexture, {
-    intensity:
-      computeProbeIntensity(sceneResult.sunState.hour, envIntensityCurve) *
-      envMapBaseIntensity.value,
+  applyEnvironmentMap(scene, renderer, envTexture, {
+    intensity: envMapBaseIntensity.value,
   });
-  scene.environmentRotation.set(0, THREE.MathUtils.degToRad(-150), 0);
+  scene.environmentRotation.set(0, THREE.MathUtils.degToRad(69), 0);
 
   loaderOverlay.setProgress(0.85);
   loaderOverlay.setStatus("Configuring post-processing...");
 
-  pipeline = createPostProcessing(renderer, scene, camera, {
-    environmentMap: hdrTexture,
-    environmentIntensity: scene.environmentIntensity,
-  });
+  pipeline = createPostProcessing(renderer, scene, camera);
   post = pipeline.post;
-  giPass = pipeline.giPass;
-
-  const refreshSun = () => syncLighting();
 
   pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
-    onSunApply: ({ hour, strength }) => {
-      sceneResult.sunState.hour = hour;
-      sceneResult.sunState.strength = strength;
-      refreshSun();
-    },
     bloomPass: pipeline.bloomPass,
     bloomPassWide: pipeline.bloomPassWide,
-  });
-
-  renderModeController = createRenderModeController({
-    applyRenderMode: (mode, options) => {
-      pipeline.applyRenderMode(mode, options);
-      applyRenderModeSettings(mode, {
-        envMapBaseIntensity,
-        envIntensityCurve,
-        syncLighting,
-      });
-      syncIndirectSpecularPatch(mode);
-      invalidatePhysicalMaterials(scene);
-      const tuning = getRenderModeRuntimeTuning(mode);
-      renderLoop?.setIdleMaxDPR(tuning.idleMaxDPR, tuning.idleMinMaxDPR);
-      pipeline?.applyFsrTuning?.(tuning.fsr);
-      ssrMotion?.setDragProfile(tuning.ssrDrag);
-      renderLoop?.invalidate("render-mode");
-    },
-    getInitialMode: getInitialRenderMode,
   });
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(...FREE_CAMERA_START.target);
   controls.enablePan = true;
-  controls.enableDamping = false;
-  controls.dampingFactor = 0.4;
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
   controls.minDistance = 0.1;
   controls.maxDistance = Infinity;
   controls.minPolarAngle = 0;
@@ -394,13 +311,18 @@ async function init(loaderOverlay) {
     camera,
     domElement: renderer.domElement,
     model,
+    ground: ground.mesh,
+    baseFov: getBaseFovForLayout(),
     settings: {
       moveSpeed: 7,
-      sprintMultiplier: 1.55,
-      eyeHeight: 1.8,
-    },
-    onLookChange: () => {
-      renderLoop?.invalidate("walk-look");
+      sprintMultiplier: 1.2,
+      eyeHeight: cameraParams.walkEyeHeight,
+      acceleration: cameraParams.walkAcceleration,
+      deceleration: cameraParams.walkDeceleration,
+      walkFovBoost: cameraParams.walkFovBoost,
+      sprintFovBoost: cameraParams.sprintFovBoost,
+      walkFovBlendSpeed: cameraParams.walkFovBlendSpeed,
+      sprintFovBlendSpeed: cameraParams.sprintFovBlendSpeed,
     },
   });
 
@@ -429,6 +351,7 @@ async function init(loaderOverlay) {
     fpsWalkHint?.setVisible(walk && finishedIntro);
 
     if (walk) {
+      walkControls.setBaseFov(getBaseFovForLayout());
       walkControls.syncEulerFromCamera();
       walkControls.snapCameraToGround();
     } else {
@@ -438,8 +361,6 @@ async function init(loaderOverlay) {
         .add(orbitLookTarget.multiplyScalar(12));
       controls.update();
     }
-
-    renderLoop?.invalidate("camera-mode");
   }
 
   function toggleCameraMode() {
@@ -458,78 +379,25 @@ async function init(loaderOverlay) {
   });
 
   const timer = new THREE.Timer();
-  let cloudAnimTime = 0;
 
-  ssrMotion = createSsrMotionProfile({
-    renderer,
-    ssrNode: pipeline.ssrNode,
-    ssrParams: pipeline.ssrParams,
-    applySsrParams: pipeline.applySsrParams,
-  });
-  ssrMotion.params.enabled = SSR_DRAG_DEGRADATION_ENABLED;
+  function renderFrame() {
+    timer.update();
+    const delta = timer.getDelta();
+    // cloudSky?.update(camera, timer.getElapsed());
 
-  renderLoop = createAdaptiveDprLoop(renderer, {
-    render: () => {
-      timer.update();
-      const delta = timer.getDelta();
-      const elapsed = timer.getElapsed();
-      if (CONTINUOUS_FRAME_LOOP || renderLoop.getState() === "interacting") {
-        cloudAnimTime = elapsed;
-      }
-      cloudSky?.update(camera, cloudAnimTime);
+    if (walkControls?.isActive()) {
+      walkControls.update(delta);
+    } else if (controls.enabled) {
+      controls.update();
+    }
 
-      if (walkControls?.isActive()) {
-        if (walkControls.update(delta)) {
-          renderLoop.startInteraction("camera");
-          renderLoop.invalidate("walk");
-        }
-      }
-
-      post.render();
-    },
-    controls,
-    continuous: CONTINUOUS_FRAME_LOOP,
-    shouldUpdateControls: () => !walkControls?.isActive(),
-    settleFrames: 48,
-    maxPixels: 4800000,
-    minMaxPixels: 3200000,
-    maxMaxPixels: 6500000,
-    targetFps: 45,
-    idleMaxDPR: 1.0,
-    idleMinMaxDPR: 0.8,
-    interactionReductionFactor: 0.5,
-    interactionDPRTarget: 0.8,
-    minInteractionDPR: 0.75,
-    interactionEndDelayMs: 250,
-    onLoopStateChange: (state, info) => {
-      ssrMotion.onLoopStateChange(state, info);
-      // After lighting soft-invalidate, keep low maxFrames through settle so GI
-      // converges on the new light, then restore normal temporal confidence.
-      if (state === "sleeping") {
-        pipeline?.restoreGiTemporalParams?.();
-      }
-    },
-    onFrame: (frameMs) => {
-      ssrMotion.tick(frameMs, renderLoop.getState());
-      performanceSuggestion?.handleFrame(frameMs);
-    },
-  });
-
-  {
-    const tuning = getRenderModeRuntimeTuning(renderModeController.getMode());
-    renderLoop.setIdleMaxDPR(tuning.idleMaxDPR, tuning.idleMinMaxDPR);
-    pipeline.applyFsrTuning(tuning.fsr);
-    ssrMotion.setDragProfile(tuning.ssrDrag);
+    ground.updateReflection?.(renderer, camera);
+    post.render();
   }
 
-  paintController = createPaintController({
-    model,
-    renderer,
-    renderLoop,
-  });
+  // Animation loop starts after finalizeStartupLighting (see below).
 
   if (import.meta.env.DEV && window.__app) {
-    window.__app.paint = paintController;
     window.__app.dumpCamera = () => {
       const pose = {
         position: [
@@ -549,20 +417,6 @@ async function init(loaderOverlay) {
     console.info("[dev] Camera pose: run __app.dumpCamera() in the console");
   }
 
-  performanceSuggestion = createPerformanceSuggestion({
-    getRenderMode: () => renderModeController.getMode(),
-    shouldSuggest: () => {
-      if (hasUserChosenRenderMode()) {
-        return false;
-      }
-      const mode = renderModeController.getMode();
-      return mode === RENDER_MODES.ultra || mode === RENDER_MODES.highEnd;
-    },
-    onSwitch: (mode) => {
-      renderModeController.setMode(mode);
-    },
-  });
-
   resizeWarningBanner = createResizeWarningBanner();
 
   async function finalizeStartupLighting() {
@@ -571,185 +425,47 @@ async function init(loaderOverlay) {
 
     syncLighting();
     requestShadowMapUpdate("startup-lighting");
-    renderer.render(scene, camera);
 
     loaderOverlay.setProgress(0.93);
     loaderOverlay.setStatus("Compiling shaders...");
     await renderer.compileAsync(scene, camera);
 
     loaderOverlay.setProgress(0.96);
-    loaderOverlay.setStatus("Warming up lighting...");
+    loaderOverlay.setStatus("Warming up...");
     for (let i = 0; i < 4; i++) {
+      ground.updateReflection?.(renderer, camera);
       post.render();
     }
   }
-
-  async function waitForStartupRenderSettle() {
-    loaderOverlay.setProgress(0.98);
-    loaderOverlay.setStatus("Settling lighting...");
-    pipeline?.resetGiHistory?.();
-    pipeline?.softenGiForLightingChange?.();
-    renderLoop.invalidate("startup");
-    // Short settle at idle DPR — full convergence continues after the loader.
-    await renderLoop.renderSettledFrame({
-      frames: 12,
-      forceMaxPixels: false,
-    });
-  }
-
-  function persistProjectNow() {
-    saveProjectState(
-      buildSnapshot({
-        sunState: sceneResult.sunState,
-        meshColors: paintController?.getSnapshot(),
-      }),
-    );
-  }
-
-  function schedulePersistProject() {
-    if (persistProjectDebounceId) {
-      window.clearTimeout(persistProjectDebounceId);
-    }
-    persistProjectDebounceId = window.setTimeout(() => {
-      persistProjectDebounceId = null;
-      persistProjectNow();
-    }, 300);
-  }
-
-  let cameraDragging = false;
-
-  const savedProject = loadProjectState();
-  if (savedProject) {
-    const restored = applyProjectState(savedProject, {
-      sunState: sceneResult.sunState,
-      syncLighting,
-    });
-    paintController?.applySavedState(restored?.meshColors);
-  }
-
-  const radialColorMenu = createRadialColorMenu({
-    onColorSelect: (_color, index, target) => {
-      paintController?.setColorIndex(target, index);
-      schedulePersistProject();
-      renderLoop.invalidate("paint");
-    },
-  });
-
-  const paintHoverHint = createPaintHoverHint({
-    domElement: renderer.domElement,
-  });
-
-  const unsubscribeRadialMenuRender = subscribeRadialMenu((menuState) => {
-    if (menuState.radialMenuOpen) {
-      paintController?.setHoveredTarget(null);
-      paintHoverHint.hide();
-      renderLoop.invalidate("paint-hover", { frames: 6 });
-      // Tap to open menu also starts OrbitControls; pause() cancels the scheduled end.
-      renderLoop.endInteraction("camera");
-      renderLoop.pause();
-      return;
-    }
-
-    renderLoop.resume();
-  });
-
-  createMeshColorPicker({
-    camera,
-    renderer,
-    model,
-    paintController,
-    isCameraDragging: () => cameraDragging,
-    isEnabled: () => finishedIntro && !walkControls?.isActive(),
-    onOpenRadialMenu: (options) => radialColorMenu.open(options),
-    onHover: (hover) => {
-      if (!hover) {
-        paintController?.setHoveredTarget(null);
-        paintHoverHint.hide();
-        renderLoop.invalidate("paint-hover", { frames: 6 });
-        return;
-      }
-
-      paintHoverHint.show();
-
-      if (!hover.targetChanged) {
-        return;
-      }
-
-      paintController?.setHoveredTarget(hover.targetKey);
-    },
-  });
-
-  sunControls = createSunControls({
-    initialHour: sceneResult.sunState.hour,
-    initialAzimuth: sceneResult.sunState.azimuth,
-    compactWhenIdle: true,
-    idleMs: 4000,
-    defaultMode: "compact",
-    getOrbitYaw: () => {
-      orbitYawOffset.subVectors(camera.position, controls.target);
-      return Math.atan2(orbitYawOffset.x, orbitYawOffset.z);
-    },
-    onChange: ({ hour, azimuth }) => {
-      syncLighting({ hour, azimuth });
-      schedulePersistProject();
-    },
-    onInteractionStart: () => {
-      renderLoop.startInteraction("sun");
-      // Soft-invalidate like SSR: keep history, force temporal to trust new GI.
-      pipeline?.softenGiForLightingChange?.();
-    },
-    onInteractionEnd: () => {
-      // Stay soft through settle; restoreGiTemporalParams runs on "sleeping".
-      renderLoop.endInteraction("sun");
-      notifyLightingChange();
-    },
-  });
-  sunControls.setVisible(false);
-
-  screenshotButton = createScreenshotButton({
-    onCapture: () =>
-      captureCanvasScreenshot({
-        renderer,
-        renderLoop,
-        renderFrame: () => post.render(),
-        wasUiVisible: uiState.uiVisible,
-        hideUi: () => uiState.hideAllUi(),
-        restoreUi: () => uiState.showAllUi(),
-      }),
-  });
-  screenshotButton.setVisible(false);
-
-  audioButton = createAudioButton({ url: "/music.mp3" });
-  audioButton.setVisible(false);
-
-  cardInstructions = createCardInstructions({
-    onDismiss: () => {},
-  });
 
   function ensureInspectorSetup() {
     if (inspectorSetupDone) {
       return;
     }
 
-    setupInspector(renderer, pipeline, sceneResult.pcss, null, {
-      sunState: sceneResult.sunState,
-      refreshSun,
-      syncLightingNoRebake,
-      envMapBaseIntensity,
-      syncEnvironmentIntensity,
-      scene,
-      renderModeController,
-      onRenderModeChange: (mode) => {
-        renderModeController.setMode(mode);
+    setupInspector(
+      renderer,
+      pipeline,
+      {
+        sunState: sceneResult.sunState,
+        refreshSun: () => syncLighting(),
+        syncEnvironmentIntensity,
+        envMapBaseIntensity,
+        scene,
+        onParamInteractionStart: () => {},
+        onParamInteraction: () => {},
+        onParamInteractionEnd: () => {},
+        onLightingParamChanged: () =>
+          requestShadowMapUpdate("inspector-lighting"),
       },
-      onParamInteractionStart: () => renderLoop.startInteraction("inspector"),
-      onParamInteraction: () => renderLoop.invalidate("inspector"),
-      onParamInteractionEnd: () =>
-        renderLoop.scheduleInteractionEnd("inspector"),
-      onLightingParamChanged: () =>
-        requestShadowMapUpdate("inspector-lighting"),
-      ssrMotion,
-    });
+      ground,
+      {
+        params: cameraParams,
+        walkSettings: walkControls.settings,
+        syncFov: applyCameraFovForLayout,
+        syncWalkEyeHeight,
+      },
+    );
     inspectorSetupDone = true;
   }
 
@@ -768,39 +484,25 @@ async function init(loaderOverlay) {
   settingsPanel = createSettingsPanel({
     state: uiState,
     getDevelopmentMode: isDevelopmentModeEnabled,
-    getRenderMode: () => renderModeController.getMode(),
     onDevelopmentModeChange: applyDevelopmentMode,
-    onRenderModeChange: (mode) => {
-      renderModeController.setMode(mode);
-    },
     onRestart: () => {
-      if (persistProjectDebounceId) {
-        window.clearTimeout(persistProjectDebounceId);
-        persistProjectDebounceId = null;
-      }
-      clearProjectState();
       clearAllStoredPreferences();
-      renderModeController.setMode(RENDER_MODES.ultra, { userChoice: false });
-      performanceSuggestion?.reset();
       applyDevelopmentMode(false);
       setCameraMode("orbit");
       camera.position.set(...FREE_CAMERA_START.position);
       controls.target.set(...FREE_CAMERA_START.target);
       controls.update();
       syncLighting();
-      renderLoop.invalidate("restart");
     },
   });
   settingsPanelRef = settingsPanel;
 
-  renderModeController.subscribe((mode) => {
-    settingsPanel.syncRenderMode(mode);
-  });
+  audioButton = createAudioButton({ url: "/music.mp3" });
+  audioButton.setVisible(false);
 
   const uiVisibilityCoordinator = createUiVisibilityCoordinator({
     state: uiState,
     header,
-    screenshotButton,
     audioButton,
     isAppReady: () => finishedIntro,
   });
@@ -824,6 +526,8 @@ async function init(loaderOverlay) {
 
   await finalizeStartupLighting();
 
+  renderer.setAnimationLoop(renderFrame);
+
   if (isDevelopmentModeEnabled()) {
     ensureInspectorSetup();
   }
@@ -832,27 +536,18 @@ async function init(loaderOverlay) {
     if (!finishedIntro || walkControls?.isActive()) {
       return;
     }
-    cameraDragging = true;
     uiIdleManager?.resetTimer();
-    renderLoop.startInteraction("camera");
   });
   controls.addEventListener("change", () => {
     if (!finishedIntro || walkControls?.isActive()) {
       return;
     }
     uiIdleManager?.resetTimer();
-
-    if (cameraDragging) {
-      renderLoop.startInteraction("camera");
-      renderLoop.invalidate("camera");
-    }
   });
   controls.addEventListener("end", () => {
     if (!finishedIntro || walkControls?.isActive()) {
       return;
     }
-    cameraDragging = false;
-    renderLoop.scheduleInteractionEnd("camera");
   });
 
   window.addEventListener("resize", onWindowResize);
@@ -861,36 +556,20 @@ async function init(loaderOverlay) {
     applyCameraFovForLayout();
   });
 
-  renderLoop.bootstrap();
-  await waitForStartupRenderSettle();
-
   function revealAppUi() {
     finishedIntro = true;
     controls.enabled = true;
     uiVisibilityCoordinator.refresh();
     header.show();
     resizeWarningBanner?.arm();
-    performanceSuggestion?.arm();
-    sunControls?.setVisible(true);
-    cardInstructions.show();
+    audioButton?.setVisible(true);
     if (isDevelopmentModeEnabled()) {
       openInspector(inspectorInstance);
-    }
-
-    if (shouldRunFsrBenchmark()) {
-      runFsrBenchmark({
-        renderLoop,
-        renderModeController,
-        pipeline,
-        renderFrame: () => post.render(),
-      }).catch((error) => {
-        console.error("[FSR benchmark] failed", error);
-      });
     }
   }
 
   async function runIntroSequence() {
-    renderLoop.pause();
+    renderer.setAnimationLoop(null);
     firefliesOverlay = await createFirefliesOverlay({ opacity: 0.75 });
     firefliesOverlay.startStandaloneLoop({ maxDpr: 0.85 });
 
@@ -898,7 +577,7 @@ async function init(loaderOverlay) {
       onStart: () => {
         void (async () => {
           firefliesOverlay.stopStandaloneLoop();
-          renderLoop.resume();
+          renderer.setAnimationLoop(renderFrame);
           post.render();
 
           audioButton.play().catch(() => {});
@@ -909,7 +588,6 @@ async function init(loaderOverlay) {
           firefliesOverlay?.destroy();
           firefliesOverlay = null;
 
-          schedulePersistProject();
           revealAppUi();
         })();
       },
@@ -932,7 +610,6 @@ async function init(loaderOverlay) {
     renderer.domElement.style.zIndex = "14";
     post.render();
     await loaderOverlay.finish();
-    schedulePersistProject();
     revealAppUi();
   }
 
@@ -952,11 +629,8 @@ function onWindowResize() {
   camera.aspect = width / height;
   applyCameraFovForLayout();
 
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setSize(width, height);
-  renderLoop?.handleResize();
-  paintController?.handleResize();
   pipeline?.resizePostProcessing?.(width, height);
-  ssrMotion?.handleResize?.();
   requestShadowMapUpdate("resize");
-  giPass?.resetHistory?.();
 }

@@ -13,6 +13,7 @@ import {
   smoothstep,
   length,
   step,
+  max,
 } from "three/tsl";
 import { chromaticAberration } from "three/addons/tsl/display/ChromaticAberrationNode.js";
 import { film } from "three/addons/tsl/display/FilmNode.js";
@@ -36,17 +37,35 @@ const suppressGreen = Fn(([color, amount]) => {
   return vec3(color.r, mix(color.g, luma, amount), color.b).max(0.0);
 });
 
-function hexToLinearVec3(hex) {
-  const color = new THREE.Color(hex);
+function srgbToLinearVec3([r, g, b]) {
+  const color = new THREE.Color(r, g, b);
   color.convertSRGBToLinear();
   return new THREE.Vector3(color.r, color.g, color.b);
+}
+
+export const DEFAULT_FOG = {
+  enabled: 0.42,
+  near: -20,
+  far: 44,
+  amount: 1,
+  colorSrgb: [0.34, 0.37, 0.47],
+};
+
+function fogUniforms(colorSrgb = DEFAULT_FOG.colorSrgb, overrides = {}) {
+  return {
+    fogEnabled: overrides.fogEnabled ?? DEFAULT_FOG.enabled,
+    fogNear: overrides.fogNear ?? DEFAULT_FOG.near,
+    fogFar: overrides.fogFar ?? DEFAULT_FOG.far,
+    fogColorSrgb: colorSrgb,
+    fogAmount: overrides.fogAmount ?? DEFAULT_FOG.amount,
+  };
 }
 
 function presetUniforms({
   fogEnabled,
   fogNear,
   fogFar,
-  fogColor,
+  fogColorSrgb,
   fogAmount,
   gradeTint,
   gradeOffset,
@@ -63,7 +82,7 @@ function presetUniforms({
     fogEnabled,
     fogNear,
     fogFar,
-    fogColor,
+    fogColorSrgb,
     fogAmount,
     gradeTint,
     gradeOffset,
@@ -81,15 +100,10 @@ function presetUniforms({
 export const LOOK_PRESETS = {
   neutral: {
     label: "Neutral",
-    sun: { hour: 8.3, strength: 2 },
     bloom: { strength: 3, radius: 0.5 },
     bloomWide: { strength: 1.25, radius: 1 },
     uniforms: presetUniforms({
-      fogEnabled: 0,
-      fogNear: 0.05,
-      fogFar: 0.8,
-      fogColor: 0x8aa4b8,
-      fogAmount: 0,
+      ...fogUniforms([0.36, 0.38, 0.42]),
       gradeTint: [1, 1, 1],
       gradeOffset: [0, 0, 0],
       saturationAmount: 1,
@@ -104,15 +118,10 @@ export const LOOK_PRESETS = {
   },
   neonNoir: {
     label: "Neon Noir",
-    sun: { hour: 5.8, strength: 0.6 },
     bloom: { strength: 4.5, radius: 0.65 },
     bloomWide: { strength: 2.2, radius: 0.85 },
     uniforms: presetUniforms({
-      fogEnabled: 1,
-      fogNear: 0.12,
-      fogFar: 0.58,
-      fogColor: 0x08040c,
-      fogAmount: 0.38,
+      ...fogUniforms(DEFAULT_FOG.colorSrgb),
       gradeTint: [1.02, 0.9, 1.06],
       gradeOffset: [0.004, -0.006, 0.008],
       saturationAmount: 1.06,
@@ -127,15 +136,10 @@ export const LOOK_PRESETS = {
   },
   magentaRain: {
     label: "Magenta Rain",
-    sun: { hour: 5.5, strength: 0.45 },
     bloom: { strength: 5, radius: 0.72 },
     bloomWide: { strength: 2.6, radius: 1 },
     uniforms: presetUniforms({
-      fogEnabled: 1,
-      fogNear: 0.05,
-      fogFar: 0.55,
-      fogColor: 0x180818,
-      fogAmount: 0.58,
+      ...fogUniforms([0.4, 0.34, 0.44]),
       gradeTint: [1.08, 0.9, 1.08],
       gradeOffset: [0.012, -0.015, 0.01],
       saturationAmount: 1.28,
@@ -150,15 +154,10 @@ export const LOOK_PRESETS = {
   },
   tealDusk: {
     label: "Teal Dusk",
-    sun: { hour: 16.5, strength: 1.15 },
     bloom: { strength: 3.6, radius: 0.58 },
     bloomWide: { strength: 1.85, radius: 0.78 },
     uniforms: presetUniforms({
-      fogEnabled: 1,
-      fogNear: 0.1,
-      fogFar: 0.62,
-      fogColor: 0x081018,
-      fogAmount: 0.42,
+      ...fogUniforms([0.32, 0.38, 0.46]),
       gradeTint: [0.94, 0.98, 1.06],
       gradeOffset: [-0.008, 0, 0.01],
       saturationAmount: 1.06,
@@ -177,13 +176,17 @@ function toVec3([x, y, z]) {
   return new THREE.Vector3(x, y, z);
 }
 
-export function createCyberpunkLook({ scenePassLinearDepth }) {
+export function createCyberpunkLook({ scenePass }) {
+  const viewDistance = scenePass.getViewZNode().negate();
+  const linearDepth = scenePass.getLinearDepthNode();
+
   const uniforms = {
-    fogEnabled: uniform(1),
-    fogNear: uniform(0.08),
-    fogFar: uniform(0.5),
-    fogColor: uniform(hexToLinearVec3(0x0c0814)),
-    fogAmount: uniform(0.48),
+    fogEnabled: uniform(DEFAULT_FOG.enabled),
+    fogNear: uniform(DEFAULT_FOG.near),
+    fogFar: uniform(DEFAULT_FOG.far),
+    fogColor: uniform(srgbToLinearVec3(DEFAULT_FOG.colorSrgb)),
+    fogAmount: uniform(DEFAULT_FOG.amount),
+    fogBloomSuppress: uniform(0.75),
     gradeTint: uniform(new THREE.Vector3(1.02, 0.9, 1.06)),
     gradeOffset: uniform(new THREE.Vector3(0.004, -0.006, 0.008)),
     saturation: uniform(1.06),
@@ -202,7 +205,7 @@ export function createCyberpunkLook({ scenePassLinearDepth }) {
     uniforms.fogEnabled.value = values.fogEnabled;
     uniforms.fogNear.value = values.fogNear;
     uniforms.fogFar.value = values.fogFar;
-    uniforms.fogColor.value.copy(hexToLinearVec3(values.fogColor));
+    uniforms.fogColor.value.copy(srgbToLinearVec3(values.fogColorSrgb));
     uniforms.fogAmount.value = values.fogAmount;
     uniforms.gradeTint.value.copy(toVec3(values.gradeTint));
     uniforms.gradeOffset.value.copy(toVec3(values.gradeOffset));
@@ -228,10 +231,7 @@ export function createCyberpunkLook({ scenePassLinearDepth }) {
     }
   }
 
-  function applyPreset(
-    id,
-    { onSunApply, bloomPass, bloomPassWide } = {},
-  ) {
+  function applyPreset(id, { bloomPass, bloomPassWide } = {}) {
     const preset = LOOK_PRESETS[id];
     if (!preset) {
       return false;
@@ -241,31 +241,31 @@ export function createCyberpunkLook({ scenePassLinearDepth }) {
     applyUniformValues(preset.uniforms);
     applyBloomSettings(preset, bloomPass, bloomPassWide);
 
-    if (onSunApply && preset.sun) {
-      onSunApply(preset.sun);
-    }
-
     return true;
   }
 
   function buildComposite(beauty, { bloomContribution = null } = {}) {
-    const fogFactor = smoothstep(
+    // Geometry: world-space distance. Sky/background: linear depth near 1.0
+    // (scene.background does not give reliable viewZ in the scene pass).
+    const distanceFog = smoothstep(
       uniforms.fogNear,
       uniforms.fogFar,
-      scenePassLinearDepth,
-    )
-      .mul(uniforms.fogEnabled)
-      .mul(uniforms.fogAmount);
+      viewDistance,
+    );
+    const skyFog = smoothstep(float(0.68), float(1.0), linearDepth);
+    const fogBlend = max(distanceFog, skyFog).mul(uniforms.fogEnabled);
+    const fogFactor = fogBlend.mul(uniforms.fogAmount);
 
-    // Apply haze to beauty only. Bloom is added after so emissive glow can
-    // spill over sky pixels without being crushed by far-plane fog depth.
     let hazed = vec4(
       mix(beauty.rgb, uniforms.fogColor, fogFactor),
       beauty.a,
     );
 
     if (bloomContribution) {
-      hazed = hazed.add(bloomContribution);
+      const bloomAttenuation = float(1).sub(
+        fogBlend.mul(uniforms.fogBloomSuppress),
+      );
+      hazed = hazed.add(bloomContribution.mul(bloomAttenuation));
     }
 
     const tinted = hazed.rgb.mul(uniforms.gradeTint).add(uniforms.gradeOffset);
@@ -320,9 +320,7 @@ export function createCyberpunkLook({ scenePassLinearDepth }) {
       return target.convertLinearToSRGB();
     },
     setFogColorFromSrgb: (r, g, b) => {
-      const color = new THREE.Color(r, g, b);
-      color.convertSRGBToLinear();
-      uniforms.fogColor.value.set(color.r, color.g, color.b);
+      uniforms.fogColor.value.copy(srgbToLinearVec3([r, g, b]));
     },
   };
 }

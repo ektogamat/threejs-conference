@@ -1,10 +1,10 @@
 import {
-  DataTexture,
-  LinearFilter,
-  RGBAFormat,
-  RGBFormat,
-  RGFormat,
-  RedFormat,
+    DataTexture,
+    LinearFilter,
+    RGBAFormat,
+    RGBFormat,
+    RGFormat,
+    RedFormat,
 } from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";

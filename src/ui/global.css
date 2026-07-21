@@ -30,14 +30,8 @@ canvas {
 .about-overlay *,
 .settings-overlay,
 .settings-overlay *,
-.screenshot-btn-root,
-.screenshot-btn-root *,
 .audio-btn-root,
 .audio-btn-root *,
-.wrapper-card,
-.wrapper-card *,
-.radial-color-menu-root,
-.radial-color-menu-root *,
 .intro-container,
 .intro-container * {
   box-sizing: border-box;

@@ -2,9 +2,15 @@ import * as THREE from "three/webgpu";
 
 const DEFAULTS = {
   moveSpeed: 7,
-  sprintMultiplier: 1.55,
+  sprintMultiplier: 1.2,
   mouseSensitivity: 0.002,
   eyeHeight: 1.75,
+  acceleration: 10,
+  deceleration: 14,
+  walkFovBoost: 3,
+  sprintFovBoost: 8,
+  walkFovBlendSpeed: 2,
+  sprintFovBlendSpeed: 2.5,
   playerRadius: 0.6,
   /** Max climb per step (curbs / stairs). Higher surfaces are ignored. */
   maxStepUp: 0.4,
@@ -14,6 +20,9 @@ const DEFAULTS = {
   groundProbeDistance: 400,
   wallProbeDistance: 0.35,
 };
+
+const MOVE_EPSILON = 0.01;
+const SPRINT_SPEED_THRESHOLD = 0.5;
 
 const KEY_MAP = {
   KeyW: "forward",
@@ -40,14 +49,28 @@ function isEditableTarget(target) {
   );
 }
 
+function expLerpFactor(delta, speed) {
+  return 1 - Math.exp(-delta * speed);
+}
+
 export function createWalkControls({
   camera,
   domElement,
   model,
+  ground,
+  baseFov = 85,
   settings: settingsOverrides = {},
   onLookChange,
 } = {}) {
   const settings = { ...DEFAULTS, ...settingsOverrides };
+
+  const walkTargets = [];
+  if (model) {
+    walkTargets.push(model);
+  }
+  if (ground) {
+    walkTargets.push(ground);
+  }
 
   const keys = {
     forward: false,
@@ -59,17 +82,21 @@ export function createWalkControls({
 
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   const moveInput = new THREE.Vector2();
-  const velocity = new THREE.Vector3();
+  const moveDirection = new THREE.Vector3();
+  const desiredVelocity = new THREE.Vector3();
+  const currentVelocity = new THREE.Vector3();
   const forward = new THREE.Vector3();
   const side = new THREE.Vector3();
   const probeOrigin = new THREE.Vector3();
   const probeDirection = new THREE.Vector3();
   const nextPosition = new THREE.Vector3();
+  const axisProbe = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
 
   let active = false;
   let pointerLocked = false;
   let moving = false;
+  let currentBaseFov = baseFov;
 
   const listeners = new Set();
 
@@ -91,8 +118,50 @@ export function createWalkControls({
     camera.quaternion.setFromEuler(euler);
   }
 
+  function restoreBaseFov() {
+    camera.fov = currentBaseFov;
+    camera.updateProjectionMatrix();
+  }
+
+  function setBaseFov(value) {
+    currentBaseFov = value;
+    if (!active) {
+      restoreBaseFov();
+    }
+  }
+
+  function updateDynamicFov(delta) {
+    if (!active || !pointerLocked) {
+      return;
+    }
+
+    const speed = currentVelocity.length();
+    const isMoving = speed > SPRINT_SPEED_THRESHOLD;
+    const isSprinting = keys.sprint && isMoving;
+    const isWalking = isMoving && !keys.sprint;
+
+    let targetFov = currentBaseFov;
+    let blendSpeed = settings.walkFovBlendSpeed;
+
+    if (isSprinting) {
+      targetFov = currentBaseFov + settings.sprintFovBoost;
+      blendSpeed = settings.sprintFovBlendSpeed;
+    } else if (isWalking) {
+      targetFov = currentBaseFov + settings.walkFovBoost;
+      blendSpeed = settings.walkFovBlendSpeed;
+    }
+
+    const blend = expLerpFactor(delta, blendSpeed);
+    const nextFov = camera.fov + (targetFov - camera.fov) * blend;
+
+    if (Math.abs(nextFov - camera.fov) > 0.001) {
+      camera.fov = nextFov;
+      camera.updateProjectionMatrix();
+    }
+  }
+
   function collectGroundHits(x, z, referenceY) {
-    if (!model) {
+    if (walkTargets.length === 0) {
       return [];
     }
 
@@ -101,17 +170,10 @@ export function createWalkControls({
     raycaster.set(probeOrigin, probeDirection);
     raycaster.far = settings.groundProbeDistance;
 
-    return raycaster.intersectObject(model, true);
+    return raycaster.intersectObjects(walkTargets, true);
   }
 
-  /**
-   * Pick walkable ground near the current feet height.
-   * Skips overhangs/roofs (first hit from above) so we don't climb objects.
-   */
-  function sampleGroundY(x, z, referenceY, { allowLongDrop = false } = {}) {
-    const feetY = referenceY - settings.eyeHeight;
-    const hits = collectGroundHits(x, z, referenceY);
-
+  function pickWalkableGroundY(hits, feetY, { allowLongDrop = false } = {}) {
     if (hits.length === 0) {
       return feetY;
     }
@@ -121,6 +183,9 @@ export function createWalkControls({
       ? settings.groundProbeDistance
       : settings.maxStepDown;
 
+    let bestY = null;
+    let bestDistance = Infinity;
+
     for (const hit of hits) {
       const y = hit.point.y;
       if (y > feetY + maxStepUp) {
@@ -129,18 +194,44 @@ export function createWalkControls({
       if (y < feetY - maxStepDown) {
         continue;
       }
-      return y;
+
+      const distance = Math.abs(y - feetY);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestY = y;
+      }
+    }
+
+    if (bestY !== null) {
+      return bestY;
     }
 
     if (allowLongDrop) {
+      let lowestValidY = null;
+
       for (const hit of hits) {
-        if (hit.point.y <= feetY + maxStepUp) {
-          return hit.point.y;
+        const y = hit.point.y;
+        if (y > feetY + maxStepUp) {
+          continue;
         }
+
+        if (lowestValidY === null || y > lowestValidY) {
+          lowestValidY = y;
+        }
+      }
+
+      if (lowestValidY !== null) {
+        return lowestValidY;
       }
     }
 
     return feetY;
+  }
+
+  function sampleGroundY(x, z, referenceY, { allowLongDrop = false } = {}) {
+    const feetY = referenceY - settings.eyeHeight;
+    const hits = collectGroundHits(x, z, referenceY);
+    return pickWalkableGroundY(hits, feetY, { allowLongDrop });
   }
 
   function snapCameraToGround({ allowLongDrop = false } = {}) {
@@ -183,6 +274,46 @@ export function createWalkControls({
     }
 
     return true;
+  }
+
+  function applyVelocityMovement(delta) {
+    if (currentVelocity.lengthSq() <= MOVE_EPSILON * MOVE_EPSILON) {
+      return;
+    }
+
+    nextPosition.copy(camera.position);
+    nextPosition.addScaledVector(currentVelocity, delta);
+
+    if (canMoveTo(camera.position, nextPosition)) {
+      camera.position.x = nextPosition.x;
+      camera.position.z = nextPosition.z;
+      return;
+    }
+
+    axisProbe.copy(camera.position);
+
+    if (Math.abs(currentVelocity.x) > MOVE_EPSILON) {
+      nextPosition.copy(camera.position);
+      nextPosition.x += currentVelocity.x * delta;
+
+      if (canMoveTo(camera.position, nextPosition)) {
+        camera.position.x = nextPosition.x;
+        axisProbe.x = camera.position.x;
+      } else {
+        currentVelocity.x = 0;
+      }
+    }
+
+    if (Math.abs(currentVelocity.z) > MOVE_EPSILON) {
+      nextPosition.copy(axisProbe);
+      nextPosition.z += currentVelocity.z * delta;
+
+      if (canMoveTo(axisProbe, nextPosition)) {
+        camera.position.z = nextPosition.z;
+      } else {
+        currentVelocity.z = 0;
+      }
+    }
   }
 
   function onKeyDown(event) {
@@ -275,9 +406,14 @@ export function createWalkControls({
       for (const key of Object.keys(keys)) {
         keys[key] = false;
       }
+      currentVelocity.set(0, 0, 0);
       moving = false;
+      restoreBaseFov();
     } else {
       syncEulerFromCamera();
+      currentVelocity.set(0, 0, 0);
+      camera.fov = currentBaseFov;
+      camera.updateProjectionMatrix();
       snapCameraToGround({ allowLongDrop: true });
     }
 
@@ -292,6 +428,8 @@ export function createWalkControls({
 
     if (!pointerLocked) {
       snapCameraToGround();
+      currentVelocity.set(0, 0, 0);
+      restoreBaseFov();
       if (moving) {
         moving = false;
         notifyChange();
@@ -314,6 +452,7 @@ export function createWalkControls({
     }
 
     const wantsMove = moveInput.lengthSq() > 0;
+
     if (wantsMove) {
       moveInput.normalize();
 
@@ -327,30 +466,35 @@ export function createWalkControls({
 
       side.crossVectors(forward, camera.up).normalize();
 
-      velocity.set(0, 0, 0);
-      velocity.addScaledVector(forward, -moveInput.y);
-      velocity.addScaledVector(side, moveInput.x);
+      moveDirection.set(0, 0, 0);
+      moveDirection.addScaledVector(forward, -moveInput.y);
+      moveDirection.addScaledVector(side, moveInput.x);
 
-      if (velocity.lengthSq() > 0) {
-        velocity.normalize();
+      if (moveDirection.lengthSq() > 0) {
+        moveDirection.normalize();
       }
 
       const speed = keys.sprint
         ? settings.moveSpeed * settings.sprintMultiplier
         : settings.moveSpeed;
 
-      nextPosition.copy(camera.position);
-      nextPosition.addScaledVector(velocity, speed * delta);
-
-      if (canMoveTo(camera.position, nextPosition)) {
-        camera.position.x = nextPosition.x;
-        camera.position.z = nextPosition.z;
-      }
+      desiredVelocity.copy(moveDirection).multiplyScalar(speed);
+    } else {
+      desiredVelocity.set(0, 0, 0);
     }
 
-    snapCameraToGround();
+    const responsiveness =
+      desiredVelocity.lengthSq() > 0
+        ? settings.acceleration
+        : settings.deceleration;
+    const blend = expLerpFactor(delta, responsiveness);
+    currentVelocity.lerp(desiredVelocity, blend);
 
-    const isMoving = wantsMove;
+    applyVelocityMovement(delta);
+    snapCameraToGround();
+    updateDynamicFov(delta);
+
+    const isMoving = currentVelocity.lengthSq() > MOVE_EPSILON * MOVE_EPSILON;
     if (isMoving !== moving) {
       moving = isMoving;
       notifyChange();
@@ -365,8 +509,17 @@ export function createWalkControls({
     listeners.clear();
   }
 
+  function setEyeHeight(value) {
+    settings.eyeHeight = value;
+    if (active) {
+      snapCameraToGround({ allowLongDrop: true });
+    }
+  }
+
   return {
     settings,
+    setEyeHeight,
+    setBaseFov,
     setActive,
     isActive: () => active,
     isPointerLocked: () => pointerLocked,
