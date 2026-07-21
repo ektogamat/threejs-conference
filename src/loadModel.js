@@ -1,16 +1,17 @@
 import {
-    DataTexture,
-    LinearFilter,
-    RGBAFormat,
-    RGBFormat,
-    RGFormat,
-    RedFormat,
+  DataTexture,
+  LinearFilter,
+  RGBAFormat,
+  RGBFormat,
+  RGFormat,
+  RedFormat,
 } from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+import { buildModelBvh } from "./bvh.js";
 
-const MODEL_PATH = "/models/cyberpunk.glb";
+const MODEL_PATH = "/models/cyberpunk_compressed.glb";
 
 /** Vertical offset applied to the loaded root. */
 export const MODEL_OFFSET_Y = -20;
@@ -44,7 +45,8 @@ let dracoLoader;
 let ktx2Loader;
 let gltfLoader;
 
-// KTX2 RGBA32 fallback uses CompressedTexture, but WebGPU needs DataTexture.
+// KTX2 RGBA fallback still wraps as CompressedTexture; WebGPU needs DataTexture.
+// Only runs for uncompressed formats — GPU-compressed (BC/ETC/ASTC) pass through.
 function patchKTX2UncompressedTextures() {
   if (patchKTX2UncompressedTextures.applied) {
     return;
@@ -99,19 +101,9 @@ function initLoaders(renderer) {
 
   ktx2Loader = new KTX2Loader();
   ktx2Loader.setTranscoderPath("/libs/basis/");
+  // Keep hardware compression (BC/ETC2/ASTC). Do NOT force RGBA32 —
+  // that was the walk-mode FPS collapse from texture bandwidth.
   ktx2Loader.detectSupport(renderer);
-
-  // Block-compressed targets (ETC2/BC/…) require multiple-of-four sizes on WebGPU.
-  // Force RGBA32 transcoding for NPOT KTX2 textures in this asset.
-  ktx2Loader.workerConfig = {
-    astcSupported: false,
-    astcHDRSupported: false,
-    etc1Supported: false,
-    etc2Supported: false,
-    dxtSupported: false,
-    bptcSupported: false,
-    pvrtcSupported: false,
-  };
 
   gltfLoader = new GLTFLoader();
   gltfLoader.setDRACOLoader(dracoLoader);
@@ -131,6 +123,9 @@ export async function loadLoftModel(renderer) {
     child.castShadow = true;
     child.receiveShadow = true;
   });
+
+  // City-scale meshes make naive raycasts unusable in walk mode.
+  buildModelBvh(model);
 
   return model;
 }

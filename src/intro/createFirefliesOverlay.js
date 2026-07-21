@@ -124,7 +124,7 @@ export async function createFirefliesOverlay({ opacity = 0.75 } = {}) {
     depth: false,
     stencil: false,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+  renderer.setPixelRatio(1);
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.setClearColor(0x000000, 0);
 
@@ -197,7 +197,7 @@ export async function createFirefliesOverlay({ opacity = 0.75 } = {}) {
       return;
     }
 
-    startStandaloneLoop({ maxDpr: 0.85 });
+    startStandaloneLoop();
   }
 
   function waitForFirstFrame() {
@@ -213,13 +213,12 @@ export async function createFirefliesOverlay({ opacity = 0.75 } = {}) {
     });
   }
 
-  function startStandaloneLoop({ maxDpr = 0.85 } = {}) {
+  function startStandaloneLoop() {
     if (disposed || standaloneLoopActive) {
       return;
     }
 
     standaloneLoopActive = true;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxDpr));
 
     const tick = () => {
       if (!standaloneLoopActive || disposed) {

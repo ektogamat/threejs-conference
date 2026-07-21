@@ -2,11 +2,11 @@ import { RenderPipeline, BlendMode, NormalBlending } from "three/webgpu";
 import { pass, mrt, output, emissive, vec4, mix, smoothstep, uniform, vec3 } from "three/tsl";
 import { UnsignedByteType } from "three";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
-import { fxaa } from "three/addons/tsl/display/FXAANode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlur } from "./tsl/boxBlur.js";
+import { smaa } from "three/addons/tsl/display/SMAANode.js";
 
 export function createPostProcessing(renderer, scene, camera) {
   const post = new RenderPipeline(renderer);
@@ -44,7 +44,7 @@ export function createPostProcessing(renderer, scene, camera) {
   const look = createCyberpunkLook({ scenePass });
 
   const blurSize = uniform(2);
-  const blurSpread = uniform(3);
+  const blurSpread = uniform(2);
   const minDistance = uniform(36);
   const maxDistance = uniform(75);
   const dofEnabled = uniform(1);
@@ -74,7 +74,7 @@ export function createPostProcessing(renderer, scene, camera) {
   const composed = look.buildComposite(beautyWithDof, {
     bloomContribution: bloomPass.add(bloomPassWide).add(flareContribution),
   });
-  const finalOutput = fxaa(composed);
+  const finalOutput = smaa(composed);
   post.outputNode = finalOutput;
 
   function updateFocusPoint(focusPoint, activeCamera) {

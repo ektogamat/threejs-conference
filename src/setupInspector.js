@@ -151,6 +151,13 @@ export function setupInspector(
     addParam(chromaFolder, lookUniforms.chromaticStrength, "value", 0, 2).name(
       "strength",
     );
+    addParam(
+      chromaFolder,
+      lookUniforms.chromaticEdgeFalloff,
+      "value",
+      0.5,
+      12,
+    ).name("edge falloff");
 
     const vignetteFolder = addClosedFolder(lookFolder, "Vignette");
     addParam(

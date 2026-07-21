@@ -1,21 +1,21 @@
 import * as THREE from "three/webgpu";
 import {
-    uniform,
-    vec2,
-    vec3,
-    vec4,
-    float,
-    mix,
-    Fn,
-    screenUV,
-    saturation,
-    luminance,
-    smoothstep,
-    length,
-    step,
-    max
+  uniform,
+  vec2,
+  vec3,
+  vec4,
+  float,
+  mix,
+  Fn,
+  screenUV,
+  saturation,
+  luminance,
+  smoothstep,
+  length,
+  step,
+  max
 } from "three/tsl";
-import { chromaticAberration } from "three/addons/tsl/display/ChromaticAberrationNode.js";
+import { edgeChromaticAberration } from "../tsl/edgeChromaticAberration.js";
 import { film } from "three/addons/tsl/display/FilmNode.js";
 
 export const DEFAULT_LOOK_PRESET = "neonNoir";
@@ -44,10 +44,10 @@ function srgbToLinearVec3([r, g, b]) {
 }
 
 export const DEFAULT_FOG = {
-  enabled: 0.42,
-  near: -20,
-  far: 44,
-  amount: 1,
+  enabled: 0.35,
+  near: 0,
+  far: 50,
+  amount: 0.8,
   colorSrgb: [0.34, 0.37, 0.47],
 };
 
@@ -74,6 +74,7 @@ function presetUniforms({
   greenSuppress,
   gradeMix,
   chromaticStrength,
+  chromaticEdgeFalloff,
   vignetteIntensity,
   vignetteSmoothness,
   grainIntensity,
@@ -91,6 +92,7 @@ function presetUniforms({
     greenSuppress,
     gradeMix,
     chromaticStrength,
+    chromaticEdgeFalloff,
     vignetteIntensity,
     vignetteSmoothness,
     grainIntensity,
@@ -117,6 +119,7 @@ export const LOOK_PRESETS = {
       greenSuppress: 1,
       gradeMix: 0,
       chromaticStrength: 0,
+      chromaticEdgeFalloff: 3,
       vignetteIntensity: 0,
       vignetteSmoothness: 0.65,
       grainIntensity: 0,
@@ -124,7 +127,7 @@ export const LOOK_PRESETS = {
   },
   neonNoir: {
     label: "Neon Noir",
-    bloom: { strength: 1.5, radius: 0.16 },
+    bloom: { strength: 2.5, radius: 0.3 },
     bloomWide: { strength: 2.2, radius: 0.85 },
     lensflare: {
       strength: 0.71,
@@ -140,10 +143,11 @@ export const LOOK_PRESETS = {
       contrast: 1.1,
       greenSuppress: 0.72,
       gradeMix: 0.7,
-      chromaticStrength: 0.3,
-      vignetteIntensity: 0.72,
+      chromaticStrength: 0.8,
+      chromaticEdgeFalloff: 3.5,
+      vignetteIntensity: 0.8,
       vignetteSmoothness: 0.64,
-      grainIntensity: 0.2,
+      grainIntensity: 0.12,
     }),
   },
   magentaRain: {
@@ -165,6 +169,7 @@ export const LOOK_PRESETS = {
       greenSuppress: 0.68,
       gradeMix: 0.9,
       chromaticStrength: 0.55,
+      chromaticEdgeFalloff: 3,
       vignetteIntensity: 0.5,
       vignetteSmoothness: 0.55,
       grainIntensity: 0.3,
@@ -189,6 +194,7 @@ export const LOOK_PRESETS = {
       greenSuppress: 0.8,
       gradeMix: 0.72,
       chromaticStrength: 0.28,
+      chromaticEdgeFalloff: 3,
       vignetteIntensity: 0.3,
       vignetteSmoothness: 0.68,
       grainIntensity: 0.14,
@@ -217,7 +223,8 @@ export function createCyberpunkLook({ scenePass }) {
     contrast: uniform(1.1),
     greenSuppress: uniform(0.72),
     gradeMix: uniform(0.7),
-    chromaticStrength: uniform(0.35),
+    chromaticStrength: uniform(1.33),
+    chromaticEdgeFalloff: uniform(1.38),
     vignetteIntensity: uniform(0.72),
     vignetteSmoothness: uniform(0.64),
     grainIntensity: uniform(0.22),
@@ -238,6 +245,7 @@ export function createCyberpunkLook({ scenePass }) {
     uniforms.greenSuppress.value = values.greenSuppress;
     uniforms.gradeMix.value = values.gradeMix;
     uniforms.chromaticStrength.value = values.chromaticStrength;
+    uniforms.chromaticEdgeFalloff.value = values.chromaticEdgeFalloff;
     uniforms.vignetteIntensity.value = values.vignetteIntensity;
     uniforms.vignetteSmoothness.value = values.vignetteSmoothness;
     uniforms.grainIntensity.value = values.grainIntensity;
@@ -324,11 +332,11 @@ export function createCyberpunkLook({ scenePass }) {
       hazed.a,
     );
 
-    const chroma = chromaticAberration(
+    const chroma = edgeChromaticAberration(
       graded,
       uniforms.chromaticStrength,
+      uniforms.chromaticEdgeFalloff,
       vec2(0.5, 0.5),
-      1.1,
     );
     const withChroma = mix(
       graded,

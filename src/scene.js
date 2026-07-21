@@ -25,7 +25,7 @@ export function createScene() {
   sunLight.position.set(23, 31, 3);
   sunLight.target.position.set(0, 0, 0);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(4096, 4096);
+  sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 1;
   sunLight.shadow.camera.far = SUN_DISTANCE + SHADOW_EXTENT * 2;
   sunLight.shadow.camera.left = -SHADOW_EXTENT;
@@ -33,11 +33,18 @@ export function createScene() {
   sunLight.shadow.camera.top = SHADOW_EXTENT;
   sunLight.shadow.camera.bottom = -SHADOW_EXTENT;
   sunLight.shadow.camera.updateProjectionMatrix();
-  sunLight.shadow.bias = -0.0009;
-  sunLight.shadow.normalBias = 0.02;
+  sunLight.shadow.bias = -0.0001;
+  sunLight.shadow.normalBias = 0.002;
   sunLight.shadow.autoUpdate = false;
   scene.add(sunLight);
   scene.add(sunLight.target);
+
+  const fillLight = new THREE.DirectionalLight("#ffd6c8", 2.5);
+  fillLight.position.set(-18, 22, -12);
+  fillLight.target.position.set(0, 0, 0);
+  fillLight.castShadow = false;
+  scene.add(fillLight);
+  scene.add(fillLight.target);
 
   const sunState = {
     intensity: sunLight.intensity,
@@ -56,5 +63,5 @@ export function createScene() {
 
   applySun();
 
-  return { scene, sunLight, sunState, applySun };
+  return { scene, sunLight, fillLight, sunState, applySun };
 }

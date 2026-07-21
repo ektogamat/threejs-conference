@@ -42,12 +42,12 @@ import {
 
 const INTRO_ENABLED = false;
 const MAX_PIXEL_RATIO = 1.5;
-const DESKTOP_FOV = 85;
+const DESKTOP_FOV = 75;
 const MOBILE_FOV = 100;
 const cameraParams = {
   fovDesktop: DESKTOP_FOV,
   fovMobile: MOBILE_FOV,
-  walkEyeHeight: 1.95,
+  walkEyeHeight: 2.95,
   walkAcceleration: 10,
   walkDeceleration: 14,
   walkFovBoost: 3,
@@ -159,7 +159,7 @@ async function init(loaderOverlay) {
     DESKTOP_FOV,
     window.innerWidth / window.innerHeight,
     0.1,
-    2000,
+    1000,
   );
   camera.position.set(...FREE_CAMERA_START.position);
   applyCameraFovForLayout();
@@ -174,13 +174,15 @@ async function init(loaderOverlay) {
   const requiredLimits = await getWebGPULimits();
 
   renderer = new THREE.WebGPURenderer({
-    antialias: true,
+    antialias: false,
     alpha: false,
     powerPreference: "high-performance",
-    stencil: true,
+    stencil: false,
     requiredLimits,
+    // samples: 0,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+  renderer.colorBufferType = THREE.UnsignedByteType;
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -191,7 +193,7 @@ async function init(loaderOverlay) {
   inspectorInstance = new Inspector();
   renderer.inspector = inspectorInstance;
 
-  // renderer.colorBufferType = THREE.UnsignedByteType;
+  renderer.colorBufferType = THREE.UnsignedByteType;
   renderer.domElement.style.opacity = "0";
   renderer.domElement.style.zIndex = "14";
   renderer.domElement.style.transition = "opacity 220ms ease";
@@ -357,6 +359,7 @@ async function init(loaderOverlay) {
     );
 
     dofRaycaster.setFromCamera(dofPointerCoords, camera);
+    dofRaycaster.firstHitOnly = true;
 
     const intersects = dofRaycaster.intersectObject(model, true);
     if (intersects.length > 0) {
@@ -374,7 +377,7 @@ async function init(loaderOverlay) {
     baseFov: getBaseFovForLayout(),
     settings: {
       moveSpeed: 7,
-      sprintMultiplier: 4,
+      sprintMultiplier: 3,
       eyeHeight: cameraParams.walkEyeHeight,
       acceleration: cameraParams.walkAcceleration,
       deceleration: cameraParams.walkDeceleration,
@@ -557,7 +560,8 @@ async function init(loaderOverlay) {
   });
   settingsPanelRef = settingsPanel;
 
-  audioButton = createAudioButton({ url: "/music.mp3" });
+  audioButton = createAudioButton();
+
   audioButton.setVisible(false);
 
   const uiVisibilityCoordinator = createUiVisibilityCoordinator({
@@ -630,7 +634,7 @@ async function init(loaderOverlay) {
   async function runIntroSequence() {
     renderer.setAnimationLoop(null);
     firefliesOverlay = await createFirefliesOverlay({ opacity: 0.75 });
-    firefliesOverlay.startStandaloneLoop({ maxDpr: 0.85 });
+    firefliesOverlay.startStandaloneLoop();
 
     const introOverlay = createIntroOverlay({
       onStart: () => {
@@ -638,8 +642,6 @@ async function init(loaderOverlay) {
           firefliesOverlay.stopStandaloneLoop();
           renderer.setAnimationLoop(renderFrame);
           post.render();
-
-          audioButton.play().catch(() => {});
 
           const fadePromise = firefliesOverlay?.fadeOut({ duration: 1.2 });
 

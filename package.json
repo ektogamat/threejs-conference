@@ -12,6 +12,7 @@
   "dependencies": {
     "gsap": "^3.15.0",
     "three": "^0.185.1",
+    "three-mesh-bvh": "^0.9.13",
     "vercel": "^56.2.0"
   },
   "devDependencies": {

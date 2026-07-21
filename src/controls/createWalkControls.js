@@ -187,6 +187,8 @@ export function createWalkControls({
     probeDirection.set(0, -1, 0);
     raycaster.set(probeOrigin, probeDirection);
     raycaster.far = settings.groundProbeDistance;
+    // Need every hit (roofs vs walkable floors); BVH still makes this cheap.
+    raycaster.firstHitOnly = false;
 
     return raycaster.intersectObjects(walkTargets, true);
   }
@@ -279,6 +281,7 @@ export function createWalkControls({
 
     raycaster.set(probeOrigin, probeDirection);
     raycaster.far = distance + settings.wallProbeDistance;
+    raycaster.firstHitOnly = true;
 
     const hits = raycaster.intersectObject(model, true);
     if (hits.length > 0 && hits[0].distance < distance) {
@@ -468,7 +471,8 @@ export function createWalkControls({
     }
 
     if (!pointerLocked) {
-      snapCameraToGround();
+      // No continuous ground probes until the player locks the pointer —
+      // city meshes make even BVH snaps wasteful while idle on the hint.
       currentVelocity.set(0, 0, 0);
       currentSpeed = settings.moveSpeed;
       restoreBaseFov();
