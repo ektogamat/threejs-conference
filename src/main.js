@@ -16,6 +16,7 @@ import { createHeader } from "./ui/createHeader.js";
 import { createAboutPanel } from "./ui/createAboutPanel.js";
 import { createSettingsPanel } from "./ui/createSettingsPanel.js";
 import { createAudioButton } from "./ui/createAudioButton.js";
+import { createCarEngineAudio } from "./audio/createCarEngineAudio.js";
 import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
@@ -593,6 +594,13 @@ async function init(loaderOverlay) {
   settingsPanelRef = settingsPanel;
 
   audioButton = createAudioButton();
+  const carEngineAudio = await createCarEngineAudio({
+    camera,
+    car: quadraCar,
+  });
+  if (import.meta.env.DEV && window.__app) {
+    window.__app.carEngineAudio = carEngineAudio;
+  }
 
   audioButton.setVisible(false);
 
