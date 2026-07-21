@@ -1,5 +1,6 @@
 import * as THREE from "three/webgpu";
 import { vec4 } from "three/tsl";
+import { performanceProfile } from "./performanceProfile.js";
 
 export function setupInspector(
   renderer,
@@ -8,19 +9,20 @@ export function setupInspector(
   ground = null,
   cameraControls = null,
   rain = null,
+  performanceTools = null,
 ) {
   const {
     post,
     scenePassColor,
     scenePassEmissive,
     bloomPass,
-    bloomPassWide,
     lensflare,
     look,
     applyLookPreset,
     restoreCombinedOutput,
     composedOutput,
     dof,
+    perf: pipelinePerf,
   } = pipeline;
 
   function notifyParamInteraction() {
@@ -63,9 +65,8 @@ export function setupInspector(
     Beauty: 1,
     Emissive: 2,
     Bloom: 3,
-    "Bloom Wide": 4,
-    DOF: 5,
-    Lensflare: 6,
+    Composed: 4,
+    Lensflare: 5,
   };
 
   const gui = renderer.inspector.createParameters("Post-processing");
@@ -78,7 +79,6 @@ export function setupInspector(
     function applyLookPresetFromInspector(presetId) {
       applyLookPreset(presetId, {
         bloomPass,
-        bloomPassWide,
         lensflare,
       });
       lookParams.preset = presetId;
@@ -233,14 +233,81 @@ export function setupInspector(
   addParam(bloomFolder, bloomPass.strength, "value", 0, 5).name("strength");
   addParam(bloomFolder, bloomPass.radius, "value", 0, 1).name("radius");
 
-  if (bloomPassWide) {
-    const bloomWideFolder = addClosedFolder(gui, "Bloom Wide");
-    addParam(bloomWideFolder, bloomPassWide.strength, "value", 0, 5).name(
-      "strength",
+  if (pipelinePerf) {
+    const perfFolder = addClosedFolder(gui, "Performance");
+    const perfStats = performanceTools?.perfStats;
+
+    if (perfStats) {
+      perfFolder.add(perfStats, "fps").name("fps").disable().listen();
+    }
+
+    function bindPerfToggle(key, label, applyFn) {
+      bindParamControl(
+        perfFolder.add(performanceProfile, key).name(label ?? key),
+        (value) => {
+          performanceProfile[key] = value;
+          applyFn?.(value);
+        },
+      );
+    }
+
+    function bindPerfSlider(key, label, min, max, step, applyFn) {
+      bindParamControl(
+        perfFolder.add(performanceProfile, key, min, max, step).name(label),
+        (value) => {
+          performanceProfile[key] = value;
+          applyFn?.(value);
+        },
+      );
+    }
+
+    bindPerfToggle("groundReflection", "ground reflection");
+    bindPerfSlider(
+      "groundResolutionScale",
+      "ground reflection res",
+      0.15,
+      0.5,
+      0.05,
     );
-    addParam(bloomWideFolder, bloomPassWide.radius, "value", 0, 1).name(
-      "radius",
+    bindPerfSlider(
+      "groundReflectionFrameSkip",
+      "ground reflection skip",
+      1,
+      4,
+      1,
     );
+
+    bindPerfToggle("bloom", "bloom", pipelinePerf.setBloomEnabled);
+    bindPerfSlider(
+      "bloomResolutionScale",
+      "bloom resolution",
+      0.15,
+      1,
+      0.05,
+      pipelinePerf.setBloomResolutionScale,
+    );
+
+    bindPerfToggle("dof", "dof", pipelinePerf.setDofEnabled);
+
+    bindPerfToggle("lensflare", "lensflare", pipelinePerf.setLensflareEnabled);
+    bindPerfSlider(
+      "lensflareResolutionScale",
+      "lensflare resolution",
+      0.15,
+      1,
+      0.05,
+      pipelinePerf.setLensflareResolutionScale,
+    );
+    bindPerfSlider(
+      "lensflareBlurRadius",
+      "lensflare blur radius",
+      0,
+      12,
+      1,
+      pipelinePerf.setLensflareBlurRadius,
+    );
+
+    bindPerfToggle("smaa", "smaa", pipelinePerf.setSmaaEnabled);
   }
 
   if (lensflare) {
@@ -496,13 +563,9 @@ export function setupInspector(
       post.outputNode = scenePassEmissive;
     } else if (value === 3) {
       post.outputNode = vec4(bloomPass.rgb, 1);
-    } else if (value === 4) {
-      post.outputNode = bloomPassWide
-        ? vec4(bloomPassWide.rgb, 1)
-        : vec4(bloomPass.rgb, 1);
-    } else if (value === 5 && composedOutput) {
+    } else if (value === 4 && composedOutput) {
       post.outputNode = composedOutput;
-    } else if (value === 6 && lensflare?.pass) {
+    } else if (value === 5 && lensflare?.pass) {
       post.outputNode = vec4(lensflare.pass.rgb, 1);
     } else {
       restoreCombinedOutput?.();
