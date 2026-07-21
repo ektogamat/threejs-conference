@@ -3,6 +3,8 @@
  * flags in dev via `window.__app.perf` to A/B test FPS impact.
  */
 export const performanceProfile = {
+  maxPixelRatio: 1.5,
+
   groundReflection: true,
   groundResolutionScale: 0.25,
   groundReflectionFrameSkip: 2,

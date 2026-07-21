@@ -82,6 +82,7 @@ export function createGround(scene, {
   const uRoughnessScale = uniform(roughnessScale);
   const uReflectionBlur = uniform(reflectionBlur);
   const uReflectionStrength = uniform(reflectionStrength);
+  const uReflectionEnabled = uniform(1);
   const uNormalWarp = uniform(normalWarp);
   const uFogNear = uniform(fogNear);
   const uFogFar = uniform(fogFar);
@@ -135,7 +136,11 @@ export function createGround(scene, {
     );
     const wetness = roughness.oneMinus();
     const opacity = rangeFogFactor(uFogNear, uFogFar).oneMinus();
-    return dirtyReflection.rgb.mul(wetness).mul(uReflectionStrength).mul(opacity);
+    return dirtyReflection.rgb
+      .mul(wetness)
+      .mul(uReflectionStrength)
+      .mul(uReflectionEnabled)
+      .mul(opacity);
   })();
 
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), material);
@@ -167,7 +172,16 @@ export function createGround(scene, {
 
   let reflectionFrameCounter = 0;
 
+  function setReflectionEnabled(enabled) {
+    uReflectionEnabled.value = enabled ? 1 : 0;
+    uReflectionEnabled.needsUpdate = true;
+  }
+
   function updateReflection(renderer, camera) {
+    if (uReflectionEnabled.value < 0.5) {
+      return;
+    }
+
     const frameSkip = Math.max(1, performanceProfile.groundReflectionFrameSkip);
     reflectionFrameCounter += 1;
     if (reflectionFrameCounter % frameSkip !== 0) {
@@ -280,6 +294,7 @@ export function createGround(scene, {
       roughnessScale: uRoughnessScale,
       reflectionBlur: uReflectionBlur,
       reflectionStrength: uReflectionStrength,
+      reflectionEnabled: uReflectionEnabled,
       normalWarp: uNormalWarp,
       fogNear: uFogNear,
       fogFar: uFogFar,
@@ -293,6 +308,7 @@ export function createGround(scene, {
     setRippleAmount,
     setRippleScale,
     setRippleSpeed,
+    setReflectionEnabled,
     updateReflection,
     dispose,
   };

@@ -16,7 +16,7 @@ import { createHeader } from "./ui/createHeader.js";
 import { createAboutPanel } from "./ui/createAboutPanel.js";
 import { createSettingsPanel } from "./ui/createSettingsPanel.js";
 import { createAudioButton } from "./ui/createAudioButton.js";
-import { createFpsWalkHint } from "./ui/createFpsWalkHint.js";
+import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
   createUiIdleManager,
@@ -41,9 +41,9 @@ import {
   syncLayoutClass,
 } from "./ui/deviceLayout.js";
 import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
+import { performanceProfile } from "./performanceProfile.js";
 
 const INTRO_ENABLED = false;
-const MAX_PIXEL_RATIO = 1.0;
 const DESKTOP_FOV = 75;
 const MOBILE_FOV = 100;
 const cameraParams = {
@@ -98,7 +98,7 @@ let pipeline;
 // let cloudSky;
 let sunLight;
 let walkControls;
-let fpsWalkHint;
+let walkControlsHint;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
@@ -185,7 +185,9 @@ async function init(loaderOverlay) {
     requiredLimits,
     // samples: 0,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
+  );
   renderer.colorBufferType = THREE.UnsignedByteType;
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -400,7 +402,12 @@ async function init(loaderOverlay) {
     },
   });
 
-  fpsWalkHint = createFpsWalkHint();
+  walkControlsHint = createWalkControlsHint({
+    state: uiState,
+    domElement: renderer.domElement,
+  });
+
+  const cameraModeState = { orbitEnabled: false };
 
   function isCameraModeInputBlocked(target) {
     if (!(target instanceof HTMLElement)) {
@@ -420,9 +427,10 @@ async function init(loaderOverlay) {
 
   function setCameraMode(mode) {
     const walk = mode === "walk";
+    cameraModeState.orbitEnabled = !walk;
     walkControls.setActive(walk);
     controls.enabled = !walk && finishedIntro;
-    fpsWalkHint?.setVisible(walk && finishedIntro);
+    walkControlsHint?.setVisible(walk && finishedIntro);
 
     if (walk) {
       walkControls.setBaseFov(getBaseFovForLayout());
@@ -437,21 +445,6 @@ async function init(loaderOverlay) {
       controls.update();
     }
   }
-
-  function toggleCameraMode() {
-    setCameraMode(walkControls.isActive() ? "orbit" : "walk");
-  }
-
-  window.addEventListener("keydown", (event) => {
-    if (!finishedIntro || isCameraModeInputBlocked(event.target)) {
-      return;
-    }
-
-    if (event.code === "KeyF") {
-      event.preventDefault();
-      toggleCameraMode();
-    }
-  });
 
   const timer = new THREE.Timer();
 
@@ -548,9 +541,10 @@ async function init(loaderOverlay) {
         walkSettings: walkControls.settings,
         syncFov: applyCameraFovForLayout,
         syncWalkEyeHeight,
+        cameraModeState,
+        setCameraMode,
       },
       rain,
-      performanceTools,
     );
     inspectorSetupDone = true;
   }
@@ -574,7 +568,7 @@ async function init(loaderOverlay) {
     onRestart: () => {
       clearAllStoredPreferences();
       applyDevelopmentMode(false);
-      setCameraMode("orbit");
+      setCameraMode("walk");
       camera.position.set(...FREE_CAMERA_START.position);
       controls.target.set(...FREE_CAMERA_START.target);
       controls.update();
@@ -591,6 +585,7 @@ async function init(loaderOverlay) {
     state: uiState,
     header,
     audioButton,
+    walkControlsHint,
     isAppReady: () => finishedIntro,
   });
 
@@ -645,7 +640,7 @@ async function init(loaderOverlay) {
 
   function revealAppUi() {
     finishedIntro = true;
-    controls.enabled = true;
+    setCameraMode("walk");
     uiVisibilityCoordinator.refresh();
     header.show();
     audioButton?.setVisible(true);
@@ -713,7 +708,9 @@ function onWindowResize() {
   camera.aspect = width / height;
   applyCameraFovForLayout();
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
+  );
   renderer.setSize(width, height);
   pipeline?.resizePostProcessing?.(width, height);
   requestShadowMapUpdate("resize");

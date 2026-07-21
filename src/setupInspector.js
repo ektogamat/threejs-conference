@@ -9,7 +9,6 @@ export function setupInspector(
   ground = null,
   cameraControls = null,
   rain = null,
-  performanceTools = null,
 ) {
   const {
     post,
@@ -235,11 +234,6 @@ export function setupInspector(
 
   if (pipelinePerf) {
     const perfFolder = addClosedFolder(gui, "Performance");
-    const perfStats = performanceTools?.perfStats;
-
-    if (perfStats) {
-      perfFolder.add(perfStats, "fps").name("fps").disable().listen();
-    }
 
     function bindPerfToggle(key, label, applyFn) {
       bindParamControl(
@@ -261,7 +255,26 @@ export function setupInspector(
       );
     }
 
-    bindPerfToggle("groundReflection", "ground reflection");
+    bindPerfSlider(
+      "maxPixelRatio",
+      "max pixel ratio",
+      0.5,
+      1.5,
+      0.05,
+      (value) => {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, value));
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        renderer.setSize(width, height);
+        pipeline?.resizePostProcessing?.(width, height);
+      },
+    );
+
+    bindPerfToggle(
+      "groundReflection",
+      "ground reflection",
+      (enabled) => ground?.setReflectionEnabled?.(enabled),
+    );
     bindPerfSlider(
       "groundResolutionScale",
       "ground reflection res",
@@ -484,6 +497,18 @@ export function setupInspector(
 
   if (cameraControls?.params) {
     const cameraFolder = addClosedFolder(gui, "Camera");
+
+    if (cameraControls.cameraModeState && cameraControls.setCameraMode) {
+      bindParamControl(
+        cameraFolder
+          .add(cameraControls.cameraModeState, "orbitEnabled")
+          .name("orbit camera"),
+        (enabled) => {
+          cameraControls.setCameraMode(enabled ? "orbit" : "walk");
+        },
+      );
+    }
+
     bindParamControl(
       cameraFolder
         .add(cameraControls.params, "fovDesktop", 30, 120, 1)

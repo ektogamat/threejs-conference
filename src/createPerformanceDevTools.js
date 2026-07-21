@@ -22,6 +22,7 @@ export function createPerformanceDevTools({ pipeline, ground }) {
 
   function syncPipelineFromProfile() {
     applyPerformanceProfileToPipeline(pipeline);
+    ground?.setReflectionEnabled?.(performanceProfile.groundReflection);
   }
 
   function setProfileFlag(key, value) {
@@ -61,7 +62,7 @@ export function createPerformanceDevTools({ pipeline, ground }) {
         [
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
           "  groundReflection, bloom, dof, lensflare, smaa",
-          "  groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
+          "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
           "  __app.perf.getFps() — sampled each second in render loop",
