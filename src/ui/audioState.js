@@ -1,6 +1,6 @@
 const listeners = new Set();
 
-let audioVolume = 0.3;
+let audioVolume = 1;
 let isMusicPlaying = false;
 
 function notify() {
