@@ -6,6 +6,12 @@ import {
   subscribe,
 } from "./audioState.js";
 
+const DEFAULT_URLS = [
+  "/light-rain-109591.mp3",
+  "/night-ambience-17064.mp3",
+  "/thunderstorm-14708.mp3",
+];
+
 const WAVE_SVG = `
   <svg
     id="wave"
@@ -42,27 +48,36 @@ const WAVE_SVG = `
   </svg>
 `;
 
-export function createAudioButton({ url = "/music.mp3" } = {}) {
+export function createAudioButton({ urls = DEFAULT_URLS, url } = {}) {
+  const sources = url ? [url] : urls;
   const root = document.createElement("div");
   root.className = "audio-btn-root audio-btn-root--hidden";
   root.innerHTML = `
-    <button type="button" id="buttonAudio" class="audio-btn" aria-label="Toggle music">
+    <button type="button" id="buttonAudio" class="audio-btn" aria-label="Toggle sound">
       ${WAVE_SVG}
     </button>
-    <audio src="${url}"></audio>
+    ${sources.map((src) => `<audio src="${src}"></audio>`).join("")}
   `;
 
   const button = root.querySelector("#buttonAudio");
   const wave = root.querySelector(".audio-btn-wave");
-  const audioEl = root.querySelector("audio");
+  const audioEls = [...root.querySelectorAll("audio")];
+  const primaryAudio = audioEls[0];
 
   let wasMusicPlaying = false;
+  const interactionEvents = ["pointerdown", "keydown", "touchstart"];
 
-  audioEl.loop = true;
-  audioEl.volume = getAudioVolume();
+  for (const audioEl of audioEls) {
+    audioEl.loop = true;
+    audioEl.volume = getAudioVolume();
+  }
 
   function syncWaveAnimation(playing) {
     wave.classList.toggle("animated", playing);
+  }
+
+  function isAnyPlaying() {
+    return audioEls.some((audioEl) => !audioEl.paused);
   }
 
   function onPlay() {
@@ -71,64 +86,102 @@ export function createAudioButton({ url = "/music.mp3" } = {}) {
   }
 
   function onPause() {
+    if (isAnyPlaying()) {
+      return;
+    }
     setMusicPlaying(false);
     syncWaveAnimation(false);
   }
 
   function onEnded() {
+    if (isAnyPlaying()) {
+      return;
+    }
     setMusicPlaying(false);
     syncWaveAnimation(false);
   }
 
-  audioEl.addEventListener("play", onPlay);
-  audioEl.addEventListener("pause", onPause);
-  audioEl.addEventListener("ended", onEnded);
-
-  function play() {
-    audioEl.volume = getAudioVolume();
-    audioEl.loop = true;
-    return audioEl.play();
+  for (const audioEl of audioEls) {
+    audioEl.addEventListener("play", onPlay);
+    audioEl.addEventListener("pause", onPause);
+    audioEl.addEventListener("ended", onEnded);
   }
 
-  function pause() {
-    audioEl.pause();
-  }
-
-  function handleFocus() {
-    if (wasMusicPlaying) {
-      audioEl.play();
+  function removeInteractionListeners() {
+    for (const eventName of interactionEvents) {
+      window.removeEventListener(eventName, startOnFirstInteraction);
     }
   }
 
-  function handleBlur() {
-    const isPlaying = !audioEl.paused;
-    wasMusicPlaying = isPlaying;
+  function play() {
+    const volume = getAudioVolume();
+    return Promise.all(
+      audioEls.map((audioEl) => {
+        audioEl.volume = volume;
+        audioEl.loop = true;
+        return audioEl.play();
+      }),
+    ).then((result) => {
+      removeInteractionListeners();
+      return result;
+    });
+  }
 
-    if (isPlaying) {
+  function pause() {
+    for (const audioEl of audioEls) {
       audioEl.pause();
     }
   }
 
-  button.addEventListener("click", () => {
-    if (audioEl.paused) {
-      play();
-    } else {
+  function startOnFirstInteraction(event) {
+    if (event.target?.closest?.("#buttonAudio")) {
+      return;
+    }
+
+    play().catch(() => {});
+  }
+
+  function handleFocus() {
+    if (wasMusicPlaying) {
+      play().catch(() => {});
+    }
+  }
+
+  function handleBlur() {
+    const isPlaying = isAnyPlaying();
+    wasMusicPlaying = isPlaying;
+
+    if (isPlaying) {
       pause();
+    }
+  }
+
+  button.addEventListener("click", () => {
+    if (isAnyPlaying()) {
+      removeInteractionListeners();
+      pause();
+    } else {
+      play().catch(() => {});
     }
   });
 
   const unsubscribe = subscribe(({ isMusicPlaying }) => {
     syncWaveAnimation(isMusicPlaying);
 
-    if (isMusicPlaying && audioEl.paused) {
-      audioEl.play();
-    } else if (!isMusicPlaying && !audioEl.paused) {
-      audioEl.pause();
+    if (isMusicPlaying && !isAnyPlaying()) {
+      play().catch(() => {});
+    } else if (!isMusicPlaying && isAnyPlaying()) {
+      pause();
     }
   });
 
   syncWaveAnimation(getIsMusicPlaying());
 
+  for (const eventName of interactionEvents) {
+    window.addEventListener(eventName, startOnFirstInteraction, {
+      passive: true,
+    });
+  }
   window.addEventListener("focus", handleFocus);
   window.addEventListener("blur", handleBlur);
 
@@ -145,18 +198,22 @@ export function createAudioButton({ url = "/music.mp3" } = {}) {
 
   function destroy() {
     unsubscribe();
+    removeInteractionListeners();
     window.removeEventListener("focus", handleFocus);
     window.removeEventListener("blur", handleBlur);
-    audioEl.removeEventListener("play", onPlay);
-    audioEl.removeEventListener("pause", onPause);
-    audioEl.removeEventListener("ended", onEnded);
+    for (const audioEl of audioEls) {
+      audioEl.removeEventListener("play", onPlay);
+      audioEl.removeEventListener("pause", onPause);
+      audioEl.removeEventListener("ended", onEnded);
+    }
     root.remove();
   }
 
   return {
     root,
     button,
-    audioEl,
+    audioEl: primaryAudio,
+    audioEls,
     play,
     pause,
     setVisible,

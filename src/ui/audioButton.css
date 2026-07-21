@@ -1,7 +1,7 @@
 .audio-btn-root {
   position: fixed;
   right: 40px;
-  bottom: calc(30px + 40px + 12px);
+  bottom: 30px;
   z-index: 40;
   width: 40px;
   height: 40px;
@@ -109,7 +109,7 @@
 @media (max-width: 768px) {
   .audio-btn-root {
     right: 16px;
-    bottom: calc(30px + 48px + 12px);
+    bottom: 24px;
     width: 48px;
     height: 48px;
   }
