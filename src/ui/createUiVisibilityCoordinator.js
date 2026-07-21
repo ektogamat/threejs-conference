@@ -97,28 +97,36 @@ export function createUiVisibilityCoordinator({
   state,
   header,
   audioButton,
+  walkControlsHint,
   isAppReady = () => true,
 } = {}) {
   function applyVisibility({ openedPanel, uiVisible }) {
     if (!isAppReady()) {
       header?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
+      walkControlsHint?.setForceHidden?.(true);
       audioButton?.setVisible?.(false);
       return;
     }
 
     const overlayOpen =
-      openedPanel === "settings" || openedPanel === "about";
+      openedPanel === "settings" ||
+      openedPanel === "about" ||
+      openedPanel === "walk-controls";
 
     if (!uiVisible) {
       header?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
+      walkControlsHint?.setForceHidden?.(true);
       return;
     }
 
     header?.setForceHidden?.(false);
     audioButton?.setForceHidden?.(overlayOpen);
     audioButton?.setVisible?.(!overlayOpen);
+    walkControlsHint?.setForceHidden?.(
+      overlayOpen && openedPanel !== "walk-controls",
+    );
   }
 
   const unsubscribe = state.subscribe(applyVisibility);

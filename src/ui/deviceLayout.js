@@ -1,5 +1,19 @@
 export const MOBILE_LAYOUT_QUERY = "(max-width: 768px)";
 
+export function isCoarsePointerDevice() {
+  if (typeof window.matchMedia === "function") {
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      return true;
+    }
+  }
+
+  return typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+}
+
+export function isDesktopPointerLayout() {
+  return !isMobileLayout() && !isCoarsePointerDevice();
+}
+
 export function isMobileLayout() {
   if (typeof window.matchMedia !== "function") {
     return window.innerWidth <= 768;
