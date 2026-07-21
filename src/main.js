@@ -1,5 +1,6 @@
 import "./ui/global.css";
 import * as THREE from "three/webgpu";
+import gsap from "gsap";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Inspector } from "three/addons/inspector/Inspector.js";
 import { addModel, createScene } from "./scene.js";
@@ -14,7 +15,6 @@ import { createAppUiState } from "./ui/appUiState.js";
 import { createHeader } from "./ui/createHeader.js";
 import { createAboutPanel } from "./ui/createAboutPanel.js";
 import { createSettingsPanel } from "./ui/createSettingsPanel.js";
-import { createResizeWarningBanner } from "./ui/createResizeWarningBanner.js";
 import { createAudioButton } from "./ui/createAudioButton.js";
 import { createFpsWalkHint } from "./ui/createFpsWalkHint.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
@@ -255,8 +255,7 @@ async function init(loaderOverlay) {
     };
   }
 
-  const envMapBaseIntensity = { value: 0.04 };
-  let resizeWarningBanner;
+  const envMapBaseIntensity = { value: 0.08 };
   let settingsPanel;
   let audioButton;
   let uiIdleManager;
@@ -292,6 +291,7 @@ async function init(loaderOverlay) {
   pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
     bloomPass: pipeline.bloomPass,
     bloomPassWide: pipeline.bloomPassWide,
+    lensflare: pipeline.lensflare,
   });
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -306,6 +306,61 @@ async function init(loaderOverlay) {
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
   controls.update();
+
+  const WALK_FOCUS_DISTANCE = 12;
+  const focusPoint = controls.target.clone();
+  const walkFocusDirection = new THREE.Vector3();
+  const dofRaycaster = new THREE.Raycaster();
+  const dofPointerCoords = new THREE.Vector2();
+  let focusTween = null;
+
+  function focusOnPoint(point) {
+    focusTween?.kill();
+    focusTween = gsap.to(focusPoint, {
+      x: point.x,
+      y: point.y,
+      z: point.z,
+      duration: 0.5,
+      ease: "power2.inOut",
+    });
+  }
+
+  function setWalkFocusPoint() {
+    camera.getWorldDirection(walkFocusDirection);
+    focusPoint
+      .copy(camera.position)
+      .addScaledVector(walkFocusDirection, WALK_FOCUS_DISTANCE);
+  }
+
+  function syncWalkFocusPoint() {
+    focusTween?.kill();
+    focusTween = null;
+    setWalkFocusPoint();
+  }
+
+  function onDofPointerDown(event) {
+    if (
+      !finishedIntro ||
+      walkControls.isActive() ||
+      isCameraModeInputBlocked(event.target)
+    ) {
+      return;
+    }
+
+    dofPointerCoords.set(
+      (event.clientX / window.innerWidth) * 2 - 1,
+      -(event.clientY / window.innerHeight) * 2 + 1,
+    );
+
+    dofRaycaster.setFromCamera(dofPointerCoords, camera);
+
+    const intersects = dofRaycaster.intersectObject(model, true);
+    if (intersects.length > 0) {
+      focusOnPoint(intersects[0].point);
+    }
+  }
+
+  renderer.domElement.addEventListener("pointerdown", onDofPointerDown);
 
   walkControls = createWalkControls({
     camera,
@@ -354,11 +409,12 @@ async function init(loaderOverlay) {
       walkControls.setBaseFov(getBaseFovForLayout());
       walkControls.syncEulerFromCamera();
       walkControls.snapCameraToGround();
+      syncWalkFocusPoint();
     } else {
       camera.getWorldDirection(orbitLookTarget);
       controls.target
         .copy(camera.position)
-        .add(orbitLookTarget.multiplyScalar(12));
+        .add(orbitLookTarget.multiplyScalar(WALK_FOCUS_DISTANCE));
       controls.update();
     }
   }
@@ -387,11 +443,13 @@ async function init(loaderOverlay) {
 
     if (walkControls?.isActive()) {
       walkControls.update(delta);
+      setWalkFocusPoint();
     } else if (controls.enabled) {
       controls.update();
     }
 
     ground.updateReflection?.(renderer, camera);
+    pipeline.dof.updateFocusPoint(focusPoint, camera);
     post.render();
   }
 
@@ -416,8 +474,6 @@ async function init(loaderOverlay) {
     };
     console.info("[dev] Camera pose: run __app.dumpCamera() in the console");
   }
-
-  resizeWarningBanner = createResizeWarningBanner();
 
   async function finalizeStartupLighting() {
     loaderOverlay.setProgress(0.88);
@@ -561,7 +617,6 @@ async function init(loaderOverlay) {
     controls.enabled = true;
     uiVisibilityCoordinator.refresh();
     header.show();
-    resizeWarningBanner?.arm();
     audioButton?.setVisible(true);
     if (isDevelopmentModeEnabled()) {
       openInspector(inspectorInstance);

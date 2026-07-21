@@ -89,93 +89,10 @@
   font-size: 18px;
 }
 
-.settings-title {
-  margin: 0;
-  font-family: "Montserrat", sans-serif;
-  font-size: 1.35rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-
-.settings-subtitle {
-  margin: 0;
-  font-family: "Montserrat", sans-serif;
-  font-size: 0.82rem;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.5);
-}
-
 .settings-options {
   display: flex;
   flex-direction: column;
   gap: 0;
-}
-
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.settings-section-title {
-  margin: 0;
-  font-family: "Montserrat", sans-serif;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.42);
-}
-
-.settings-render-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.settings-render-option {
-  display: block;
-  cursor: pointer;
-}
-
-.settings-render-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.settings-render-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.1);
-  border: 1px solid transparent;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.settings-render-input:checked + .settings-render-card {
-  background: rgba(110, 155, 255, 0.14);
-  border-color: rgba(150, 190, 255, 0.28);
-  box-shadow:
-    inset 0 1px 4px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(130, 175, 255, 0.08);
-}
-
-.settings-render-input:focus-visible + .settings-render-card {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 2px;
 }
 
 .settings-option {
@@ -203,14 +120,6 @@
   font-size: 0.92rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.92);
-}
-
-.settings-option-desc {
-  font-family: "Montserrat", sans-serif;
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.45);
-  line-height: 1.4;
 }
 
 .settings-toggle-input {
