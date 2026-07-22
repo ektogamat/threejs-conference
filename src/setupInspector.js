@@ -9,6 +9,7 @@ export function setupInspector(
   ground = null,
   cameraControls = null,
   rain = null,
+  smoke = null,
 ) {
   const {
     post,
@@ -526,6 +527,78 @@ export function setupInspector(
         (value) => pipeline.refraction.setStrength(value),
       );
     }
+  }
+
+  if (smoke?.params) {
+    const smokeFolder = addClosedFolder(gui, "Smoke");
+
+    bindParamControl(
+      smokeFolder
+        .add(smoke.params, "exhaustOpacity", 0, 1, 0.01)
+        .name("exhaust opacity"),
+      (value) => smoke.setExhaustOpacity(value),
+    );
+    bindParamControl(
+      smokeFolder
+        .add(smoke.params, "exhaustScale", 0.5, 8, 0.1)
+        .name("exhaust scale"),
+      (value) => smoke.setExhaustScale(value),
+    );
+    bindParamControl(
+      smokeFolder
+        .add(smoke.params, "exhaustSpeed", 0.01, 0.5, 0.01)
+        .name("exhaust speed"),
+      (value) => smoke.setExhaustSpeed(value),
+    );
+
+    const exhaustFolder = addClosedFolder(smokeFolder, "Exhaust pipes");
+    smoke.params.exhaust.forEach((pipeParams, index) => {
+      const pipeFolder = addClosedFolder(exhaustFolder, `Pipe ${index + 1}`);
+      bindParamControl(pipeFolder.add(pipeParams, "x", -5, 5, 0.01), () => {
+        smoke.syncExhaustPosition(index);
+      });
+      bindParamControl(pipeFolder.add(pipeParams, "y", -2, 3, 0.01), () => {
+        smoke.syncExhaustPosition(index);
+      });
+      bindParamControl(pipeFolder.add(pipeParams, "z", -5, 5, 0.01), () => {
+        smoke.syncExhaustPosition(index);
+      });
+    });
+
+    bindParamControl(
+      smokeFolder
+        .add(smoke.params, "ambientOpacity", 0, 1, 0.01)
+        .name("ambient opacity"),
+      (value) => smoke.setAmbientOpacity(value),
+    );
+    bindParamControl(
+      smokeFolder
+        .add(smoke.params, "ambientSpeed", 0.01, 0.3, 0.005)
+        .name("ambient speed"),
+      (value) => smoke.setAmbientSpeed(value),
+    );
+
+    const ambientFolder = addClosedFolder(smokeFolder, "Ground puffs");
+    smoke.params.ambient.forEach((puffParams, index) => {
+      const puffFolder = addClosedFolder(ambientFolder, `Puff ${index + 1}`);
+      bindParamControl(puffFolder.add(puffParams, "x", -200, 0, 0.1), () => {
+        smoke.syncAmbientPosition(index);
+      });
+      bindParamControl(puffFolder.add(puffParams, "y", -10, 0, 0.05), () => {
+        smoke.syncAmbientPosition(index);
+      });
+      bindParamControl(puffFolder.add(puffParams, "z", 0, 80, 0.1), () => {
+        smoke.syncAmbientPosition(index);
+      });
+      bindParamControl(
+        puffFolder.add(puffParams, "scale", 1, 15, 0.1).name("scale"),
+        (value) => smoke.setAmbientScale(index, value),
+      );
+    });
+
+    smokeFolder
+      .add({ logConfig: () => smoke.logConfig() }, "logConfig")
+      .name("log config to console");
   }
 
   if (cameraControls?.params) {

@@ -26,6 +26,7 @@ import {
 import { createIntroOverlay } from "./ui/createIntroOverlay.js";
 import { createFirefliesOverlay } from "./intro/createFirefliesOverlay.js";
 import { createRainStreaks } from "./weather/createRainStreaks.js";
+import { createSmoke } from "./effects/createSmoke.js";
 import {
   isDevelopmentModeEnabled,
   setDevelopmentModeEnabled,
@@ -45,7 +46,7 @@ import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
 import { performanceProfile } from "./performanceProfile.js";
 
 const INTRO_ENABLED = false;
-const DESKTOP_FOV = 55;
+const DESKTOP_FOV = 65;
 const MOBILE_FOV = 100;
 const cameraParams = {
   fovDesktop: DESKTOP_FOV,
@@ -104,6 +105,7 @@ let walkControlsHint;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
+let smoke = null;
 let performanceTools = null;
 
 async function getWebGPULimits() {
@@ -243,6 +245,7 @@ async function init(loaderOverlay) {
   const ground = createGround(scene);
 
   rain = await createRainStreaks({ scene });
+  smoke = await createSmoke({ scene, car: quadraCar });
 
   if (import.meta.env.DEV) {
     window.__app = {
@@ -251,6 +254,7 @@ async function init(loaderOverlay) {
       quadraCar,
       ground,
       rain,
+      smoke,
       listObjectNames() {
         const rows = [];
 
@@ -562,6 +566,7 @@ async function init(loaderOverlay) {
         setCameraMode,
       },
       rain,
+      smoke,
     );
     inspectorSetupDone = true;
   }

@@ -17,6 +17,10 @@ export const performanceProfile = {
   smaa: true,
 
   lensflareBlurRadius: 4,
+
+  smokeEnabled: true,
+  exhaustCount: 50,
+  ambientCount: 40,
 };
 
 export function applyPerformanceProfileToPipeline(pipeline) {
