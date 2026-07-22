@@ -66,6 +66,7 @@ export function createPerformanceDevTools({ pipeline, ground }) {
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
           "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
+          "  planeEnabled (true)",
           "  __app.perf.getFps() — sampled each second in render loop",
           "  Inspector: Settings → Development Mode → Post-processing → Performance",
         ].join("\n"),

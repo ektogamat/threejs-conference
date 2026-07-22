@@ -10,6 +10,7 @@ export function setupInspector(
   cameraControls = null,
   rain = null,
   smoke = null,
+  planes = null,
 ) {
   const {
     post,
@@ -598,6 +599,80 @@ export function setupInspector(
 
     smokeFolder
       .add({ logConfig: () => smoke.logConfig() }, "logConfig")
+      .name("log config to console");
+  }
+
+  if (planes?.params) {
+    const planesFolder = addClosedFolder(gui, "Planes");
+
+    bindParamControl(
+      planesFolder.add(planes.params, "enabled").name("enabled"),
+      (value) => planes.setEnabled(value),
+    );
+    bindParamControl(
+      planesFolder
+        .add(planes.params, "speedMultiplier", 0.1, 4, 0.05)
+        .name("speed multiplier"),
+      (value) => planes.setSpeedMultiplier(value),
+    );
+    bindParamControl(
+      planesFolder.add(planes.params, "debugPath").name("debug path"),
+      (value) => planes.setDebugPath(value),
+    );
+    bindParamControl(
+      planesFolder
+        .addColor(planes.params, "debugPathColor")
+        .name("debug path color"),
+      (value) => planes.setDebugPathColor(value),
+    );
+
+    planes.params.paths.forEach((pathParams, pathIndex) => {
+      const pathFolder = addClosedFolder(planesFolder, `Path ${pathIndex + 1}`);
+
+      bindParamControl(
+        pathFolder.add(pathParams, "speed", 0.1, 4, 0.05).name("speed"),
+      );
+      bindParamControl(
+        pathFolder.add(pathParams, "scale", 0.1, 5, 0.05).name("scale"),
+        () => planes.syncPlaneScale(pathIndex),
+      );
+      bindParamControl(
+        pathFolder
+          .add(pathParams, "startOffset", 0, 1, 0.01)
+          .name("start offset"),
+      );
+      bindParamControl(
+        pathFolder.add(pathParams, "direction", -1, 1, 2).name("direction"),
+      );
+      bindParamControl(
+        pathFolder
+          .add(pathParams, "yawOffset", -Math.PI, Math.PI, 0.01)
+          .name("yaw offset"),
+      );
+      bindParamControl(
+        pathFolder.add(pathParams, "loopDelay", 0, 60, 0.5).name("loop delay"),
+      );
+
+      const pointsFolder = addClosedFolder(pathFolder, "Curve points");
+      pathParams.curvePoints.forEach((point, pointIndex) => {
+        const pointFolder = addClosedFolder(
+          pointsFolder,
+          `Point ${pointIndex + 1}`,
+        );
+        bindParamControl(pointFolder.add(point, "0", -500, 500, 0.5).name("x"), () => {
+          planes.syncPathPoint(pathIndex, pointIndex);
+        });
+        bindParamControl(pointFolder.add(point, "1", -20, 200, 0.5).name("y"), () => {
+          planes.syncPathPoint(pathIndex, pointIndex);
+        });
+        bindParamControl(pointFolder.add(point, "2", -500, 500, 0.5).name("z"), () => {
+          planes.syncPathPoint(pathIndex, pointIndex);
+        });
+      });
+    });
+
+    planesFolder
+      .add({ logConfig: () => planes.logConfig() }, "logConfig")
       .name("log config to console");
   }
 

@@ -117,7 +117,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const lensflareThreshold = uniform(0.09);
   const lensflareGhostAttenuation = uniform(50);
   const lensflareGhostSpacing = uniform(0.27);
-  const lensflareStrength = uniform(0.71);
+  const lensflareStrength = uniform(0.3);
   const lensflareEnabled = uniform(performanceProfile.lensflare ? 1 : 0);
   const lensflareBlurRadius = uniform(performanceProfile.lensflareBlurRadius);
 
@@ -133,7 +133,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
 
   const look = createCyberpunkLook({ scenePass });
 
-  const blurSize = uniform(2);
+  const blurSize = uniform(3);
   const blurSpread = uniform(2);
   const minDistance = uniform(36);
   const maxDistance = uniform(75);

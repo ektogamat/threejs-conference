@@ -17,6 +17,7 @@ import { createAboutPanel } from "./ui/createAboutPanel.js";
 import { createSettingsPanel } from "./ui/createSettingsPanel.js";
 import { createAudioButton } from "./ui/createAudioButton.js";
 import { createCarEngineAudio } from "./audio/createCarEngineAudio.js";
+import { createPlaneEngineAudio } from "./audio/createPlaneEngineAudio.js";
 import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
@@ -27,6 +28,7 @@ import { createIntroOverlay } from "./ui/createIntroOverlay.js";
 import { createFirefliesOverlay } from "./intro/createFirefliesOverlay.js";
 import { createRainStreaks } from "./weather/createRainStreaks.js";
 import { createSmoke } from "./effects/createSmoke.js";
+import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
 import {
   isDevelopmentModeEnabled,
   setDevelopmentModeEnabled,
@@ -106,6 +108,7 @@ let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
 let smoke = null;
+let planes = null;
 let performanceTools = null;
 
 async function getWebGPULimits() {
@@ -167,7 +170,7 @@ async function init(loaderOverlay) {
     DESKTOP_FOV,
     window.innerWidth / window.innerHeight,
     0.1,
-    1000,
+    300,
   );
   camera.position.set(...FREE_CAMERA_START.position);
   applyCameraFovForLayout();
@@ -246,6 +249,7 @@ async function init(loaderOverlay) {
 
   rain = await createRainStreaks({ scene });
   smoke = await createSmoke({ scene, car: quadraCar });
+  planes = await createFlyingPlanes({ scene, renderer });
 
   if (import.meta.env.DEV) {
     window.__app = {
@@ -255,6 +259,7 @@ async function init(loaderOverlay) {
       ground,
       rain,
       smoke,
+      planes,
       listObjectNames() {
         const rows = [];
 
@@ -474,6 +479,7 @@ async function init(loaderOverlay) {
     }
 
     rain?.update(delta, camera);
+    planes?.update?.(delta);
     ground.update?.(delta);
     ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
     if (performanceTools?.shouldUpdateGroundReflection()) {
@@ -567,6 +573,7 @@ async function init(loaderOverlay) {
       },
       rain,
       smoke,
+      planes,
     );
     inspectorSetupDone = true;
   }
@@ -606,8 +613,13 @@ async function init(loaderOverlay) {
     camera,
     car: quadraCar,
   });
+  const planeEngineAudio = await createPlaneEngineAudio({
+    listener: carEngineAudio.listener,
+    plane: planes?.group?.getObjectByName("plane-anchor-1") ?? null,
+  });
   if (import.meta.env.DEV && window.__app) {
     window.__app.carEngineAudio = carEngineAudio;
+    window.__app.planeEngineAudio = planeEngineAudio;
   }
 
   audioButton.setVisible(false);

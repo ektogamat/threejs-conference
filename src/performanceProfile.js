@@ -21,6 +21,8 @@ export const performanceProfile = {
   smokeEnabled: true,
   exhaustCount: 50,
   ambientCount: 40,
+
+  planeEnabled: true,
 };
 
 export function applyPerformanceProfileToPipeline(pipeline) {

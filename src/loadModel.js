@@ -18,6 +18,7 @@ import { buildModelBvh, installBvhRaycast } from "./bvh.js";
 
 const MODEL_PATH = "/models/cyberpunk.glb";
 const QUADRA_PATH = "/models/quadra.glb";
+export const PLANE_PATH = "/models/plane.glb";
 
 /** Vertical offset applied to the loaded root. */
 export const MODEL_OFFSET_Y = -20;
@@ -225,4 +226,11 @@ export async function loadQuadraCar(renderer) {
   const collider = createCarCollider(car);
 
   return { car, collider };
+}
+
+export async function loadPlaneModel(renderer) {
+  initLoaders(renderer);
+
+  const gltf = await gltfLoader.loadAsync(PLANE_PATH);
+  return gltf.scene;
 }

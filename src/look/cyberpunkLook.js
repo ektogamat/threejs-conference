@@ -130,7 +130,7 @@ export const LOOK_PRESETS = {
     bloom: { strength: 2.5, radius: 0.3 },
     bloomWide: { strength: 2.2, radius: 0.85 },
     lensflare: {
-      strength: 0.71,
+      strength: 0.3,
       threshold: 0.09,
       ghostSpacing: 0.27,
       ghostAttenuation: 50,
