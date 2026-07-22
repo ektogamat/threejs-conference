@@ -373,3 +373,34 @@
     font-size: 10px;
   }
 }
+
+.layout-mobile .cyber-hud {
+  min-width: 0;
+  max-width: calc(100vw - 112px);
+}
+
+.layout-mobile .cyber-hud .hud-compact-value {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.layout-mobile .cyber-hud .hud-stats {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.layout-mobile .cyber-hud .cyber-hud-inner {
+  gap: 0;
+  padding: 8px 10px 8px 8px;
+}
+
+.layout-mobile .cyber-hud .hud-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.layout-mobile .cyber-hud .cyber-hud-corner {
+  opacity: 0.5;
+}

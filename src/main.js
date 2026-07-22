@@ -20,6 +20,8 @@ import { createCarEngineAudio } from "./audio/createCarEngineAudio.js";
 import { createPlaneEngineAudio } from "./audio/createPlaneEngineAudio.js";
 import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
 import { createWalkPrompt } from "./ui/createWalkPrompt.js";
+import { createMoveHint } from "./ui/createMoveHint.js";
+import { createVirtualJoystick } from "./ui/createVirtualJoystick.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
   createUiIdleManager,
@@ -106,6 +108,8 @@ let sunLight;
 let walkControls;
 let walkControlsHint;
 let walkPrompt;
+let moveHint;
+let virtualJoystick;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
@@ -431,6 +435,18 @@ async function init(loaderOverlay) {
 
   walkPrompt = createWalkPrompt({
     domElement: renderer.domElement,
+    walkControls,
+    state: uiState,
+  });
+
+  moveHint = createMoveHint({
+    walkControls,
+    state: uiState,
+  });
+
+  virtualJoystick = createVirtualJoystick({
+    walkControls,
+    state: uiState,
   });
 
   header.bindWalkControls(walkControls);
@@ -459,6 +475,7 @@ async function init(loaderOverlay) {
     walkControls.setActive(walk);
     controls.enabled = !walk && finishedIntro;
     walkControlsHint?.setVisible(walk && finishedIntro);
+    virtualJoystick?.setVisible(walk && finishedIntro);
 
     if (walk) {
       walkControls.setBaseFov(getBaseFovForLayout());
@@ -607,6 +624,10 @@ async function init(loaderOverlay) {
     state: uiState,
     getDevelopmentMode: isDevelopmentModeEnabled,
     onDevelopmentModeChange: applyDevelopmentMode,
+    getCurrentLookPreset: () => pipeline.look.getCurrentPresetId(),
+    onLookPresetChange: (presetId) => {
+      pipeline.applyLookPreset(presetId);
+    },
     onRestart: () => {
       clearAllStoredPreferences();
       applyDevelopmentMode(false);
@@ -642,6 +663,7 @@ async function init(loaderOverlay) {
     header,
     audioButton,
     walkControlsHint,
+    virtualJoystick,
     isAppReady: () => finishedIntro,
   });
 
@@ -705,6 +727,8 @@ async function init(loaderOverlay) {
     header.show();
     audioButton?.setVisible(true);
     walkPrompt?.setEnabled(true);
+    moveHint?.setEnabled(true);
+    virtualJoystick?.setEnabled(true);
     if (isDevelopmentModeEnabled()) {
       openInspector(inspectorInstance);
     }

@@ -1,6 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Gloock&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap");
-@import url("https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css");
+@import url("/fonts/fonts.css");
+@import url("/fonts/phosphor/style.css");
 
 :root {
   --cyber-bg: rgba(8, 4, 18, 0.35);
@@ -50,6 +49,8 @@ canvas {
 .walk-controls *,
 .walk-prompt,
 .walk-prompt *,
+.move-hint,
+.move-hint *,
 .about-overlay,
 .about-overlay *,
 .settings-overlay,
@@ -76,6 +77,35 @@ canvas {
 .app-header svg,
 .about-overlay svg,
 .walk-controls svg,
-.walk-prompt svg {
+.walk-prompt svg,
+.move-hint svg {
   pointer-events: none;
+}
+
+/* While walking: fade chrome UI, keep only the compact HUD. */
+body.ui-moving-compact .app-header {
+  background-image: none;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0s,
+    background-image 0.45s ease;
+}
+
+body.ui-moving-compact .app-header-actions,
+body.ui-moving-compact .audio-btn-root,
+body.ui-moving-compact .walk-controls__chip,
+body.ui-moving-compact .move-hint,
+body.ui-moving-compact .walk-prompt {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.45s ease;
+}
+
+.app-header-actions,
+.audio-btn-root,
+.walk-controls__chip,
+.move-hint,
+.walk-prompt {
+  transition: opacity 0.45s ease;
 }

@@ -136,6 +136,8 @@ export function createWalkControlsHint({ state, domElement } = {}) {
 
     root.classList.toggle("walk-controls--hidden", !showChip);
     root.classList.toggle("walk-controls--force-hidden", forceHidden && !overlayOpen);
+    // Lift above header (z-index 1000) while the overlay is open.
+    root.classList.toggle("walk-controls--overlay-open", overlayOpen);
   }
 
   function openOverlay() {

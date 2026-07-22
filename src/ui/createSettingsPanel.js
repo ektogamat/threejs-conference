@@ -1,13 +1,59 @@
 import "./settingsPanel.css";
 import {
   phosphorArrowCounterClockwise,
+  phosphorCircleHalf,
+  phosphorCloudRain,
+  phosphorMoonStars,
+  phosphorSunHorizon,
   phosphorX,
 } from "./phosphorIcons.js";
+import { LOOK_PRESETS, DEFAULT_LOOK_PRESET } from "../look/cyberpunkLook.js";
+
+const LOOK_OPTIONS = [
+  {
+    id: "neutral",
+    label: LOOK_PRESETS.neutral.label,
+    icon: phosphorCircleHalf,
+  },
+  {
+    id: "neonNoir",
+    label: LOOK_PRESETS.neonNoir.label,
+    icon: phosphorMoonStars,
+  },
+  {
+    id: "magentaRain",
+    label: LOOK_PRESETS.magentaRain.label,
+    icon: phosphorCloudRain,
+  },
+  {
+    id: "tealDusk",
+    label: LOOK_PRESETS.tealDusk.label,
+    icon: phosphorSunHorizon,
+  },
+];
+
+function renderLookButtons() {
+  return LOOK_OPTIONS.map(
+    (option) => `
+      <button
+        type="button"
+        class="settings-look-btn"
+        data-look-preset="${option.id}"
+        aria-pressed="false"
+      >
+        <span class="settings-look-icon">${option.icon}</span>
+        <span class="settings-look-label">${option.label}</span>
+      </button>
+    `,
+  ).join("");
+}
 
 export function createSettingsPanel({
   state,
   getDevelopmentMode = () => false,
   onDevelopmentModeChange,
+  getCurrentLookPreset = () => DEFAULT_LOOK_PRESET,
+  onLookPresetChange,
   onRestart,
 } = {}) {
   const root = document.createElement("div");
@@ -20,6 +66,15 @@ export function createSettingsPanel({
       </button>
 
       <div class="settings-options">
+        <div class="settings-section">
+          <p class="settings-section-title">Look</p>
+          <div class="settings-look-grid" role="group" aria-label="Color look">
+            ${renderLookButtons()}
+          </div>
+        </div>
+
+        <div class="settings-divider" role="separator"></div>
+
         <label class="settings-option">
           <span class="settings-option-text">
             <span class="settings-option-title">Development mode</span>
@@ -50,14 +105,26 @@ export function createSettingsPanel({
   const closeButton = root.querySelector(".settings-close");
   const devToggle = root.querySelector("[data-development-mode]");
   const restartButton = root.querySelector("[data-restart]");
+  const lookButtons = [...root.querySelectorAll("[data-look-preset]")];
 
   function syncDevelopmentMode(enabled) {
     devToggle.checked = Boolean(enabled);
   }
 
+  function syncLookPreset(presetId = getCurrentLookPreset()) {
+    const activeId = LOOK_PRESETS[presetId] ? presetId : DEFAULT_LOOK_PRESET;
+
+    for (const button of lookButtons) {
+      const selected = button.dataset.lookPreset === activeId;
+      button.classList.toggle("settings-look-btn--active", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    }
+  }
+
   function open() {
     root.classList.remove("settings-overlay--force-hidden");
     syncDevelopmentMode(getDevelopmentMode());
+    syncLookPreset();
     root.hidden = false;
   }
 
@@ -89,6 +156,14 @@ export function createSettingsPanel({
   glass.addEventListener("click", (event) => {
     event.stopPropagation();
   });
+
+  for (const button of lookButtons) {
+    button.addEventListener("click", () => {
+      const presetId = button.dataset.lookPreset;
+      onLookPresetChange?.(presetId);
+      syncLookPreset(presetId);
+    });
+  }
 
   devToggle.addEventListener("change", () => {
     onDevelopmentModeChange?.(devToggle.checked);
@@ -130,6 +205,7 @@ export function createSettingsPanel({
     close,
     setForceHidden,
     syncDevelopmentMode,
+    syncLookPreset,
     destroy() {
       document.removeEventListener("keydown", onKeyDown);
       root.remove();

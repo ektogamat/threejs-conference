@@ -1,11 +1,11 @@
 import "./walkPrompt.css";
+import { isCoarsePointerDevice } from "./deviceLayout.js";
 
 /**
- * HUD tip shown whenever pointer lock is unlocked.
- * Uses Document.pointerLockElement + pointerlockchange
- * (https://developer.mozilla.org/en-US/docs/Web/API/Document/pointerLockElement).
+ * HUD tip shown whenever pointer lock is unlocked (desktop) or before the
+ * first touch look (mobile).
  */
-export function createWalkPrompt({ domElement } = {}) {
+export function createWalkPrompt({ domElement, walkControls, state } = {}) {
   const root = document.createElement("button");
   root.type = "button";
   root.className = "walk-prompt";
@@ -27,14 +27,36 @@ export function createWalkPrompt({ domElement } = {}) {
 
   document.body.appendChild(root);
 
+  const titleEl = root.querySelector(".walk-prompt-title");
+
   let enabled = false;
+  let panelOpen = Boolean(state?.openedPanel);
+  let hasTouchLooked = walkControls?.hasTouchLooked?.() ?? false;
 
   function isPointerLocked() {
     return document.pointerLockElement != null;
   }
 
+  function syncCopy() {
+    if (isCoarsePointerDevice()) {
+      titleEl.textContent = "Drag to look around";
+      root.setAttribute("aria-label", "Drag to look around");
+      root.classList.add("walk-prompt--passive");
+    } else {
+      titleEl.textContent = "Click to look around";
+      root.setAttribute("aria-label", "Click to activate walk mode");
+      root.classList.remove("walk-prompt--passive");
+    }
+  }
+
   function sync() {
-    const shouldShow = enabled && !isPointerLocked();
+    syncCopy();
+
+    const coarse = isCoarsePointerDevice();
+    const shouldShow = coarse
+      ? enabled && !hasTouchLooked && !panelOpen
+      : enabled && !isPointerLocked() && !panelOpen;
+
     root.hidden = !shouldShow;
     root.classList.toggle("walk-prompt--visible", shouldShow);
   }
@@ -45,22 +67,44 @@ export function createWalkPrompt({ domElement } = {}) {
   }
 
   function onPointerLockChange() {
+    if (isCoarsePointerDevice()) {
+      return;
+    }
+
     sync();
   }
 
   function onClick(event) {
+    if (isCoarsePointerDevice()) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
-    if (!domElement || isPointerLocked()) {
+    if (!domElement || isPointerLocked() || panelOpen) {
       return;
     }
 
     domElement.requestPointerLock();
   }
 
+  function onWalkChange({ hasTouchLooked: nextHasTouchLooked } = {}) {
+    if (!isCoarsePointerDevice()) {
+      return;
+    }
+
+    hasTouchLooked = Boolean(nextHasTouchLooked);
+    sync();
+  }
+
   document.addEventListener("pointerlockchange", onPointerLockChange);
   root.addEventListener("click", onClick);
+  const unsubscribeWalk = walkControls?.subscribe?.(onWalkChange);
+  const unsubscribeState = state?.subscribe?.(({ openedPanel }) => {
+    panelOpen = Boolean(openedPanel);
+    sync();
+  });
 
   return {
     root,
@@ -72,6 +116,8 @@ export function createWalkPrompt({ domElement } = {}) {
       setEnabled(false);
     },
     destroy() {
+      unsubscribeWalk?.();
+      unsubscribeState?.();
       document.removeEventListener("pointerlockchange", onPointerLockChange);
       root.removeEventListener("click", onClick);
       root.remove();

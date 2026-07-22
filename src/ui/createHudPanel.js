@@ -125,6 +125,8 @@ export function createHudPanel() {
 
     compact = next;
     root.classList.toggle("cyber-hud--compact", compact);
+    // Dim ABOUT / settings / audio / controls while only the compact HUD stays up.
+    document.body.classList.toggle("ui-moving-compact", compact);
   }
 
   function update(delta) {

@@ -27,6 +27,11 @@
   pointer-events: auto;
 }
 
+.walk-prompt--passive {
+  pointer-events: none;
+  cursor: default;
+}
+
 .walk-prompt-frame {
   position: relative;
   display: block;

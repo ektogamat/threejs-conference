@@ -11,6 +11,10 @@
   pointer-events: none;
 }
 
+.walk-controls--overlay-open {
+  z-index: 1300;
+}
+
 .walk-controls--hidden .walk-controls__chip {
   opacity: 0;
   transform: translateY(8px);

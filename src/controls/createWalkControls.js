@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import { isCoarsePointerDevice } from "../ui/deviceLayout.js";
 
 const DEFAULTS = {
   moveSpeed: 3,
@@ -29,6 +30,7 @@ const DEFAULTS = {
 
 const MOVE_EPSILON = 0.01;
 const SPRINT_SPEED_THRESHOLD = 0.5;
+const MOVE_AXIS_DEADZONE = 0.12;
 
 const KEY_MAP = {
   KeyW: "forward",
@@ -111,10 +113,26 @@ export function createWalkControls({
   let active = false;
   let pointerLocked = false;
   let moving = false;
+  let hasTouchLooked = false;
   let currentBaseFov = baseFov;
   let currentSpeed = settings.moveSpeed;
 
+  const externalMoveAxes = new THREE.Vector2();
+  const touchLookPointers = new Map();
+
   const listeners = new Set();
+
+  function isControlEngaged() {
+    if (!active) {
+      return false;
+    }
+
+    if (isCoarsePointerDevice()) {
+      return true;
+    }
+
+    return pointerLocked;
+  }
 
   function notifyChange() {
     for (const listener of listeners) {
@@ -122,6 +140,7 @@ export function createWalkControls({
         active,
         pointerLocked,
         moving,
+        hasTouchLooked,
       });
     }
   }
@@ -147,7 +166,7 @@ export function createWalkControls({
   }
 
   function updateDynamicFov(delta) {
-    if (!active || !pointerLocked) {
+    if (!isControlEngaged()) {
       return;
     }
 
@@ -425,19 +444,127 @@ export function createWalkControls({
     }
   }
 
+  function applyLookDelta(deltaX, deltaY) {
+    if (!active) {
+      return;
+    }
+
+    euler.y -= deltaX * settings.mouseSensitivity;
+    euler.x -= deltaY * settings.mouseSensitivity;
+    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+    applyEulerToCamera();
+    onLookChange?.();
+  }
+
   function onMouseMove(event) {
-    if (!active || !pointerLocked) {
+    if (!active || !pointerLocked || isCoarsePointerDevice()) {
       return;
     }
 
     // Keep sprint in sync while pointer-locked (modifier keyup can be missed).
     syncSprintFromEvent(event);
 
-    euler.y -= event.movementX * settings.mouseSensitivity;
-    euler.x -= event.movementY * settings.mouseSensitivity;
-    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-    applyEulerToCamera();
-    onLookChange?.();
+    applyLookDelta(event.movementX, event.movementY);
+  }
+
+  function shouldIgnoreTouchLookTarget(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(
+      target.closest(
+        ".virtual-joystick, .walk-prompt, .app-header, .move-hint, .app-audio-btn, .walk-controls",
+      ),
+    );
+  }
+
+  function onCanvasPointerDown(event) {
+    if (!active || !isCoarsePointerDevice() || event.pointerType === "mouse") {
+      return;
+    }
+
+    if (event.target !== domElement || shouldIgnoreTouchLookTarget(event)) {
+      return;
+    }
+
+    touchLookPointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    domElement.setPointerCapture?.(event.pointerId);
+  }
+
+  function onCanvasPointerMove(event) {
+    if (!active || !isCoarsePointerDevice()) {
+      return;
+    }
+
+    const previous = touchLookPointers.get(event.pointerId);
+    if (!previous) {
+      return;
+    }
+
+    const deltaX = event.clientX - previous.x;
+    const deltaY = event.clientY - previous.y;
+    previous.x = event.clientX;
+    previous.y = event.clientY;
+
+    if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
+      return;
+    }
+
+    applyLookDelta(deltaX, deltaY);
+
+    if (!hasTouchLooked) {
+      hasTouchLooked = true;
+      notifyChange();
+    }
+  }
+
+  function onCanvasPointerUp(event) {
+    touchLookPointers.delete(event.pointerId);
+
+    if (domElement.hasPointerCapture?.(event.pointerId)) {
+      domElement.releasePointerCapture?.(event.pointerId);
+    }
+  }
+
+  function setMoveAxes(x, y) {
+    externalMoveAxes.set(x, y);
+  }
+
+  function buildMoveInput() {
+    moveInput.set(0, 0);
+
+    if (
+      externalMoveAxes.lengthSq() >
+      MOVE_AXIS_DEADZONE * MOVE_AXIS_DEADZONE
+    ) {
+      moveInput.copy(externalMoveAxes);
+      if (moveInput.lengthSq() > 1) {
+        moveInput.normalize();
+      }
+      return;
+    }
+
+    if (keys.forward) {
+      moveInput.y -= 1;
+    }
+    if (keys.backward) {
+      moveInput.y += 1;
+    }
+    if (keys.left) {
+      moveInput.x -= 1;
+    }
+    if (keys.right) {
+      moveInput.x += 1;
+    }
+
+    if (moveInput.lengthSq() > 0) {
+      moveInput.normalize();
+    }
   }
 
   function onPointerLockChange() {
@@ -446,7 +573,7 @@ export function createWalkControls({
   }
 
   function onCanvasClick(event) {
-    if (!active || pointerLocked || event.button !== 0) {
+    if (!active || pointerLocked || event.button !== 0 || isCoarsePointerDevice()) {
       return;
     }
 
@@ -463,6 +590,10 @@ export function createWalkControls({
     window.addEventListener("mousemove", onMouseMove);
     document.addEventListener("pointerlockchange", onPointerLockChange);
     domElement.addEventListener("click", onCanvasClick);
+    domElement.addEventListener("pointerdown", onCanvasPointerDown);
+    domElement.addEventListener("pointermove", onCanvasPointerMove);
+    domElement.addEventListener("pointerup", onCanvasPointerUp);
+    domElement.addEventListener("pointercancel", onCanvasPointerUp);
   }
 
   function unbind() {
@@ -471,6 +602,10 @@ export function createWalkControls({
     window.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("pointerlockchange", onPointerLockChange);
     domElement.removeEventListener("click", onCanvasClick);
+    domElement.removeEventListener("pointerdown", onCanvasPointerDown);
+    domElement.removeEventListener("pointermove", onCanvasPointerMove);
+    domElement.removeEventListener("pointerup", onCanvasPointerUp);
+    domElement.removeEventListener("pointercancel", onCanvasPointerUp);
   }
 
   bind();
@@ -489,6 +624,9 @@ export function createWalkControls({
       for (const key of Object.keys(keys)) {
         keys[key] = false;
       }
+      externalMoveAxes.set(0, 0);
+      touchLookPointers.clear();
+      hasTouchLooked = false;
       currentVelocity.set(0, 0, 0);
       currentSpeed = settings.moveSpeed;
       moving = false;
@@ -511,9 +649,10 @@ export function createWalkControls({
       return false;
     }
 
-    if (!pointerLocked) {
-      // No continuous ground probes until the player locks the pointer —
+    if (!isControlEngaged()) {
+      // No continuous ground probes until the player engages controls —
       // city meshes make even BVH snaps wasteful while idle on the hint.
+      externalMoveAxes.set(0, 0);
       currentVelocity.set(0, 0, 0);
       currentSpeed = settings.moveSpeed;
       restoreBaseFov();
@@ -524,19 +663,7 @@ export function createWalkControls({
       return false;
     }
 
-    moveInput.set(0, 0);
-    if (keys.forward) {
-      moveInput.y -= 1;
-    }
-    if (keys.backward) {
-      moveInput.y += 1;
-    }
-    if (keys.left) {
-      moveInput.x -= 1;
-    }
-    if (keys.right) {
-      moveInput.x += 1;
-    }
+    buildMoveInput();
 
     const wantsMove = moveInput.lengthSq() > 0;
 
@@ -619,13 +746,16 @@ export function createWalkControls({
     setActive,
     isActive: () => active,
     isPointerLocked: () => pointerLocked,
+    hasTouchLooked: () => hasTouchLooked,
     isMoving: () => moving,
+    setMoveAxes,
+    applyLookDelta,
     update,
     syncEulerFromCamera,
     snapCameraToGround: () => snapCameraToGround({ allowLongDrop: true }),
     subscribe: (listener) => {
       listeners.add(listener);
-      listener({ active, pointerLocked, moving });
+      listener({ active, pointerLocked, moving, hasTouchLooked });
       return () => listeners.delete(listener);
     },
     dispose,

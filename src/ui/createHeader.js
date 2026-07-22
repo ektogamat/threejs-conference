@@ -1,5 +1,5 @@
 import "./header.css";
-import { phosphorGearSix } from "./phosphorIcons.js";
+import { phosphorGearSix, phosphorInfo } from "./phosphorIcons.js";
 import { createHudPanel } from "./createHudPanel.js";
 
 export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
@@ -9,7 +9,10 @@ export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
   root.innerHTML = `
     <div class="app-header-brand"></div>
     <div class="app-header-actions">
-      <button type="button" class="app-header-about-btn">ABOUT</button>
+      <button type="button" class="app-header-about-btn app-header-icon-btn" aria-label="About">
+        <span class="app-header-action-icon">${phosphorInfo}</span>
+        <span class="app-header-about-label">ABOUT</span>
+      </button>
       <button type="button" class="app-header-action-btn app-header-icon-btn app-header-settings-btn" aria-label="Settings">
         <span class="app-header-action-icon">${phosphorGearSix}</span>
       </button>

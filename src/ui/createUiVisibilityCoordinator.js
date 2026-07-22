@@ -98,6 +98,7 @@ export function createUiVisibilityCoordinator({
   header,
   audioButton,
   walkControlsHint,
+  virtualJoystick,
   isAppReady = () => true,
 } = {}) {
   function applyVisibility({ openedPanel, uiVisible }) {
@@ -105,6 +106,7 @@ export function createUiVisibilityCoordinator({
       header?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
       walkControlsHint?.setForceHidden?.(true);
+      virtualJoystick?.setForceHidden?.(true);
       audioButton?.setVisible?.(false);
       return;
     }
@@ -118,15 +120,18 @@ export function createUiVisibilityCoordinator({
       header?.setForceHidden?.(true);
       audioButton?.setForceHidden?.(true);
       walkControlsHint?.setForceHidden?.(true);
+      virtualJoystick?.setForceHidden?.(true);
       return;
     }
 
-    header?.setForceHidden?.(false);
+    // Hide chrome UI under any overlay (about / settings / walk-controls).
+    header?.setForceHidden?.(overlayOpen);
     audioButton?.setForceHidden?.(overlayOpen);
     audioButton?.setVisible?.(!overlayOpen);
     walkControlsHint?.setForceHidden?.(
       overlayOpen && openedPanel !== "walk-controls",
     );
+    virtualJoystick?.setForceHidden?.(overlayOpen);
   }
 
   const unsubscribe = state.subscribe(applyVisibility);
