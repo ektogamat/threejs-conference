@@ -19,13 +19,14 @@ import { createAudioButton } from "./ui/createAudioButton.js";
 import { createCarEngineAudio } from "./audio/createCarEngineAudio.js";
 import { createPlaneEngineAudio } from "./audio/createPlaneEngineAudio.js";
 import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
+import { createWalkPrompt } from "./ui/createWalkPrompt.js";
 import { createWalkControls } from "./controls/createWalkControls.js";
 import {
   createUiIdleManager,
   createUiVisibilityCoordinator,
 } from "./ui/createUiVisibilityCoordinator.js";
 import { createIntroOverlay } from "./ui/createIntroOverlay.js";
-import { createFirefliesOverlay } from "./intro/createFirefliesOverlay.js";
+import { createRainGlassIntro } from "./intro/createRainGlassIntro.js";
 import { createRainStreaks } from "./weather/createRainStreaks.js";
 import { createSmoke } from "./effects/createSmoke.js";
 import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
@@ -47,7 +48,7 @@ import {
 import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
 import { performanceProfile } from "./performanceProfile.js";
 
-const INTRO_ENABLED = false;
+const INTRO_ENABLED = true;
 const DESKTOP_FOV = 65;
 const MOBILE_FOV = 100;
 const cameraParams = {
@@ -104,6 +105,7 @@ let pipeline;
 let sunLight;
 let walkControls;
 let walkControlsHint;
+let walkPrompt;
 let inspectorInstance = null;
 let inspectorSetupDone = false;
 let rain = null;
@@ -287,7 +289,7 @@ async function init(loaderOverlay) {
   let settingsPanel;
   let audioButton;
   let uiIdleManager;
-  let firefliesOverlay = null;
+  let rainGlassIntro = null;
   let finishedIntro = false;
 
   function syncEnvironmentIntensity() {
@@ -427,6 +429,10 @@ async function init(loaderOverlay) {
     domElement: renderer.domElement,
   });
 
+  walkPrompt = createWalkPrompt({
+    domElement: renderer.domElement,
+  });
+
   header.bindWalkControls(walkControls);
 
   const cameraModeState = { orbitEnabled: false };
@@ -493,6 +499,7 @@ async function init(loaderOverlay) {
     }
     pipeline.syncCameras?.(camera);
     pipeline.dof.updateFocusPoint(focusPoint, camera);
+    rainGlassIntro?.update();
     post.render();
     performanceTools?.sampleFps();
   }
@@ -697,28 +704,23 @@ async function init(loaderOverlay) {
     uiVisibilityCoordinator.refresh();
     header.show();
     audioButton?.setVisible(true);
+    walkPrompt?.setEnabled(true);
     if (isDevelopmentModeEnabled()) {
       openInspector(inspectorInstance);
     }
   }
 
   async function runIntroSequence() {
-    renderer.setAnimationLoop(null);
-    firefliesOverlay = await createFirefliesOverlay({ opacity: 0.75 });
-    firefliesOverlay.startStandaloneLoop();
+    rainGlassIntro = createRainGlassIntro({ pipeline });
 
     const introOverlay = createIntroOverlay({
       onStart: () => {
         void (async () => {
-          firefliesOverlay.stopStandaloneLoop();
-          renderer.setAnimationLoop(renderFrame);
-          post.render();
-
-          const fadePromise = firefliesOverlay?.fadeOut({ duration: 1.2 });
+          const fadePromise = rainGlassIntro?.fadeOut({ duration: 1.2 });
 
           await fadePromise;
-          firefliesOverlay?.destroy();
-          firefliesOverlay = null;
+          rainGlassIntro?.destroy();
+          rainGlassIntro = null;
 
           revealAppUi();
         })();
@@ -728,12 +730,8 @@ async function init(loaderOverlay) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     renderer.domElement.style.opacity = "1";
     renderer.domElement.style.zIndex = "14";
-    firefliesOverlay.setZIndex(18);
-    await firefliesOverlay.waitForFirstFrame();
-    firefliesOverlay.pauseStandaloneLoop();
     post.render();
     await loaderOverlay.finish();
-    firefliesOverlay.resumeStandaloneLoop();
     introOverlay.playEnter();
   }
 

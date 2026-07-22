@@ -17,6 +17,7 @@ import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "./tsl/boxBlur.js";
+import { applyRainGlass, createRainGlassUniforms } from "./tsl/rainGlass.js";
 import { performanceProfile } from "./performanceProfile.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
@@ -158,7 +159,11 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const composed = look.buildComposite(beautyWithDof, {
     bloomContribution: bloomPass.mul(bloomEnabled).add(flareContribution),
   });
-  post.outputNode = composed;
+
+  const introRainGlassUniforms = createRainGlassUniforms();
+  const rainGlassOut = applyRainGlass(composed, introRainGlassUniforms);
+  const finalOutput = mix(composed, rainGlassOut, introRainGlassUniforms.amount);
+  post.outputNode = finalOutput;
 
   function updateFocusPoint(focusPoint, activeCamera) {
     activeCamera.updateMatrixWorld();
@@ -166,7 +171,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function restoreCombinedOutput() {
-    post.outputNode = composed;
+    post.outputNode = finalOutput;
     post.needsUpdate = true;
   }
 
@@ -255,6 +260,14 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     scenePassColor,
     scenePassEmissive,
     composedOutput: composed,
+    introRainGlass: {
+      speed: introRainGlassUniforms.speed,
+      intensity: introRainGlassUniforms.intensity,
+      distortionStrength: introRainGlassUniforms.distortionStrength,
+      dropSize: introRainGlassUniforms.dropSize,
+      blurRadius: introRainGlassUniforms.blurRadius,
+      amount: introRainGlassUniforms.amount,
+    },
     refraction: {
       params: refractionParams,
       enabled: refractionEnabled,
