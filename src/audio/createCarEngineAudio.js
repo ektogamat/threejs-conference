@@ -2,6 +2,8 @@ import * as THREE from "three/webgpu";
 import { getAudioVolume, subscribe } from "../ui/audioState.js";
 
 const ENGINE_URL = "/engine.mp3";
+/** Louder than ambience tracks; Three.Audio allows gain > 1. */
+const ENGINE_VOLUME_SCALE = 2.5;
 
 /**
  * Diesel idle as PositionalAudio attached to the car.
@@ -14,10 +16,10 @@ export async function createCarEngineAudio({ camera, car }) {
   const sound = new THREE.PositionalAudio(listener);
   sound.name = "quadra-engine";
   sound.setRefDistance(3);
-  sound.setRolloffFactor(1.8);
+  sound.setRolloffFactor(3.4);
   sound.setDistanceModel("inverse");
   sound.setLoop(true);
-  sound.setVolume(getAudioVolume());
+  sound.setVolume(getAudioVolume() * ENGINE_VOLUME_SCALE);
   // Rough engine bay height in local car space.
   sound.position.set(0, 0.55, 0.4);
 
@@ -47,7 +49,7 @@ export async function createCarEngineAudio({ camera, car }) {
   }
 
   const unsubscribe = subscribe(({ isMusicPlaying, audioVolume }) => {
-    sound.setVolume(audioVolume);
+    sound.setVolume(audioVolume * ENGINE_VOLUME_SCALE);
 
     if (isMusicPlaying) {
       play().catch(() => {});

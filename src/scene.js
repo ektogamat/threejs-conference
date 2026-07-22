@@ -33,8 +33,8 @@ export function createScene() {
   sunLight.shadow.camera.top = SHADOW_EXTENT;
   sunLight.shadow.camera.bottom = -SHADOW_EXTENT;
   sunLight.shadow.camera.updateProjectionMatrix();
-  sunLight.shadow.bias = -0.0001;
-  sunLight.shadow.normalBias = 0.002;
+  sunLight.shadow.bias = -0.001;
+  sunLight.shadow.normalBias = 0.009;
   sunLight.shadow.intensity = 1.4;
   sunLight.shadow.autoUpdate = false;
   scene.add(sunLight);

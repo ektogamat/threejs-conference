@@ -58,9 +58,10 @@ const cameraParams = {
   walkFovBlendSpeed: 2,
   sprintFovBlendSpeed: 2.5,
 };
+// Y is eye height above the flat ground (createGround default y = -5.5).
 const FREE_CAMERA_START = {
-  position: [-138.564, -3.417, 34.181],
-  target: [-120, 0, 30],
+  position: [-138.564, -3.95, 34.181],
+  target: [-120, -3, 30],
 };
 
 function getBaseFovForLayout() {
@@ -584,10 +585,12 @@ async function init(loaderOverlay) {
     onRestart: () => {
       clearAllStoredPreferences();
       applyDevelopmentMode(false);
-      setCameraMode("walk");
       camera.position.set(...FREE_CAMERA_START.position);
       controls.target.set(...FREE_CAMERA_START.target);
       controls.update();
+      setCameraMode("walk");
+      walkControls.snapCameraToGround();
+      syncWalkFocusPoint();
       syncLighting();
     },
   });
@@ -624,10 +627,14 @@ async function init(loaderOverlay) {
 
   hideInspector(inspectorInstance);
 
+  // Ground the spawn pose while the loader still covers the canvas so walk
+  // activation after the reveal does not pop the camera on Y / DoF focus.
   camera.position.set(...FREE_CAMERA_START.position);
+  walkControls.snapCameraToGround();
   controls.target.set(...FREE_CAMERA_START.target);
   controls.enabled = false;
   controls.update();
+  syncWalkFocusPoint();
 
   await finalizeStartupLighting();
 
