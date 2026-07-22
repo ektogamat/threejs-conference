@@ -54,14 +54,11 @@ export function createPerformanceDevTools({ pipeline, ground }) {
     setLensflare(enabled) {
       return setProfileFlag("lensflare", Boolean(enabled));
     },
-    setSmaa(enabled) {
-      return setProfileFlag("smaa", Boolean(enabled));
-    },
     printHelp() {
       console.info(
         [
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
-          "  groundReflection, bloom, dof, lensflare, smaa",
+          "  groundReflection, bloom, dof, lensflare",
           "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",

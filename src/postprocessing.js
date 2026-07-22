@@ -17,7 +17,6 @@ import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "./tsl/boxBlur.js";
-import { smaa } from "three/addons/tsl/display/SMAANode.js";
 import { performanceProfile } from "./performanceProfile.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
@@ -159,9 +158,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const composed = look.buildComposite(beautyWithDof, {
     bloomContribution: bloomPass.mul(bloomEnabled).add(flareContribution),
   });
-  const finalOutputWithSmaa = smaa(composed);
-  let smaaActive = performanceProfile.smaa;
-  post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
+  post.outputNode = composed;
 
   function updateFocusPoint(focusPoint, activeCamera) {
     activeCamera.updateMatrixWorld();
@@ -169,7 +166,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function restoreCombinedOutput() {
-    post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
+    post.outputNode = composed;
     post.needsUpdate = true;
   }
 
@@ -199,12 +196,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   function setLensflareBlurRadius(radius) {
     lensflareBlurRadius.value = radius;
     lensflareBlurRadius.needsUpdate = true;
-  }
-
-  function setSmaaEnabled(enabled) {
-    smaaActive = Boolean(enabled);
-    post.outputNode = smaaActive ? finalOutputWithSmaa : composed;
-    post.needsUpdate = true;
   }
 
   function setRefractionEnabled(enabled) {
@@ -287,7 +278,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
       setLensflareEnabled,
       setLensflareResolutionScale,
       setLensflareBlurRadius,
-      setSmaaEnabled,
     },
   };
 }

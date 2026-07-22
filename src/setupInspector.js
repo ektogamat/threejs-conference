@@ -321,8 +321,6 @@ export function setupInspector(
       1,
       pipelinePerf.setLensflareBlurRadius,
     );
-
-    bindPerfToggle("smaa", "smaa", pipelinePerf.setSmaaEnabled);
   }
 
   if (lensflare) {
