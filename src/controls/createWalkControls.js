@@ -1,7 +1,7 @@
 import * as THREE from "three/webgpu";
 
 const DEFAULTS = {
-  moveSpeed: 7,
+  moveSpeed: 3,
   sprintMultiplier: 1.8,
   mouseSensitivity: 0.002,
   eyeHeight: 1.55,
@@ -298,10 +298,7 @@ export function createWalkControls({
     for (let i = 0; i < WALL_LATERAL_OFFSETS.length; i++) {
       probeOrigin.copy(from);
       probeOrigin.y = chestY;
-      probeOrigin.addScaledVector(
-        probeSide,
-        WALL_LATERAL_OFFSETS[i] * radius,
-      );
+      probeOrigin.addScaledVector(probeSide, WALL_LATERAL_OFFSETS[i] * radius);
 
       raycaster.set(probeOrigin, moveDir);
       raycaster.far = far;

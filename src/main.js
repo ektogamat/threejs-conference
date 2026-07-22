@@ -408,7 +408,7 @@ async function init(loaderOverlay) {
     ground: ground.mesh,
     baseFov: getBaseFovForLayout(),
     settings: {
-      moveSpeed: 7,
+      moveSpeed: 3,
       sprintMultiplier: 3,
       eyeHeight: cameraParams.walkEyeHeight,
       acceleration: cameraParams.walkAcceleration,
