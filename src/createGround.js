@@ -38,7 +38,7 @@ const _q = new THREE.Vector4();
  */
 export function createGround(scene, {
   size = 400,
-  y = -5.5,
+  y = -5.4,
   uvRepeat = 14.9,
   fogNear = 0,
   fogFar = 51,
