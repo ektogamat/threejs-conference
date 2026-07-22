@@ -16,7 +16,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { buildModelBvh, installBvhRaycast } from "./bvh.js";
 
-const MODEL_PATH = "/models/cyberpunk_compressed.glb";
+const MODEL_PATH = "/models/cyberpunk.glb";
 const QUADRA_PATH = "/models/quadra.glb";
 
 /** Vertical offset applied to the loaded root. */
