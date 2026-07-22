@@ -5,7 +5,7 @@
   right: 0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-direction: row;
   padding: 40px 40px;
   background-image: linear-gradient(
@@ -29,7 +29,9 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+  align-self: flex-start;
   gap: 12px;
+  flex-shrink: 0;
   pointer-events: all;
 }
 
@@ -49,45 +51,14 @@
   justify-content: flex-start;
   min-width: 0;
   flex: 1 1 auto;
-  padding: 8px;
-  gap: 3px;
-}
-
-.app-header-brand-text {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
   padding: 0;
+  gap: 0;
+  pointer-events: none;
 }
 
 .app-header.show {
   transform: translateY(0);
   opacity: 1;
-}
-
-.app-header-brand p {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: clamp(0.95rem, 2.4vw, 1.5em);
-  font-family: "Montserrat", sans-serif;
-  font-weight: 400;
-  margin: 0;
-  text-align: left;
-  white-space: nowrap;
-  line-height: 1.15;
-}
-
-.app-header-brand small {
-  border-left: 1px solid rgba(255, 255, 255, 0.316);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 6px;
-  font-weight: 600;
-  letter-spacing: 0.5em;
-  margin: 0;
-  padding-left: 10px;
-  text-align: center;
 }
 
 .app-header-about-btn {
@@ -96,20 +67,36 @@
   gap: 8px;
   align-items: center;
   justify-content: center;
-  padding: 8px 32px;
-  color: white;
-  font-size: 8px;
+  height: 44px;
+  padding: 0 28px;
+  box-sizing: border-box;
+  color: var(--cyber-text);
+  font-size: 9px;
   text-align: center;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  background-color: rgba(116, 111, 155, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50px;
-  transition: all 1.6s ease-in-out;
+  background: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease;
   pointer-events: all;
   cursor: pointer;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
+}
+
+.app-header-about-btn:hover {
+  background: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--cyber-glow-hover);
 }
 
 .app-header-action-btn {
@@ -119,38 +106,41 @@
   align-items: center;
   justify-content: center;
   padding: 10px 14px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--cyber-text-muted);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
-  background: rgba(116, 111, 155, 0.12);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
   transition:
     background 0.35s ease,
     border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease,
     transform 0.25s ease;
   pointer-events: all;
   cursor: pointer;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
 }
 
 .app-header-icon-btn {
   width: 44px;
   height: 44px;
   padding: 0;
-  border-radius: 50%;
+  border-radius: 0;
   flex-shrink: 0;
 }
 
 .app-header-action-btn:hover {
-  background: rgba(116, 111, 155, 0.22);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--cyber-glow-hover);
 }
 
 .app-header-action-icon {
@@ -172,26 +162,7 @@
   }
 
   .app-header-brand {
-    padding: 4px;
-  }
-
-  .app-header-brand-text {
-    gap: 2px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-  }
-
-  .app-header-brand p {
-    font-size: clamp(0.78rem, 5vw, 1.5rem);
-  }
-
-  .app-header-brand small {
-    font-size: 5px;
-    letter-spacing: 0.28em;
-    padding-left: 0;
-    border-left: none;
-    text-align: left;
+    padding: 0;
   }
 
   .app-header-actions {
@@ -200,8 +171,9 @@
   }
 
   .app-header-about-btn {
-    padding: 8px 16px;
-    font-size: 7px;
+    height: 40px;
+    padding: 0 18px;
+    font-size: 8px;
   }
 
   .app-header-icon-btn {

@@ -49,12 +49,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  background: var(--cyber-bg);
+  color: var(--cyber-text-muted);
+  box-shadow: var(--cyber-glow);
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   padding: 0;
 }
 
@@ -63,7 +68,9 @@
 }
 
 .settings-close:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  box-shadow: var(--cyber-glow-hover);
 }
 
 .settings-header {
@@ -80,9 +87,12 @@
   height: 36px;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  border: 1px solid var(--cyber-border);
+  background: var(--cyber-bg);
+  color: var(--cyber-text);
+  box-shadow: var(--cyber-glow);
 }
 
 .settings-header-icon .ph-icon {
@@ -116,7 +126,7 @@
 }
 
 .settings-option-title {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
   font-size: 0.92rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.92);
@@ -183,19 +193,22 @@
   justify-content: center;
   gap: 10px;
   padding: 14px 20px;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255, 220, 220, 0.95);
-  background: rgba(180, 70, 70, 0.22);
-  border: 1px solid rgba(255, 140, 140, 0.28);
-  border-radius: 14px;
+  color: rgba(255, 180, 180, 0.95);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.12);
   cursor: pointer;
   transition:
     background 0.25s ease,
     border-color 0.25s ease,
+    box-shadow 0.25s ease,
     transform 0.2s ease;
 }
 
@@ -204,8 +217,9 @@
 }
 
 .settings-restart-btn:hover {
-  background: rgba(200, 80, 80, 0.32);
-  border-color: rgba(255, 160, 160, 0.4);
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(248, 113, 113, 0.5);
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.2);
 }
 
 .settings-restart-btn:active {
@@ -214,7 +228,7 @@
 
 .settings-restart-hint {
   margin: 10px 0 0;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
   font-size: 0.72rem;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.38);

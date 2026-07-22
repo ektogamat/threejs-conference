@@ -32,22 +32,30 @@
   background-repeat: no-repeat;
   width: 40px;
   height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--cyber-border);
+  background-color: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: all 0.3s ease-in-out;
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
   padding: 0;
-  color: inherit;
+  color: var(--cyber-text);
 }
 
 .audio-btn:hover {
   transform: translateY(-2px);
-  background-color: rgba(255, 255, 255, 0.359);
+  background-color: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  box-shadow: var(--cyber-glow-hover);
 }
 
 .audio-btn-wave {

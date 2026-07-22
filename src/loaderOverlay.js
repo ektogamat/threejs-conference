@@ -85,7 +85,7 @@ function ensureStyles() {
     .app-loader__percent {
       position: absolute;
       margin: 0;
-      font-family: "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+      font-family: "Orbitron", sans-serif;
       font-size: 48px;
       font-weight: 500;
       font-variant-numeric: tabular-nums;

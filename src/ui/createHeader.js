@@ -1,16 +1,12 @@
 import "./header.css";
 import { phosphorGearSix } from "./phosphorIcons.js";
+import { createHudPanel } from "./createHudPanel.js";
 
 export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
   const root = document.createElement("div");
   root.className = "app-header";
   root.innerHTML = `
-    <div class="app-header-brand">
-      <div class="app-header-brand-text">
-        <p>THREEJS CONFERENCE</p>
-        <small>BY ANDERSON MANCINI & SUNAG</small>
-      </div>
-    </div>
+    <div class="app-header-brand"></div>
     <div class="app-header-actions">
       <button type="button" class="app-header-about-btn">ABOUT</button>
       <button type="button" class="app-header-action-btn app-header-icon-btn app-header-settings-btn" aria-label="Settings">
@@ -18,6 +14,10 @@ export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
       </button>
     </div>
   `;
+
+  const brandSlot = root.querySelector(".app-header-brand");
+  const hud = createHudPanel();
+  brandSlot.appendChild(hud.root);
 
   const settingsButton = root.querySelector(".app-header-settings-btn");
   const aboutButton = root.querySelector(".app-header-about-btn");
@@ -50,5 +50,5 @@ export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
     root.classList.toggle("app-header--force-hidden", hidden);
   }
 
-  return { root, show, hide, setForceHidden };
+  return { root, show, hide, setForceHidden, bindWalkControls: hud.bindWalkControls, updateHud: hud.update };
 }

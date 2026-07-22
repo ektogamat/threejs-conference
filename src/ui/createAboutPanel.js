@@ -17,25 +17,41 @@ export function createAboutPanel({ state } = {}) {
   root.className = "about-overlay";
   root.hidden = true;
   root.innerHTML = `
-    <div class="panel about">
-      <button type="button" class="close-button-panel" aria-label="Close">
-        ${CLOSE_ICON}
-      </button>
+    <button type="button" class="close-button-panel" aria-label="Close">
+      ${CLOSE_ICON}
+    </button>
 
+    <div class="about-content">
       <div class="about-body">
-        <p class="about-lead">
-          Threejs-Punk is a raining scene inspired in CyberPunk — built by
-          Anderson Mancini and Sunag.
-        </p>
-        <p class="about-lead">
-          Wander a neon-lit alley under the rain: wet streets, glowing signs,
-          and cinematic atmosphere rendered in real time with Three.js WebGPU
-          and TSL.
-        </p>
-        <p class="about-lead">
-          Made for the Three.js Conference — a small invitation to step into
-          a cyberpunk night and feel how light and weather shape the mood.
-        </p>
+        <div class="about-brand">
+          <p class="about-brand-title">THREEJS CONFERENCE</p>
+          <small class="about-brand-subtitle">BY ANDERSON MANCINI &amp; SUNAG</small>
+        </div>
+        <div class="about-copy">
+          <div class="about-copy-col">
+            <p class="about-lead">
+              Threejs-Punk drops you into a rain-soaked alley somewhere between a Blade
+              Runner backlot and a boot sequence — neon signs, wet asphalt, and a city
+              that never quite turns off its lights.
+            </p>
+            <p class="about-lead">
+              Every reflection, droplet and glow you see is rendered live with Three.js
+              WebGPU and TSL — no pre-baked tricks, just shaders doing the heavy lifting
+              in real time.
+            </p>
+          </div>
+          <div class="about-copy-col">
+            <p class="about-lead">
+              That flickering readout in the corner is set dressing: a fake vitals HUD
+              borrowed from the same retro-future aesthetic, just to make the night feel
+              a little more alive.
+            </p>
+            <p class="about-lead">
+              Originally built for the Three.js Conference — a small invitation to
+              wander, look up, and let the rain do the storytelling.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div class="about-footer">
@@ -51,7 +67,6 @@ export function createAboutPanel({ state } = {}) {
     </div>
   `;
 
-  const panel = root.querySelector(".panel.about");
   const closeButton = root.querySelector(".close-button-panel");
   const portfolioButton = root.querySelector(".refresh-button-panel");
 
@@ -66,16 +81,6 @@ export function createAboutPanel({ state } = {}) {
   }
 
   closeButton.addEventListener("click", close);
-
-  root.addEventListener("click", (event) => {
-    if (event.target === root) {
-      close();
-    }
-  });
-
-  panel.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
 
   portfolioButton.addEventListener("click", () => {
     window.open("https://andersonmancini.dev", "_blank", "noopener,noreferrer");

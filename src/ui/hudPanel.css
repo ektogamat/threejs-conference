@@ -1,0 +1,375 @@
+.cyber-hud,
+.cyber-hud * {
+  font-family: "Orbitron", sans-serif;
+}
+
+.cyber-hud {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.cyber-hud-frame,
+.cyber-hud-inner,
+.hud-stats,
+.hud-avatar {
+  transition:
+    padding 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    gap 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s ease,
+    max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cyber-hud-frame {
+  position: relative;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(168, 85, 247, 0.2) 0%,
+    rgba(34, 211, 238, 0.08) 50%,
+    rgba(168, 85, 247, 0.15) 100%
+  );
+  clip-path: polygon(
+    0 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+  box-shadow:
+    0 0 20px rgba(168, 85, 247, 0.25),
+    0 0 40px rgba(34, 211, 238, 0.08);
+}
+
+.cyber-hud-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px 12px 14px;
+  background: rgba(8, 4, 18, 0.32);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  clip-path: polygon(
+    0 7px,
+    7px 0,
+    calc(100% - 7px) 0,
+    100% 7px,
+    100% calc(100% - 7px),
+    calc(100% - 7px) 100%,
+    7px 100%,
+    0 calc(100% - 7px)
+  );
+}
+
+.cyber-hud-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(34, 211, 238, 0.7);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.cyber-hud-corner--tl {
+  top: 4px;
+  left: 4px;
+  border-width: 1px 0 0 1px;
+}
+
+.cyber-hud-corner--tr {
+  top: 4px;
+  right: 4px;
+  border-width: 1px 1px 0 0;
+}
+
+.cyber-hud-corner--bl {
+  bottom: 4px;
+  left: 4px;
+  border-width: 0 0 1px 1px;
+}
+
+.cyber-hud-corner--br {
+  bottom: 4px;
+  right: 4px;
+  border-width: 0 1px 1px 0;
+}
+
+.hud-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 68px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-compact-value {
+  position: absolute;
+  right: -4px;
+  bottom: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+  transition:
+    opacity 0.35s ease,
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cyber-hud--compact .hud-compact-value {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.cyber-hud--compact .hud-stats {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cyber-hud--compact .cyber-hud-inner {
+  gap: 0;
+  padding: 8px 10px 8px 8px;
+}
+
+.cyber-hud--compact .hud-avatar {
+  width: 52px;
+  height: 52px;
+}
+
+.cyber-hud--compact .cyber-hud-corner {
+  opacity: 0.5;
+}
+
+.hud-life-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.hud-life-ring-arc {
+  transform-origin: 32px 32px;
+  animation: hudRingSpin 12s linear infinite;
+}
+
+.hud-life-heart {
+  animation: hudHeartPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes hudRingSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hudHeartPulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.hud-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  max-width: 240px;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.hud-vitals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud-vitals-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hud-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: rgba(34, 211, 238, 0.85);
+  text-transform: uppercase;
+}
+
+.hud-value {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}
+
+.hud-gauge {
+  width: 168px;
+}
+
+.hud-gauge-track {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  overflow: hidden;
+  clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 100%, 4px 100%);
+}
+
+.hud-gauge-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    #ef4444 0%,
+    #f59e0b 35%,
+    #22c55e 70%,
+    #4ade80 100%
+  );
+  box-shadow:
+    0 0 8px rgba(34, 197, 94, 0.5),
+    inset 0 0 4px rgba(255, 255, 255, 0.2);
+  animation: hudGaugePulse 3s ease-in-out infinite;
+}
+
+@keyframes hudGaugePulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.hud-substats {
+  display: flex;
+  gap: 12px;
+}
+
+.hud-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 6px;
+  background: rgba(168, 85, 247, 0.05);
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  clip-path: polygon(0 0, calc(100% - 3px) 0, 100% 3px, 100% 100%, 3px 100%, 0 calc(100% - 3px));
+}
+
+.hud-stat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hud-stat-dot--energy {
+  background: #a855f7;
+  box-shadow: 0 0 6px #a855f7;
+  animation: hudDotBlink 1.8s ease-in-out infinite;
+}
+
+@keyframes hudDotBlink {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.hud-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(34, 211, 238, 0.85);
+  flex-shrink: 0;
+}
+
+.hud-signal-icon {
+  width: 22px;
+  height: 11px;
+}
+
+.hud-stat-chip .hud-label {
+  font-size: 8px;
+}
+
+.hud-stat-chip .hud-value {
+  font-size: 9px;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .cyber-hud-inner {
+    gap: 10px;
+    padding: 8px 12px 8px 10px;
+  }
+
+  .cyber-hud--compact .hud-avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .hud-compact-value {
+    font-size: 9px;
+    right: -2px;
+    bottom: 4px;
+  }
+
+  .hud-avatar {
+    width: 54px;
+    height: 54px;
+  }
+
+  .hud-gauge {
+    width: 120px;
+  }
+
+  .hud-substats {
+    gap: 8px;
+  }
+
+  .hud-stat-chip {
+    padding: 2px 6px;
+    gap: 4px;
+  }
+
+  .hud-stat-chip .hud-label {
+    font-size: 7px;
+    letter-spacing: 0.14em;
+  }
+
+  .hud-stat-chip .hud-value {
+    font-size: 8px;
+  }
+
+  .hud-label {
+    font-size: 8px;
+  }
+
+  .hud-value {
+    font-size: 10px;
+  }
+}

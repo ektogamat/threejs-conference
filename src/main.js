@@ -427,6 +427,8 @@ async function init(loaderOverlay) {
     domElement: renderer.domElement,
   });
 
+  header.bindWalkControls(walkControls);
+
   const cameraModeState = { orbitEnabled: false };
 
   function isCameraModeInputBlocked(target) {
@@ -479,6 +481,8 @@ async function init(loaderOverlay) {
     } else if (controls.enabled) {
       controls.update();
     }
+
+    header?.updateHud?.(delta);
 
     rain?.update(delta, camera);
     planes?.update?.(delta);

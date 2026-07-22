@@ -1,6 +1,25 @@
-@import url("https://fonts.googleapis.com/css2?family=Gloock&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Gloock&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap");
 @import url("https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css");
+
+:root {
+  --cyber-bg: rgba(8, 4, 18, 0.35);
+  --cyber-bg-hover: rgba(168, 85, 247, 0.14);
+  --cyber-border: rgba(168, 85, 247, 0.35);
+  --cyber-border-hover: rgba(34, 211, 238, 0.55);
+  --cyber-text: rgba(34, 211, 238, 0.92);
+  --cyber-text-muted: rgba(255, 255, 255, 0.88);
+  --cyber-clip-sm: polygon(
+    0 0,
+    calc(100% - 5px) 0,
+    100% 5px,
+    100% 100%,
+    5px 100%,
+    0 calc(100% - 5px)
+  );
+  --cyber-glow: 0 0 16px rgba(168, 85, 247, 0.2);
+  --cyber-glow-hover: 0 0 20px rgba(34, 211, 238, 0.25);
+}
 
 html,
 body {
@@ -42,7 +61,7 @@ canvas {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Orbitron", sans-serif;
 }
 
 .ph-icon {
