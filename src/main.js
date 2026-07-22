@@ -417,6 +417,8 @@ async function init(loaderOverlay) {
       sprintFovBoost: cameraParams.sprintFovBoost,
       walkFovBlendSpeed: cameraParams.walkFovBlendSpeed,
       sprintFovBlendSpeed: cameraParams.sprintFovBlendSpeed,
+      // Cylinder clearance so the camera stays out of walls/props.
+      playerRadius: 0.55,
     },
   });
 

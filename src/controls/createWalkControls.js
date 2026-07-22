@@ -15,14 +15,16 @@ const DEFAULTS = {
   sprintFovBoost: 8,
   walkFovBlendSpeed: 2,
   sprintFovBlendSpeed: 2.5,
-  playerRadius: 0.6,
+  /** Horizontal clearance around the camera (cylinder radius). */
+  playerRadius: 0.55,
   /** Max climb per step (curbs / stairs). Higher surfaces are ignored. */
   maxStepUp: 0.4,
   /** Max fall per frame while walking (slopes / small drops). */
   maxStepDown: 1.75,
   groundProbeHeight: 200,
   groundProbeDistance: 400,
-  wallProbeDistance: 0.35,
+  /** Extra padding beyond playerRadius for wall raycasts. */
+  wallProbeDistance: 0.08,
 };
 
 const MOVE_EPSILON = 0.01;
@@ -99,9 +101,12 @@ export function createWalkControls({
   const side = new THREE.Vector3();
   const probeOrigin = new THREE.Vector3();
   const probeDirection = new THREE.Vector3();
+  const probeSide = new THREE.Vector3();
   const nextPosition = new THREE.Vector3();
   const axisProbe = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
+  // Lateral offsets as fractions of playerRadius (center + left + right).
+  const WALL_LATERAL_OFFSETS = [0, -0.85, 0.85];
 
   let active = false;
   let pointerLocked = false;
@@ -270,6 +275,46 @@ export function createWalkControls({
     camera.position.y = groundY + settings.eyeHeight;
   }
 
+  /**
+   * Cheap capsule-ish wall test: 3 BVH first-hit rays (center + lateral)
+   * at chest height, blocked within moveDistance + playerRadius.
+   * Chest (not eyes) so low props like the car still register.
+   */
+  function hitsWall(from, moveDir, moveDistance) {
+    const radius = settings.playerRadius;
+    const blockDistance = moveDistance + radius;
+    const far = blockDistance + settings.wallProbeDistance;
+    const chestY = from.y - settings.eyeHeight * 0.35;
+
+    probeSide.set(-moveDir.z, 0, moveDir.x);
+    if (probeSide.lengthSq() < 1e-8) {
+      probeSide.set(1, 0, 0);
+    } else {
+      probeSide.normalize();
+    }
+
+    raycaster.firstHitOnly = true;
+
+    for (let i = 0; i < WALL_LATERAL_OFFSETS.length; i++) {
+      probeOrigin.copy(from);
+      probeOrigin.y = chestY;
+      probeOrigin.addScaledVector(
+        probeSide,
+        WALL_LATERAL_OFFSETS[i] * radius,
+      );
+
+      raycaster.set(probeOrigin, moveDir);
+      raycaster.far = far;
+
+      const hits = raycaster.intersectObjects(collisionRoots, true);
+      if (hits.length > 0 && hits[0].distance < blockDistance) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function canMoveTo(from, to) {
     if (collisionRoots.length === 0) {
       return true;
@@ -282,15 +327,8 @@ export function createWalkControls({
     }
 
     probeDirection.multiplyScalar(1 / distance);
-    probeOrigin.copy(from);
-    probeOrigin.y += settings.eyeHeight * 0.45;
 
-    raycaster.set(probeOrigin, probeDirection);
-    raycaster.far = distance + settings.wallProbeDistance;
-    raycaster.firstHitOnly = true;
-
-    const hits = raycaster.intersectObjects(collisionRoots, true);
-    if (hits.length > 0 && hits[0].distance < distance) {
+    if (hitsWall(from, probeDirection, distance)) {
       return false;
     }
 
