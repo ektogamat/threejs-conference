@@ -56,8 +56,11 @@ export function createAboutPanel({ state } = {}) {
 
       <div class="about-footer">
         <div class="about-buttons">
-          <button type="button" class="refresh-button-panel">
-            Visit portfolio
+          <button type="button" class="refresh-button-panel about-link-anderson">
+            Anderson Mancini
+          </button>
+          <button type="button" class="refresh-button-panel about-link-sunag">
+            Sunag
           </button>
         </div>
         <p class="about-model-credits">
@@ -68,7 +71,8 @@ export function createAboutPanel({ state } = {}) {
   `;
 
   const closeButton = root.querySelector(".close-button-panel");
-  const portfolioButton = root.querySelector(".refresh-button-panel");
+  const andersonButton = root.querySelector(".about-link-anderson");
+  const sunagButton = root.querySelector(".about-link-sunag");
 
   function open() {
     root.classList.remove("about-overlay--force-hidden");
@@ -82,8 +86,12 @@ export function createAboutPanel({ state } = {}) {
 
   closeButton.addEventListener("click", close);
 
-  portfolioButton.addEventListener("click", () => {
+  andersonButton.addEventListener("click", () => {
     window.open("https://andersonmancini.dev", "_blank", "noopener,noreferrer");
+  });
+
+  sunagButton.addEventListener("click", () => {
+    window.open("https://x.com/sea3dformat", "_blank", "noopener,noreferrer");
   });
 
   function onKeyDown(event) {

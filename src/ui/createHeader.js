@@ -4,7 +4,8 @@ import { createHudPanel } from "./createHudPanel.js";
 
 export function createHeader({ state, onOpenSettings, onOpenAbout } = {}) {
   const root = document.createElement("div");
-  root.className = "app-header";
+  // Hidden until revealAppUi — coordinator mounts later in init.
+  root.className = "app-header app-header--force-hidden";
   root.innerHTML = `
     <div class="app-header-brand"></div>
     <div class="app-header-actions">

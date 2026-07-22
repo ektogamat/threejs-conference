@@ -16,9 +16,10 @@
   width: 100%;
   z-index: 1000;
   pointer-events: none;
-  transform: translateY(-100px);
-  opacity: 1;
-  visibility: visible;
+  /* Fully off-screen until .show — fixed -100px left the HUD peeking during load. */
+  transform: translateY(calc(-100% - 24px));
+  opacity: 0;
+  visibility: hidden;
   transition:
     transform 2s ease-in-out,
     opacity 0.8s ease,
@@ -35,16 +36,6 @@
   pointer-events: all;
 }
 
-.app-header--force-hidden {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    transform 2s ease-in-out,
-    opacity 0.8s ease,
-    visibility 0s linear 0.8s;
-}
-
 .app-header-brand {
   display: flex;
   align-items: center;
@@ -59,6 +50,18 @@
 .app-header.show {
   transform: translateY(0);
   opacity: 1;
+  visibility: visible;
+}
+
+/* After .show so idle/intro hide wins when both classes are present. */
+.app-header--force-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s;
 }
 
 .app-header-about-btn {

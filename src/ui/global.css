@@ -48,6 +48,8 @@ canvas {
 .app-header *,
 .walk-controls,
 .walk-controls *,
+.walk-prompt,
+.walk-prompt *,
 .about-overlay,
 .about-overlay *,
 .settings-overlay,
@@ -73,6 +75,7 @@ canvas {
 
 .app-header svg,
 .about-overlay svg,
-.walk-controls svg {
+.walk-controls svg,
+.walk-prompt svg {
   pointer-events: none;
 }

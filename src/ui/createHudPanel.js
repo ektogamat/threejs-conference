@@ -1,6 +1,6 @@
 import "./hudPanel.css";
 
-const COMPACT_DELAY_S = 3;
+const COMPACT_DELAY_S = 0.6;
 const VITALS_PERCENT = 82;
 
 const LIFE_RING_SVG = `
