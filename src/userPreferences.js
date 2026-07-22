@@ -1,4 +1,4 @@
-const DEVELOPMENT_MODE_KEY = "lumen-development-mode";
+const DEVELOPMENT_MODE_KEY = "threejs-punk-development-mode";
 
 export function isDevEnvironment() {
   return import.meta.env.DEV;

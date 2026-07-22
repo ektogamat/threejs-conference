@@ -41,8 +41,8 @@ export function createIntroOverlay({ onStart } = {}) {
   root.className = "intro-container";
   root.setAttribute("aria-hidden", "false");
   root.innerHTML = `
-    <h2 class="intro-sub-title">LUMEN</h2>
-    <h1 class="intro-main-title">DECORATION EXPERIENCE BY ANDERSON MANCINI</h1>
+    <h2 class="intro-sub-title">THREEJS-PUNK</h2>
+    <h1 class="intro-main-title">RAINING SCENE INSPIRED IN CYBERPUNK BY ANDERSON MANCINI AND SUNAG</h1>
     <div class="intro-loading">
       <button type="button" class="intro-button" disabled>START</button>
     </div>
@@ -54,14 +54,14 @@ export function createIntroOverlay({ onStart } = {}) {
 
   document.body.appendChild(root);
 
-  const lumenLetters = splitIntoLetters(subTitle);
+  const brandLetters = splitIntoLetters(subTitle);
   const titleWords = splitIntoWords(title);
 
   let started = false;
   let enterTween = null;
   let exitTween = null;
 
-  gsap.set(lumenLetters, {
+  gsap.set(brandLetters, {
     opacity: 0,
     y: 22,
     scale: 0.94,
@@ -74,7 +74,7 @@ export function createIntroOverlay({ onStart } = {}) {
     enterTween?.kill();
     enterTween = gsap
       .timeline()
-      .to(lumenLetters, {
+      .to(brandLetters, {
         opacity: 1,
         y: 0,
         scale: 1,

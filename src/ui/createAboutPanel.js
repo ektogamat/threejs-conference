@@ -24,18 +24,17 @@ export function createAboutPanel({ state } = {}) {
 
       <div class="about-body">
         <p class="about-lead">
-          Hi, I'm Anderson Mancini — a creative developer from Brazil with
-          over 25 years bringing interactive worlds to life.
+          Threejs-Punk is a raining scene inspired in CyberPunk — built by
+          Anderson Mancini and Sunag.
         </p>
         <p class="about-lead">
-          This living room isn't a static render. Light moves through the
-          space the way it does in a real afternoon: bouncing off walls,
-          warming wood, cooling shadows, changing how every color feels.
+          Wander a neon-lit alley under the rain: wet streets, glowing signs,
+          and cinematic atmosphere rendered in real time with Three.js WebGPU
+          and TSL.
         </p>
         <p class="about-lead">
-          Built with Three.js WebGPU, it's a small invitation to play with
-          light — and notice how design decisions shift when sunlight is
-          alive.
+          Made for the Three.js Conference — a small invitation to step into
+          a cyberpunk night and feel how light and weather shape the mood.
         </p>
       </div>
 
@@ -46,13 +45,7 @@ export function createAboutPanel({ state } = {}) {
           </button>
         </div>
         <p class="about-model-credits">
-          3D model:
-          <a
-            href="https://www.cgtrader.com/free-3d-models/interior/living-room/project-b-54e79cb8-6763-471e-9d42-1e7e6cf01e14"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Project B</a>
-          on CGTrader — Created by JpArtSky
+          By Anderson Mancini &amp; Sunag
         </p>
       </div>
     </div>
