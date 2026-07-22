@@ -18,7 +18,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { buildModelBvh, installBvhRaycast } from "./bvh.js";
 
-const MODEL_PATH = "/models/cyberpunk.glb";
+const MODEL_PATH = "/models/cyberpunk_compressed.glb";
 const QUADRA_PATH = "/models/quadra.glb";
 export const PLANE_PATH = "/models/plane.glb";
 
