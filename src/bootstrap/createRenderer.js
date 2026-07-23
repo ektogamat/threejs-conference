@@ -36,12 +36,10 @@ export async function createRenderer() {
     powerPreference: "high-performance",
     stencil: false,
     requiredLimits,
-    // samples: 0,
   });
   renderer.setPixelRatio(
     Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
   );
-  // renderer.colorBufferType = THREE.UnsignedByteType;
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
