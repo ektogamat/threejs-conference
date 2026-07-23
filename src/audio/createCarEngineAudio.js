@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { getAudioVolume, subscribe } from "../ui/audioState.js";
+import { getAudioVolume, subscribe } from "./audioState.js";
 
 const ENGINE_URL = "/engine.mp3";
 /** Louder than ambience tracks; Three.Audio allows gain > 1. */

@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { isCoarsePointerDevice } from "../ui/deviceLayout.js";
+import { isCoarsePointerDevice } from "../platform/deviceLayout.js";
 
 const DEFAULTS = {
   moveSpeed: 3,
@@ -473,11 +473,7 @@ export function createWalkControls({
       return false;
     }
 
-    return Boolean(
-      target.closest(
-        ".virtual-joystick, .walk-prompt, .app-header, .move-hint, .app-audio-btn, .walk-controls",
-      ),
-    );
+    return Boolean(target.closest("[data-ui-block-look]"));
   }
 
   function onCanvasPointerDown(event) {

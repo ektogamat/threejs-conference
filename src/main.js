@@ -1,150 +1,36 @@
-import "./ui/global.css";
+import "./ui/core/global.css";
 import * as THREE from "three/webgpu";
-import gsap from "gsap";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { Inspector } from "three/addons/inspector/Inspector.js";
-import { addModel, createScene } from "./scene.js";
-import { loadLoftModel, loadQuadraCar } from "./loadModel.js";
-import { createGround } from "./createGround.js";
-import { createPostProcessing } from "./postprocessing.js";
-import { setupInspector } from "./setupInspector.js";
-import { loadEnvironmentMap, applyEnvironmentMap } from "./envMap.js";
-// import { createCloudSky } from "./clouds/createCloudSky.js";
-import { createLoaderOverlay } from "./loaderOverlay.js";
-import { createAppUiState } from "./ui/appUiState.js";
-import { createHeader } from "./ui/createHeader.js";
-import { createAboutPanel } from "./ui/createAboutPanel.js";
-import { createSettingsPanel } from "./ui/createSettingsPanel.js";
-import { createAudioButton } from "./ui/createAudioButton.js";
-import { createCarEngineAudio } from "./audio/createCarEngineAudio.js";
-import { createPlaneEngineAudio } from "./audio/createPlaneEngineAudio.js";
-import { createWalkControlsHint } from "./ui/createWalkControlsHint.js";
-import { createWalkPrompt } from "./ui/createWalkPrompt.js";
-import { createMoveHint } from "./ui/createMoveHint.js";
-import { createVirtualJoystick } from "./ui/createVirtualJoystick.js";
-import { createWalkControls } from "./controls/createWalkControls.js";
+import { createScene } from "./world/scene.js";
+import { createWorld, createLightingController } from "./world/createWorld.js";
+import { applyEnvironmentMap } from "./world/envMap.js";
+import { createPostProcessing } from "./post/postprocessing.js";
+import { createLoaderOverlay } from "./app/createLoaderOverlay.js";
+import { createAppShell } from "./app/createAppShell.js";
+import { createIntroFlow } from "./app/createIntroFlow.js";
 import {
-  createUiIdleManager,
-  createUiVisibilityCoordinator,
-} from "./ui/createUiVisibilityCoordinator.js";
-import { createIntroOverlay } from "./ui/createIntroOverlay.js";
-import { createRainGlassIntro } from "./intro/createRainGlassIntro.js";
-import { createRainStreaks } from "./weather/createRainStreaks.js";
-import { createSmoke } from "./effects/createSmoke.js";
-import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
+  createCamera,
+  createCameraLayoutSync,
+  cameraParams,
+} from "./bootstrap/createCamera.js";
 import {
-  isDevelopmentModeEnabled,
-  setDevelopmentModeEnabled,
-  clearAllStoredPreferences,
-} from "./userPreferences.js";
+  createRenderer,
+  createShadowUpdater,
+  resizeRenderer,
+} from "./bootstrap/createRenderer.js";
+import { createCameraDirector } from "./runtime/createCameraDirector.js";
+import { createRenderLoop } from "./runtime/createRenderLoop.js";
+import { finalizeStartupLighting } from "./runtime/warmup.js";
+import { createPerformanceDevTools } from "./debug/createPerformanceDevTools.js";
+import { createInspectorSession } from "./debug/createInspectorSession.js";
 import {
-  openInspector,
-  hideInspector,
-  clearInspectorLayout,
-} from "./inspectorControls.js";
+  createDevAppApi,
+  attachDevAudio,
+  attachDevPerf,
+} from "./debug/createDevAppApi.js";
 import {
-  isMobileLayout,
-  onMobileLayoutChange,
   syncLayoutClass,
-} from "./ui/deviceLayout.js";
-import { createPerformanceDevTools } from "./createPerformanceDevTools.js";
-import { performanceProfile } from "./performanceProfile.js";
-
-const INTRO_ENABLED = true;
-const DESKTOP_FOV = 65;
-const MOBILE_FOV = 100;
-const cameraParams = {
-  fovDesktop: DESKTOP_FOV,
-  fovMobile: MOBILE_FOV,
-  walkEyeHeight: 1.55,
-  walkAcceleration: 10,
-  walkDeceleration: 14,
-  walkFovBoost: 3,
-  sprintFovBoost: 8,
-  walkFovBlendSpeed: 2,
-  sprintFovBlendSpeed: 2.5,
-};
-// Y is eye height above the flat ground (createGround default y = -5.5).
-const FREE_CAMERA_START = {
-  position: [-138.564, -3.95, 34.181],
-  target: [-120, -3, 30],
-};
-
-function getBaseFovForLayout() {
-  return isMobileLayout() ? cameraParams.fovMobile : cameraParams.fovDesktop;
-}
-
-function applyCameraFovForLayout() {
-  if (!camera) {
-    return;
-  }
-
-  const baseFov = getBaseFovForLayout();
-
-  if (walkControls?.isActive()) {
-    walkControls.setBaseFov(baseFov);
-  } else {
-    camera.fov = baseFov;
-    camera.updateProjectionMatrix();
-  }
-}
-
-function syncWalkEyeHeight() {
-  if (!walkControls) {
-    return;
-  }
-
-  walkControls.setEyeHeight(cameraParams.walkEyeHeight);
-}
-
-let camera;
-let scene;
-let renderer;
-let post;
-let controls;
-let pipeline;
-// let cloudSky;
-let sunLight;
-let walkControls;
-let walkControlsHint;
-let walkPrompt;
-let moveHint;
-let virtualJoystick;
-let inspectorInstance = null;
-let inspectorSetupDone = false;
-let rain = null;
-let smoke = null;
-let planes = null;
-let performanceTools = null;
-
-async function getWebGPULimits() {
-  if (!navigator.gpu) {
-    return {};
-  }
-
-  const adapter = await navigator.gpu.requestAdapter({
-    powerPreference: "high-performance",
-    featureLevel: "compatibility",
-  });
-  if (!adapter) {
-    return {};
-  }
-
-  const desired = 64;
-  const supported = adapter.limits.maxColorAttachmentBytesPerSample;
-  if (supported >= desired) {
-    return { maxColorAttachmentBytesPerSample: desired };
-  }
-  if (supported > 32) {
-    return { maxColorAttachmentBytesPerSample: supported };
-  }
-  return {};
-}
-
-function requestShadowMapUpdate(source = "shadows") {
-  sunLight.shadow.needsUpdate = true;
-  renderer.shadowMap.needsUpdate = true;
-}
+  onMobileLayoutChange,
+} from "./platform/deviceLayout.js";
 
 const loader = createLoaderOverlay();
 
@@ -154,164 +40,48 @@ init(loader).catch((error) => {
 });
 
 async function init(loaderOverlay) {
-  const uiState = createAppUiState();
-  let settingsPanelRef = null;
-  let aboutPanelRef = null;
-  const header = createHeader({
-    state: uiState,
-    onOpenSettings: () => settingsPanelRef?.open(),
-    onOpenAbout: () => aboutPanelRef?.open(),
-  });
-  const aboutPanel = createAboutPanel({
-    state: uiState,
-  });
-  aboutPanelRef = aboutPanel;
+  syncLayoutClass();
 
   loaderOverlay.setProgress(0.03);
   loaderOverlay.setStatus("Creating scene...");
 
-  syncLayoutClass();
-
-  camera = new THREE.PerspectiveCamera(
-    DESKTOP_FOV,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    300,
-  );
-  camera.position.set(...FREE_CAMERA_START.position);
-  applyCameraFovForLayout();
-
+  const camera = createCamera();
   const sceneResult = createScene();
-  scene = sceneResult.scene;
-  sunLight = sceneResult.sunLight;
+  const { scene, sunLight } = sceneResult;
 
   loaderOverlay.setProgress(0.1);
   loaderOverlay.setStatus("Preparing renderer...");
 
-  const requiredLimits = await getWebGPULimits();
-
-  renderer = new THREE.WebGPURenderer({
-    antialias: false,
-    alpha: false,
-    powerPreference: "high-performance",
-    stencil: false,
-    requiredLimits,
-    samples: 0,
-  });
-  renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
-  );
-  renderer.colorBufferType = THREE.UnsignedByteType;
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate = false;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  clearInspectorLayout();
-
-  inspectorInstance = new Inspector();
-  renderer.inspector = inspectorInstance;
-
-  renderer.colorBufferType = THREE.UnsignedByteType;
-  renderer.domElement.style.opacity = "0";
-  renderer.domElement.style.zIndex = "14";
-  renderer.domElement.style.transition = "opacity 220ms ease";
-
-  document.body.appendChild(renderer.domElement);
+  const { renderer, inspector: inspectorInstance } = await createRenderer();
 
   loaderOverlay.setProgress(0.2);
   loaderOverlay.setStatus("Initializing WebGPU...");
 
-  await renderer.init();
+  const { requestShadowMapUpdate } = createShadowUpdater({
+    renderer,
+    getSunLight: () => sunLight,
+  });
 
-  if (import.meta.env.DEV) {
-    const backend = renderer.backend.isWebGLBackend
-      ? "WebGL2 (fallback)"
-      : "WebGPU";
-    console.info(`[renderer] ${backend}`);
-  }
-
-  loaderOverlay.setProgress(0.35);
-
-  const [model, quadra, envTexture] = await Promise.all([
-    loadLoftModel(renderer),
-    loadQuadraCar(renderer),
-    loadEnvironmentMap(),
-  ]);
-  const { car: quadraCar, collider: quadraCollider } = quadra;
-  // cloudSky = await createCloudSky(scene, {
-  //   radius: 45,
-  //   verticalOffset: 2,
-  // });
-
-  loaderOverlay.setProgress(0.7);
-
-  addModel(scene, model);
-  addModel(scene, quadraCar);
-  scene.add(quadraCollider);
-  requestShadowMapUpdate("quadra-car");
-
-  const ground = createGround(scene);
-
-  rain = await createRainStreaks({ scene });
-  smoke = await createSmoke({ scene, car: quadraCar });
-  planes = await createFlyingPlanes({ scene, renderer });
-
-  if (import.meta.env.DEV) {
-    window.__app = {
-      scene,
-      model,
-      quadraCar,
-      ground,
-      rain,
-      smoke,
-      planes,
-      listObjectNames() {
-        const rows = [];
-
-        model.traverse((object) => {
-          if (!object.name) {
-            return;
-          }
-
-          rows.push({
-            name: object.name,
-            type: object.type,
-            castShadow: object.castShadow ?? "",
-            receiveShadow: object.receiveShadow ?? "",
-          });
-        });
-
-        rows.sort((a, b) => a.name.localeCompare(b.name));
-        console.table(rows);
-        return rows;
-      },
-    };
-  }
+  const world = await createWorld({
+    scene,
+    renderer,
+    loaderOverlay,
+    requestShadowMapUpdate,
+  });
 
   const envMapBaseIntensity = { value: 0.08 };
-  let settingsPanel;
-  let audioButton;
-  let uiIdleManager;
-  let rainGlassIntro = null;
-  let finishedIntro = false;
+  const lighting = createLightingController({
+    sceneResult,
+    envMapBaseIntensity,
+    requestShadowMapUpdate,
+  });
 
-  function syncEnvironmentIntensity() {
-    scene.environmentIntensity = envMapBaseIntensity.value;
-  }
-
-  function syncLighting() {
-    sceneResult.applySun();
-    syncEnvironmentIntensity();
-    requestShadowMapUpdate("lighting");
-  }
-
-  syncLighting();
+  lighting.syncLighting();
   requestShadowMapUpdate("init");
 
   loaderOverlay.setProgress(0.8);
 
-  applyEnvironmentMap(scene, renderer, envTexture, {
+  applyEnvironmentMap(scene, renderer, world.envTexture, {
     intensity: envMapBaseIntensity.value,
   });
   scene.environmentRotation.set(
@@ -323,470 +93,128 @@ async function init(loaderOverlay) {
   loaderOverlay.setProgress(0.85);
   loaderOverlay.setStatus("Configuring post-processing...");
 
-  pipeline = createPostProcessing(renderer, scene, camera, { rain });
-  post = pipeline.post;
+  const pipeline = createPostProcessing(renderer, scene, camera, {
+    rain: world.rain,
+  });
+  const post = pipeline.post;
 
   pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
     bloomPass: pipeline.bloomPass,
     lensflare: pipeline.lensflare,
   });
 
-  performanceTools = createPerformanceDevTools({ pipeline, ground });
+  const performanceTools = createPerformanceDevTools({
+    pipeline,
+    ground: world.ground,
+  });
 
-  if (import.meta.env.DEV && window.__app) {
-    window.__app.perf = performanceTools.perfApi;
-  }
+  const walkModeBridge = { onChange: null };
 
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(...FREE_CAMERA_START.target);
-  controls.enablePan = true;
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.minDistance = 0.1;
-  controls.maxDistance = Infinity;
-  controls.minPolarAngle = 0;
-  controls.maxPolarAngle = Math.PI;
-  controls.minAzimuthAngle = -Infinity;
-  controls.maxAzimuthAngle = Infinity;
-  controls.update();
-
-  const WALK_FOCUS_DISTANCE = 12;
-  const focusPoint = controls.target.clone();
-  const walkFocusDirection = new THREE.Vector3();
-  const dofRaycaster = new THREE.Raycaster();
-  const dofPointerCoords = new THREE.Vector2();
-  let focusTween = null;
-
-  function focusOnPoint(point) {
-    focusTween?.kill();
-    focusTween = gsap.to(focusPoint, {
-      x: point.x,
-      y: point.y,
-      z: point.z,
-      duration: 0.5,
-      ease: "power2.inOut",
-    });
-  }
-
-  function setWalkFocusPoint() {
-    camera.getWorldDirection(walkFocusDirection);
-    focusPoint
-      .copy(camera.position)
-      .addScaledVector(walkFocusDirection, WALK_FOCUS_DISTANCE);
-  }
-
-  function syncWalkFocusPoint() {
-    focusTween?.kill();
-    focusTween = null;
-    setWalkFocusPoint();
-  }
-
-  function onDofPointerDown(event) {
-    if (
-      !finishedIntro ||
-      walkControls.isActive() ||
-      isCameraModeInputBlocked(event.target)
-    ) {
-      return;
-    }
-
-    dofPointerCoords.set(
-      (event.clientX / window.innerWidth) * 2 - 1,
-      -(event.clientY / window.innerHeight) * 2 + 1,
-    );
-
-    dofRaycaster.setFromCamera(dofPointerCoords, camera);
-    dofRaycaster.firstHitOnly = true;
-
-    const intersects = dofRaycaster.intersectObject(model, true);
-    if (intersects.length > 0) {
-      focusOnPoint(intersects[0].point);
-    }
-  }
-
-  renderer.domElement.addEventListener("pointerdown", onDofPointerDown);
-
-  walkControls = createWalkControls({
+  const cameraDirector = createCameraDirector({
     camera,
-    domElement: renderer.domElement,
-    model,
-    colliders: [model, quadraCollider],
-    ground: ground.mesh,
-    baseFov: getBaseFovForLayout(),
-    settings: {
-      moveSpeed: 3,
-      sprintMultiplier: 3,
-      eyeHeight: cameraParams.walkEyeHeight,
-      acceleration: cameraParams.walkAcceleration,
-      deceleration: cameraParams.walkDeceleration,
-      walkFovBoost: cameraParams.walkFovBoost,
-      sprintFovBoost: cameraParams.sprintFovBoost,
-      walkFovBlendSpeed: cameraParams.walkFovBlendSpeed,
-      sprintFovBlendSpeed: cameraParams.sprintFovBlendSpeed,
-      // Cylinder clearance so the camera stays out of walls/props.
-      playerRadius: 0.55,
-    },
+    renderer,
+    world,
+    getFinishedIntro: () => appShell?.isFinishedIntro?.() ?? false,
+    onWalkModeChange: (walk) => walkModeBridge.onChange?.(walk),
   });
 
-  walkControlsHint = createWalkControlsHint({
-    state: uiState,
-    domElement: renderer.domElement,
-  });
-
-  walkPrompt = createWalkPrompt({
-    domElement: renderer.domElement,
-    walkControls,
-    state: uiState,
-  });
-
-  moveHint = createMoveHint({
-    walkControls,
-    state: uiState,
-  });
-
-  virtualJoystick = createVirtualJoystick({
-    walkControls,
-    state: uiState,
-  });
-
-  header.bindWalkControls(walkControls);
-
-  const cameraModeState = { orbitEnabled: false };
-
-  function isCameraModeInputBlocked(target) {
-    if (!(target instanceof HTMLElement)) {
-      return false;
-    }
-
-    const tag = target.tagName;
-    return (
-      tag === "INPUT" ||
-      tag === "TEXTAREA" ||
-      tag === "SELECT" ||
-      target.isContentEditable
-    );
-  }
-
-  const orbitLookTarget = new THREE.Vector3();
-
-  function setCameraMode(mode) {
-    const walk = mode === "walk";
-    cameraModeState.orbitEnabled = !walk;
-    walkControls.setActive(walk);
-    controls.enabled = !walk && finishedIntro;
-    walkControlsHint?.setVisible(walk && finishedIntro);
-    virtualJoystick?.setVisible(walk && finishedIntro);
-
-    if (walk) {
-      walkControls.setBaseFov(getBaseFovForLayout());
-      walkControls.syncEulerFromCamera();
-      walkControls.snapCameraToGround();
-      syncWalkFocusPoint();
-    } else {
-      camera.getWorldDirection(orbitLookTarget);
-      controls.target
-        .copy(camera.position)
-        .add(orbitLookTarget.multiplyScalar(WALK_FOCUS_DISTANCE));
-      controls.update();
-    }
-  }
-
-  const timer = new THREE.Timer();
-
-  function renderFrame() {
-    timer.update();
-    const delta = timer.getDelta();
-    // cloudSky?.update(camera, timer.getElapsed());
-
-    if (walkControls?.isActive()) {
-      walkControls.update(delta);
-      setWalkFocusPoint();
-    } else if (controls.enabled) {
-      controls.update();
-    }
-
-    header?.updateHud?.(delta);
-
-    rain?.update(delta, camera);
-    planes?.update?.(delta);
-    ground.update?.(delta);
-    ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
-    if (performanceTools?.shouldUpdateGroundReflection()) {
-      ground.updateReflection?.(renderer, camera);
-    }
-    pipeline.syncCameras?.(camera);
-    pipeline.dof.updateFocusPoint(focusPoint, camera);
-    rainGlassIntro?.update();
-    post.render();
-    performanceTools?.sampleFps();
-  }
-
-  // Animation loop starts after finalizeStartupLighting (see below).
-
-  if (import.meta.env.DEV && window.__app) {
-    window.__app.dumpCamera = () => {
-      const pose = {
-        position: [
-          Number(camera.position.x.toFixed(3)),
-          Number(camera.position.y.toFixed(3)),
-          Number(camera.position.z.toFixed(3)),
-        ],
-        target: [
-          Number(controls.target.x.toFixed(3)),
-          Number(controls.target.y.toFixed(3)),
-          Number(controls.target.z.toFixed(3)),
-        ],
-      };
-      console.log(JSON.stringify(pose, null, 2));
-      return pose;
-    };
-    console.info("[dev] Camera pose: run __app.dumpCamera() in the console");
-  }
-
-  async function finalizeStartupLighting() {
-    loaderOverlay.setProgress(0.88);
-    loaderOverlay.setStatus("Preparing lighting...");
-
-    syncLighting();
-    requestShadowMapUpdate("startup-lighting");
-
-    loaderOverlay.setProgress(0.93);
-    loaderOverlay.setStatus("Compiling shaders...");
-    // Size reflection RT before compile so we don't destroy a 1x1 texture
-    // that shaders already bound (WebGPU: Destroyed texture used in submit).
-    ground.syncReflectionSize?.(renderer);
-    await renderer.compileAsync(scene, pipeline.beautyCamera ?? camera);
-    if (pipeline.rainCamera) {
-      await renderer.compileAsync(scene, pipeline.rainCamera);
-    }
-
-    loaderOverlay.setProgress(0.96);
-    loaderOverlay.setStatus("Warming up...");
-    for (let i = 0; i < 4; i++) {
-      rain?.update(1 / 60, camera);
-      ground.update?.(1 / 60);
-      ground.setRippleAmount?.(rain?.params?.enabled ? 1 : 0);
-      ground.updateReflection?.(renderer, camera);
-      pipeline.syncCameras?.(camera);
-      post.render();
-    }
-  }
-
-  function ensureInspectorSetup() {
-    if (inspectorSetupDone) {
-      return;
-    }
-
-    setupInspector(
-      renderer,
-      pipeline,
-      {
-        sunState: sceneResult.sunState,
-        refreshSun: () => syncLighting(),
-        syncEnvironmentIntensity,
-        envMapBaseIntensity,
-        scene,
-        onParamInteractionStart: () => {},
-        onParamInteraction: () => {},
-        onParamInteractionEnd: () => {},
-        onLightingParamChanged: () =>
-          requestShadowMapUpdate("inspector-lighting"),
-      },
-      ground,
-      {
-        params: cameraParams,
-        walkSettings: walkControls.settings,
-        syncFov: applyCameraFovForLayout,
-        syncWalkEyeHeight,
-        cameraModeState,
-        setCameraMode,
-      },
-      rain,
-      smoke,
-      planes,
-    );
-    inspectorSetupDone = true;
-  }
-
-  function applyDevelopmentMode(enabled) {
-    setDevelopmentModeEnabled(enabled);
-    settingsPanel?.syncDevelopmentMode(enabled);
-
-    if (enabled) {
-      ensureInspectorSetup();
-      openInspector(inspectorInstance);
-    } else {
-      hideInspector(inspectorInstance);
-    }
-  }
-
-  settingsPanel = createSettingsPanel({
-    state: uiState,
-    getDevelopmentMode: isDevelopmentModeEnabled,
-    onDevelopmentModeChange: applyDevelopmentMode,
-    getCurrentLookPreset: () => pipeline.look.getCurrentPresetId(),
-    onLookPresetChange: (presetId) => {
-      pipeline.applyLookPreset(presetId);
-    },
-    onRestart: () => {
-      clearAllStoredPreferences();
-      applyDevelopmentMode(false);
-      camera.position.set(...FREE_CAMERA_START.position);
-      controls.target.set(...FREE_CAMERA_START.target);
-      controls.update();
-      setCameraMode("walk");
-      walkControls.snapCameraToGround();
-      syncWalkFocusPoint();
-      syncLighting();
-    },
-  });
-  settingsPanelRef = settingsPanel;
-
-  audioButton = createAudioButton();
-  const carEngineAudio = await createCarEngineAudio({
+  const cameraLayout = createCameraLayoutSync({
     camera,
-    car: quadraCar,
-  });
-  const planeEngineAudio = await createPlaneEngineAudio({
-    listener: carEngineAudio.listener,
-    plane: planes?.group?.getObjectByName("plane-anchor-1") ?? null,
-  });
-  if (import.meta.env.DEV && window.__app) {
-    window.__app.carEngineAudio = carEngineAudio;
-    window.__app.planeEngineAudio = planeEngineAudio;
-  }
-
-  audioButton.setVisible(false);
-
-  const uiVisibilityCoordinator = createUiVisibilityCoordinator({
-    state: uiState,
-    header,
-    audioButton,
-    walkControlsHint,
-    virtualJoystick,
-    isAppReady: () => finishedIntro,
+    getWalkControls: () => cameraDirector.walkControls,
   });
 
-  uiIdleManager = createUiIdleManager({
-    state: uiState,
-    activityTarget: document,
-  });
-  uiIdleManager.start();
-  renderer.domElement.addEventListener("pointerdown", uiIdleManager.resetTimer);
-  renderer.domElement.addEventListener("touchstart", uiIdleManager.resetTimer, {
-    passive: true,
-  });
-
-  hideInspector(inspectorInstance);
-
-  // Ground the spawn pose while the loader still covers the canvas so walk
-  // activation after the reveal does not pop the camera on Y / DoF focus.
-  camera.position.set(...FREE_CAMERA_START.position);
-  walkControls.snapCameraToGround();
-  controls.target.set(...FREE_CAMERA_START.target);
-  controls.enabled = false;
-  controls.update();
-  syncWalkFocusPoint();
-
-  await finalizeStartupLighting();
-
-  renderer.setAnimationLoop(renderFrame);
-
-  if (isDevelopmentModeEnabled()) {
-    ensureInspectorSetup();
-  }
-
-  controls.addEventListener("start", () => {
-    if (!finishedIntro || walkControls?.isActive()) {
-      return;
-    }
-    uiIdleManager?.resetTimer();
-  });
-  controls.addEventListener("change", () => {
-    if (!finishedIntro || walkControls?.isActive()) {
-      return;
-    }
-    uiIdleManager?.resetTimer();
-  });
-  controls.addEventListener("end", () => {
-    if (!finishedIntro || walkControls?.isActive()) {
-      return;
-    }
+  const inspectorSession = createInspectorSession({
+    renderer,
+    pipeline,
+    sceneResult,
+    world,
+    cameraDirector,
+    cameraParams,
+    applyCameraFovForLayout: cameraLayout.applyCameraFovForLayout,
+    syncWalkEyeHeight: cameraLayout.syncWalkEyeHeight,
+    syncLighting: lighting.syncLighting,
+    syncEnvironmentIntensity: lighting.syncEnvironmentIntensity,
+    envMapBaseIntensity,
+    requestShadowMapUpdate,
+    inspectorInstance,
   });
 
-  window.addEventListener("resize", onWindowResize);
+  const appShell = createAppShell({
+    renderer,
+    camera,
+    cameraDirector,
+    world,
+    pipeline,
+    inspectorSession,
+    syncLighting: lighting.syncLighting,
+    onRestartCamera: () => cameraDirector.resetCameraPose(),
+  });
+
+  walkModeBridge.onChange = appShell.onWalkModeChange;
+
+  const devApp = createDevAppApi({
+    scene,
+    world,
+    camera,
+    controls: cameraDirector.controls,
+  });
+  attachDevPerf(devApp, performanceTools.perfApi);
+
+  const { carEngineAudio, planeEngineAudio } = await appShell.initAudio();
+  attachDevAudio(devApp, carEngineAudio, planeEngineAudio);
+
+  inspectorSession.bootstrapInspector(appShell.settingsPanel);
+
+  appShell.bindIdleListeners();
+  appShell.bindOrbitIdleListeners(cameraDirector.controls);
+
+  cameraDirector.preparePreRevealPose();
+
+  const introFlow = createIntroFlow({
+    pipeline,
+    renderer,
+    post,
+    loaderOverlay,
+    revealAppUi: () => appShell.revealAppUi(),
+  });
+
+  const renderLoop = createRenderLoop({
+    camera,
+    cameraDirector,
+    world,
+    pipeline,
+    post,
+    performanceTools,
+    renderer,
+    getRainGlassIntro: introFlow.getRainGlassIntro,
+    onFrame: (delta) => appShell.updateHud(delta),
+  });
+
+  await finalizeStartupLighting({
+    loaderOverlay,
+    syncLighting: lighting.syncLighting,
+    requestShadowMapUpdate,
+    renderer,
+    scene,
+    pipeline,
+    camera,
+    world,
+    post,
+  });
+
+  renderLoop.startLoop();
+
+  window.addEventListener("resize", () => {
+    syncLayoutClass();
+    cameraLayout.onWindowResizeAspect();
+    resizeRenderer(renderer, pipeline);
+    requestShadowMapUpdate("resize");
+  });
+
   onMobileLayoutChange(() => {
     syncLayoutClass();
-    applyCameraFovForLayout();
+    cameraLayout.applyCameraFovForLayout();
   });
 
-  function revealAppUi() {
-    finishedIntro = true;
-    setCameraMode("walk");
-    uiVisibilityCoordinator.refresh();
-    header.show();
-    audioButton?.setVisible(true);
-    walkPrompt?.setEnabled(true);
-    moveHint?.setEnabled(true);
-    virtualJoystick?.setEnabled(true);
-    if (isDevelopmentModeEnabled()) {
-      openInspector(inspectorInstance);
-    }
-  }
-
-  async function runIntroSequence() {
-    rainGlassIntro = createRainGlassIntro({ pipeline });
-
-    const introOverlay = createIntroOverlay({
-      onStart: () => {
-        void (async () => {
-          const fadePromise = rainGlassIntro?.fadeOut({ duration: 1.2 });
-
-          await fadePromise;
-          rainGlassIntro?.destroy();
-          rainGlassIntro = null;
-
-          revealAppUi();
-        })();
-      },
-    });
-
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    renderer.domElement.style.opacity = "1";
-    renderer.domElement.style.zIndex = "14";
-    post.render();
-    await loaderOverlay.finish();
-    introOverlay.playEnter();
-  }
-
-  async function enterAppWithoutIntro() {
-    renderer.domElement.style.opacity = "1";
-    renderer.domElement.style.zIndex = "14";
-    post.render();
-    await loaderOverlay.finish();
-    revealAppUi();
-  }
-
-  if (INTRO_ENABLED) {
-    await runIntroSequence();
-  } else {
-    await enterAppWithoutIntro();
-  }
-}
-
-function onWindowResize() {
-  syncLayoutClass();
-
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  camera.aspect = width / height;
-  applyCameraFovForLayout();
-
-  renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
-  );
-  renderer.setSize(width, height);
-  pipeline?.resizePostProcessing?.(width, height);
-  requestShadowMapUpdate("resize");
+  await introFlow.run();
 }

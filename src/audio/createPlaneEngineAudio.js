@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { getAudioVolume, subscribe } from "../ui/audioState.js";
+import { getAudioVolume, subscribe } from "./audioState.js";
 
 const ENGINE_URL = "/freesound_community-plasma-engine-fx-33559.mp3";
 /** Spatial plasma drone; quieter than the nearby car idle. */
