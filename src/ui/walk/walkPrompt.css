@@ -1,0 +1,191 @@
+.walk-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(88px, 16vh, 140px);
+  z-index: 900;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.walk-prompt[hidden] {
+  display: none !important;
+}
+
+.walk-prompt--visible {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.walk-prompt--passive {
+  pointer-events: none;
+  cursor: default;
+}
+
+.walk-prompt-frame {
+  position: relative;
+  display: block;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(168, 85, 247, 0.35) 0%,
+    rgba(34, 211, 238, 0.18) 50%,
+    rgba(168, 85, 247, 0.3) 100%
+  );
+  clip-path: polygon(
+    0 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+  box-shadow:
+    0 0 24px rgba(168, 85, 247, 0.35),
+    0 0 48px rgba(34, 211, 238, 0.12);
+  cursor: pointer;
+}
+
+.walk-prompt-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 28px;
+  background: rgba(8, 4, 18, 0.72);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  clip-path: polygon(
+    0 7px,
+    7px 0,
+    calc(100% - 7px) 0,
+    100% 7px,
+    100% calc(100% - 7px),
+    calc(100% - 7px) 100%,
+    7px 100%,
+    0 calc(100% - 7px)
+  );
+  transition: background 0.25s ease;
+}
+
+.walk-prompt-frame:hover .walk-prompt-inner {
+  background: rgba(168, 85, 247, 0.22);
+}
+
+.walk-prompt-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(34, 211, 238, 0.85);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.walk-prompt-corner--tl {
+  top: 4px;
+  left: 4px;
+  border-width: 1px 0 0 1px;
+}
+
+.walk-prompt-corner--tr {
+  top: 4px;
+  right: 4px;
+  border-width: 1px 1px 0 0;
+}
+
+.walk-prompt-corner--bl {
+  bottom: 4px;
+  left: 4px;
+  border-width: 0 0 1px 1px;
+}
+
+.walk-prompt-corner--br {
+  bottom: 4px;
+  right: 4px;
+  border-width: 0 1px 1px 0;
+}
+
+.walk-prompt-kicker {
+  display: block;
+  margin: 0;
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(34, 211, 238, 0.9);
+  line-height: 1;
+}
+
+.walk-prompt-title {
+  display: block;
+  margin: 0;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(0.78rem, 1.6vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.96);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.walk-prompt-pulse {
+  position: absolute;
+  inset: -2px;
+  display: block;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  clip-path: polygon(
+    0 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+  pointer-events: none;
+  animation: walkPromptPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes walkPromptPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+@media (max-width: 640px) {
+  .walk-prompt {
+    bottom: clamp(64px, 12vh, 96px);
+    max-width: calc(100vw - 32px);
+  }
+
+  .walk-prompt-title {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .walk-prompt-inner {
+    padding: 14px 18px;
+  }
+}

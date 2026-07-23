@@ -1,0 +1,201 @@
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-direction: row;
+  padding: 40px 40px;
+  background-image: linear-gradient(
+    175deg,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0) 30%
+  );
+  width: 100%;
+  z-index: 1000;
+  pointer-events: none;
+  /* Fully off-screen until .show — fixed -100px left the HUD peeking during load. */
+  transform: translateY(calc(-100% - 24px));
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0s;
+}
+
+.app-header-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
+  pointer-events: all;
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0;
+  gap: 0;
+  pointer-events: none;
+}
+
+.app-header.show {
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+/* After .show so idle/intro hide wins when both classes are present. */
+.app-header--force-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s;
+}
+
+.app-header-about-btn {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 28px;
+  box-sizing: border-box;
+  color: var(--cyber-text);
+  font-size: 9px;
+  text-align: center;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  background: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease;
+  pointer-events: all;
+  cursor: pointer;
+  font-family: "Orbitron", sans-serif;
+}
+
+.app-header-about-btn:hover {
+  background: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--cyber-glow-hover);
+}
+
+.app-header-action-btn {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  color: var(--cyber-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  background: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid var(--cyber-border);
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.25s ease;
+  pointer-events: all;
+  cursor: pointer;
+  font-family: "Orbitron", sans-serif;
+}
+
+.app-header-icon-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+
+.app-header-action-btn:hover {
+  background: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--cyber-glow-hover);
+}
+
+.app-header-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.app-header-icon-btn .app-header-action-icon .ph-icon {
+  font-size: 19px;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 20px 16px;
+    gap: 10px;
+  }
+
+  .app-header-brand {
+    padding: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .app-header-actions {
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .app-header-about-btn {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    font-size: 8px;
+  }
+
+  .app-header-about-label {
+    display: none;
+  }
+
+  .app-header-about-btn .app-header-action-icon .ph-icon {
+    font-size: 19px;
+  }
+
+  .app-header-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}

@@ -1,0 +1,9 @@
+body:has(.app-header.show) #profiler-toggle {
+  top: 80px;
+  right: 40px;
+}
+
+body:has(.app-header.show) #profiler-mini-panel {
+  top: 126px;
+  right: 40px;
+}

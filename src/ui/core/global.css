@@ -1,0 +1,111 @@
+@import url("/fonts/fonts.css");
+@import url("/fonts/phosphor/style.css");
+
+:root {
+  --cyber-bg: rgba(8, 4, 18, 0.35);
+  --cyber-bg-hover: rgba(168, 85, 247, 0.14);
+  --cyber-border: rgba(168, 85, 247, 0.35);
+  --cyber-border-hover: rgba(34, 211, 238, 0.55);
+  --cyber-text: rgba(34, 211, 238, 0.92);
+  --cyber-text-muted: rgba(255, 255, 255, 0.88);
+  --cyber-clip-sm: polygon(
+    0 0,
+    calc(100% - 5px) 0,
+    100% 5px,
+    100% 100%,
+    5px 100%,
+    0 calc(100% - 5px)
+  );
+  --cyber-glow: 0 0 16px rgba(168, 85, 247, 0.2);
+  --cyber-glow-hover: 0 0 20px rgba(34, 211, 238, 0.25);
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  background-color: rgb(27, 27, 27);
+  overflow: hidden;
+}
+
+canvas {
+  touch-action: none;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+.app-header,
+.app-header *,
+.walk-controls,
+.walk-controls *,
+.walk-prompt,
+.walk-prompt *,
+.move-hint,
+.move-hint *,
+.about-overlay,
+.about-overlay *,
+.settings-overlay,
+.settings-overlay *,
+.audio-btn-root,
+.audio-btn-root *,
+.intro-container,
+.intro-container * {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  font-family: "Orbitron", sans-serif;
+}
+
+.ph-icon {
+  font-style: normal;
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.app-header svg,
+.about-overlay svg,
+.walk-controls svg,
+.walk-prompt svg,
+.move-hint svg {
+  pointer-events: none;
+}
+
+/* While walking: fade chrome UI, keep only the compact HUD. */
+body.ui-moving-compact .app-header {
+  background-image: none;
+  transition:
+    transform 2s ease-in-out,
+    opacity 0.8s ease,
+    visibility 0s linear 0s,
+    background-image 0.45s ease;
+}
+
+body.ui-moving-compact .app-header-actions,
+body.ui-moving-compact .audio-btn-root,
+body.ui-moving-compact .walk-controls__chip,
+body.ui-moving-compact .move-hint,
+body.ui-moving-compact .walk-prompt {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.45s ease;
+}
+
+.app-header-actions,
+.audio-btn-root,
+.walk-controls__chip,
+.move-hint,
+.walk-prompt {
+  transition: opacity 0.45s ease;
+}

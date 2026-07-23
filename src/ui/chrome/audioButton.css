@@ -1,0 +1,129 @@
+.audio-btn-root {
+  position: fixed;
+  right: 40px;
+  bottom: 30px;
+  z-index: 40;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.8s ease,
+    visibility 0s linear 0s,
+    transform 0.3s ease-in-out;
+}
+
+.audio-btn-root--hidden,
+.audio-btn-root--force-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s,
+    transform 0.3s ease-in-out;
+}
+
+.audio-btn {
+  pointer-events: all;
+  cursor: pointer;
+  background-repeat: no-repeat;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--cyber-border);
+  background-color: var(--cyber-bg);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  clip-path: var(--cyber-clip-sm);
+  box-shadow: var(--cyber-glow);
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
+  padding: 0;
+  color: var(--cyber-text);
+}
+
+.audio-btn:hover {
+  transform: translateY(-2px);
+  background-color: var(--cyber-bg-hover);
+  border-color: var(--cyber-border-hover);
+  box-shadow: var(--cyber-glow-hover);
+}
+
+.audio-btn-wave {
+  width: 30px;
+  height: 20px;
+  pointer-events: none;
+  fill: rgba(46, 46, 46, 0.6);
+  transform: translate(2px, -2px);
+}
+
+.audio-btn-wave.animated path {
+  transform-origin: 50% 50%;
+}
+
+@keyframes music-on-graph {
+  0% {
+    transform: scaleY(1);
+    transform-origin: 50% 50%;
+  }
+
+  50% {
+    transform: scaleY(0.7);
+    transform-origin: 50% 50%;
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scaleY(1);
+    transform-origin: 50% 50%;
+    opacity: 1;
+  }
+}
+
+.audio-btn-wave.animated #Line_1 {
+  animation: music-on-graph 1s infinite alternate;
+  animation-delay: 0.15s;
+}
+
+.audio-btn-wave.animated #Line_2 {
+  animation: music-on-graph 1s infinite alternate;
+  animation-delay: 0.3s;
+}
+
+.audio-btn-wave.animated #Line_3 {
+  animation: music-on-graph 1s infinite alternate;
+  animation-delay: 0.45s;
+}
+
+.audio-btn-wave.animated #Line_4 {
+  animation: music-on-graph 1s infinite alternate;
+  animation-delay: 0.6s;
+}
+
+.audio-btn-wave.animated #Line_5 {
+  animation: music-on-graph 1s infinite alternate;
+  animation-delay: 0.75s;
+}
+
+@media (max-width: 768px) {
+  .audio-btn-root {
+    right: 16px;
+    bottom: 24px;
+    width: 48px;
+    height: 48px;
+  }
+
+  .audio-btn {
+    width: 48px;
+    height: 48px;
+  }
+}
