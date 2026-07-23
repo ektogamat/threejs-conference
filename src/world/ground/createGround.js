@@ -50,7 +50,7 @@ export function createGround(scene, {
   rippleScale = 4.83,
   rippleSpeed = 3,
   rippleStrength = 0.08,
-  rippleNormalStrength = 0.2,
+  rippleNormalStrength = 0.015,
 } = {}) {
   const textureLoader = new THREE.TextureLoader();
 
