@@ -58,6 +58,7 @@ export function createInspectorSession({
       world.rain,
       world.smoke,
       world.planes,
+      world.sky,
     );
     setupDone = true;
   }

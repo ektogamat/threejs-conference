@@ -22,6 +22,7 @@ export function createRenderLoop({
 
     world.rain?.update(delta, camera);
     world.planes?.update?.(delta);
+    world.sky?.update(camera, timer.getElapsed());
     world.ground?.update?.(delta);
     world.ground?.setRippleAmount?.(world.rain?.params?.enabled ? 1 : 0);
 

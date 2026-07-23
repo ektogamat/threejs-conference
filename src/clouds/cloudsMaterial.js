@@ -14,16 +14,14 @@ import {
   uniform,
   uv,
   varyingProperty,
-  vec2,
-  vec3,
-  vec4,
+  vec2, vec4
 } from "three/tsl";
 
 export function createCloudsMaterial({ noiseTex, perlinTex }) {
   const material = new NodeMaterial();
 
   const uTime = uniform(0);
-  const uSpeed = uniform(0.45);
+  const uSpeed = uniform(1.45);
   const uCloudDensity = uniform(1.3);
   const uNoiseScale = uniform(15.5);
   const uDistortionStrength = uniform(1.8);

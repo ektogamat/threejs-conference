@@ -11,6 +11,7 @@ export function setupInspector(
   rain = null,
   smoke = null,
   planes = null,
+  sky = null,
 ) {
   const {
     post,
@@ -671,6 +672,95 @@ export function setupInspector(
 
     planesFolder
       .add({ logConfig: () => planes.logConfig() }, "logConfig")
+      .name("log config to console");
+  }
+
+  if (sky?.params) {
+    const skyFolder = addClosedFolder(gui, "Sky");
+
+    bindParamControl(
+      skyFolder.add(sky.params, "enabled").name("enabled"),
+      (value) => sky.setEnabled(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "radius", 10, 200, 1).name("radius"),
+      (value) => sky.setRadius(value),
+    );
+    bindParamControl(
+      skyFolder
+        .add(sky.params, "verticalOffset", -40, 40, 0.5)
+        .name("vertical offset"),
+      (value) => sky.setVerticalOffset(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "speed", 0, 4, 0.05).name("speed"),
+      (value) => sky.setSpeed(value),
+    );
+    bindParamControl(
+      skyFolder
+        .add(sky.params, "cloudDensity", 0, 2, 0.01)
+        .name("cloud density"),
+      (value) => sky.setCloudDensity(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "noiseScale", 1, 40, 0.5).name("noise scale"),
+      (value) => sky.setNoiseScale(value),
+    );
+    bindParamControl(
+      skyFolder
+        .add(sky.params, "distortionStrength", 0, 4, 0.05)
+        .name("distortion"),
+      (value) => sky.setDistortionStrength(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "detailAmount", 0, 2, 0.05).name("detail"),
+      (value) => sky.setDetailAmount(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "smoothness", 0, 2, 0.05).name("smoothness"),
+      (value) => sky.setSmoothness(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "contrast", 0.2, 2, 0.05).name("contrast"),
+      (value) => sky.setContrast(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "opacity", 0, 1, 0.01).name("opacity"),
+      (value) => sky.setOpacity(value),
+    );
+    bindParamControl(
+      skyFolder
+        .add(sky.params, "densityStrength", 0, 1, 0.01)
+        .name("density darken"),
+      (value) => sky.setDensityStrength(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "windX", -2, 2, 0.05).name("wind X"),
+      (value) => sky.setWindX(value),
+    );
+    bindParamControl(
+      skyFolder.add(sky.params, "windY", -2, 2, 0.05).name("wind Y"),
+      (value) => sky.setWindY(value),
+    );
+    bindParamControl(
+      skyFolder.addColor(sky.params, "skyTop").name("sky top"),
+      (value) => sky.setSkyTop(value),
+    );
+    bindParamControl(
+      skyFolder.addColor(sky.params, "skyBottom").name("sky bottom"),
+      (value) => sky.setSkyBottom(value),
+    );
+    bindParamControl(
+      skyFolder.addColor(sky.params, "cloudDarkColor").name("cloud dark"),
+      (value) => sky.setCloudDarkColor(value),
+    );
+    bindParamControl(
+      skyFolder.addColor(sky.params, "cloudLightColor").name("cloud light"),
+      (value) => sky.setCloudLightColor(value),
+    );
+
+    skyFolder
+      .add({ logConfig: () => sky.logConfig() }, "logConfig")
       .name("log config to console");
   }
 

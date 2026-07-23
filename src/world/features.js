@@ -8,10 +8,11 @@
  * 4. audio          → ambient button + spatial engines
  * 5. smoke, planes  → world/effects
  * 6. rain           → world/weather + ground ripples
- * 7. car            → collider, smoke hub, engine audio
- * 8. advancedPost   → bloom / DoF / CA (future: beauty-only pass)
- * 9. groundReflection → wet mirror RT
- * 10. core          → scene + city + orbit/walk + render loop
+ * 7. sky            → clouds/createCloudSky
+ * 8. car            → collider, smoke hub, engine audio
+ * 9. advancedPost   → bloom / DoF / CA (future: beauty-only pass)
+ * 10. groundReflection → wet mirror RT
+ * 11. core          → scene + city + orbit/walk + render loop
  */
 export const FEATURES = {
   city: true,
@@ -19,6 +20,7 @@ export const FEATURES = {
   rain: true,
   smoke: true,
   planes: true,
+  sky: true,
   ground: true,
   intro: true,
   chromeUi: true,
@@ -35,5 +37,6 @@ export const STRIP_ORDER = [
   "smoke",
   "planes",
   "rain",
+  "sky",
   "car",
 ];

@@ -11,6 +11,7 @@ export function createDevAppApi({ scene, world, camera, controls }) {
     rain: world.rain,
     smoke: world.smoke,
     planes: world.planes,
+    sky: world.sky,
     listObjectNames() {
       const rows = [];
 

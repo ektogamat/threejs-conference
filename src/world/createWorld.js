@@ -6,7 +6,9 @@ import { createGround } from "./ground/createGround.js";
 import { createRainStreaks } from "./weather/createRainStreaks.js";
 import { createSmoke } from "./effects/createSmoke.js";
 import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
+import { createCloudSky } from "../clouds/createCloudSky.js";
 import { FEATURES } from "./features.js";
+import * as THREE from "three/webgpu";
 
 function buildColliders({ city, carCollider }) {
   const colliders = [];
@@ -100,6 +102,20 @@ export async function createWorld({
     planes = await createFlyingPlanes({ scene, renderer });
   }
 
+  let sky = null;
+  if (FEATURES.sky) {
+    sky = await createCloudSky(scene, {
+      radius: 135,
+      verticalOffset: -33.5,
+    });
+    // Scene is night / neon — skip the bright day cloud preset.
+    sky.updateFromSun({
+      night: 1,
+      skyTop: new THREE.Color(0x0a0818),
+      skyBottom: new THREE.Color(0x1c2438),
+    });
+  }
+
   const colliders = buildColliders({ city, carCollider: quadraCollider });
   const focusTargets = buildFocusTargets({ city, car: quadraCar, ground });
 
@@ -112,6 +128,7 @@ export async function createWorld({
     rain,
     smoke,
     planes,
+    sky,
     colliders,
     focusTargets,
     primaryPlaneAnchor: planes?.primaryAnchor ?? null,
