@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import { vec4 } from "three/tsl";
 import { performanceProfile } from "../platform/performanceProfile.js";
+import { setStoredLookPreset } from "../platform/userPreferences.js";
 
 export function setupInspector(
   renderer,
@@ -83,6 +84,7 @@ export function setupInspector(
         bloomPass,
         lensflare,
       });
+      setStoredLookPreset(presetId);
       lookParams.preset = presetId;
       syncFogColorParams();
     }

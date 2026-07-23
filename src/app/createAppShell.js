@@ -28,6 +28,7 @@ import {
 import {
   isDevelopmentModeEnabled,
   clearAllStoredPreferences,
+  setStoredLookPreset,
 } from "../platform/userPreferences.js";
 
 const LOOK_OPTIONS = [
@@ -61,7 +62,6 @@ export function createAppShell({
   pipeline,
   inspectorSession,
   syncLighting,
-  onRestartCamera,
 }) {
   const uiState = createAppUiState();
   let finishedIntro = false;
@@ -124,11 +124,13 @@ export function createAppShell({
         getCurrentLookPreset: () => pipeline.look.getCurrentPresetId(),
         onLookPresetChange: (presetId) => {
           pipeline.applyLookPreset(presetId);
+          setStoredLookPreset(presetId);
         },
         onRestart: () => {
           clearAllStoredPreferences();
           inspectorSession.applyDevelopmentMode(false, settingsPanelRef);
-          onRestartCamera?.();
+          pipeline.applyLookPreset(DEFAULT_LOOK_PRESET);
+          settingsPanelRef?.syncLookPreset(DEFAULT_LOOK_PRESET);
           syncLighting?.();
         },
       })

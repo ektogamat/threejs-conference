@@ -31,6 +31,11 @@ import {
   syncLayoutClass,
   onMobileLayoutChange,
 } from "./platform/deviceLayout.js";
+import { getStoredLookPreset } from "./platform/userPreferences.js";
+import {
+  DEFAULT_LOOK_PRESET,
+  LOOK_PRESETS,
+} from "./post/look/cyberpunkLook.js";
 
 const loader = createLoaderOverlay();
 
@@ -98,7 +103,13 @@ async function init(loaderOverlay) {
   });
   const post = pipeline.post;
 
-  pipeline.applyLookPreset(pipeline.look.getCurrentPresetId(), {
+  const storedLookPreset = getStoredLookPreset();
+  const initialLookPreset =
+    storedLookPreset && LOOK_PRESETS[storedLookPreset]
+      ? storedLookPreset
+      : DEFAULT_LOOK_PRESET;
+
+  pipeline.applyLookPreset(initialLookPreset, {
     bloomPass: pipeline.bloomPass,
     lensflare: pipeline.lensflare,
   });
@@ -147,7 +158,6 @@ async function init(loaderOverlay) {
     pipeline,
     inspectorSession,
     syncLighting: lighting.syncLighting,
-    onRestartCamera: () => cameraDirector.resetCameraPose(),
   });
 
   walkModeBridge.onChange = appShell.onWalkModeChange;

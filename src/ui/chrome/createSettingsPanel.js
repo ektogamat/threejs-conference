@@ -69,10 +69,10 @@ export function createSettingsPanel({
 
         <button type="button" class="settings-restart-btn" data-restart>
           <span class="settings-restart-icon">${phosphorArrowCounterClockwise}</span>
-          <span>Restart project</span>
+          <span>Reset configs</span>
         </button>
         <p class="settings-restart-hint">
-          Clears saved development preferences
+          Resets look preference and turns off development mode
         </p>
       </div>
     </div>
@@ -151,7 +151,7 @@ export function createSettingsPanel({
 
   restartButton.addEventListener("click", () => {
     const confirmed = window.confirm(
-      "Restart the project? Saved development settings will be cleared.",
+      "Reset configs? Look preference will return to default and development mode will turn off.",
     );
     if (!confirmed) {
       return;
