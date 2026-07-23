@@ -9,7 +9,7 @@ import {
 } from "three/webgpu";
 import { buildModelBvh, installBvhRaycast } from "../bvh.js";
 import { getGltfLoader } from "../loaders/createGltfLoaders.js";
-import { getMeshMaterials } from "../loaders/meshUtils.js";
+import { applyCarSurfaceRain } from "./applyCarSurfaceRain.js";
 
 const QUADRA_PATH = "/models/quadra.glb";
 
@@ -21,42 +21,12 @@ export const QUADRA_START = {
 };
 
 /** Extra XZ padding around the car walk hitbox (meters). */
-const CAR_COLLIDER_PAD_XZ = 0.45;
+const CAR_COLLIDER_PAD_XZ = -0.5;
 /**
  * Minimum collider height so eye/chest walk rays cannot skim over the roof.
  * Expanded upward from the local bottom.
  */
 const CAR_COLLIDER_MIN_HEIGHT = 2.2;
-
-/**
- * Transmission allocates HalfFloat screen RTs per camera. With beauty + rain
- * + ground mirror cameras that thrashing hits WebGPU ("Destroyed texture
- * used in a submit"). Cheap glass is enough for a parked prop.
- */
-function simplifyCarGlassMaterials(root) {
-  root.traverse((child) => {
-    if (!child.isMesh) {
-      return;
-    }
-
-    for (const material of getMeshMaterials(child)) {
-      if (!material || !(material.transmission > 0)) {
-        continue;
-      }
-
-      material.transmission = 0;
-      material.thickness = 0;
-      material.attenuationDistance = Infinity;
-      material.transparent = true;
-      material.opacity =
-        material.opacity > 0 && material.opacity < 1 ? material.opacity : 0.35;
-      material.depthWrite = false;
-      material.roughness = Math.max(material.roughness ?? 0, 0.08);
-      material.metalness = 0;
-      material.needsUpdate = true;
-    }
-  });
-}
 
 /**
  * Invisible oriented box used for walk walls. High-poly car meshes stay out of
@@ -91,8 +61,8 @@ function createCarCollider(car) {
     const worldBox = new Box3().setFromObject(car);
     const size = worldBox.getSize(new Vector3());
     const center = worldBox.getCenter(new Vector3());
-    size.x += CAR_COLLIDER_PAD_XZ * 2;
-    size.z += CAR_COLLIDER_PAD_XZ * 2;
+    size.x += CAR_COLLIDER_PAD_XZ * 1.5;
+    size.z += CAR_COLLIDER_PAD_XZ * 1.5;
     const bottom = worldBox.min.y;
     size.y = Math.max(size.y + 0.2, CAR_COLLIDER_MIN_HEIGHT);
     center.y = bottom + size.y * 0.5;
@@ -145,7 +115,7 @@ export async function loadQuadraCar(renderer) {
   car.rotation.y = QUADRA_START.rotationY;
   car.scale.set(QUADRA_START.scale, QUADRA_START.scale, QUADRA_START.scale);
   car.updateWorldMatrix(true, true);
-  simplifyCarGlassMaterials(car);
+  const surfaceRain = applyCarSurfaceRain(car);
 
   car.traverse((child) => {
     if (!child.isMesh) {
@@ -161,5 +131,5 @@ export async function loadQuadraCar(renderer) {
   installBvhRaycast();
   const collider = createCarCollider(car);
 
-  return { car, collider };
+  return { car, collider, surfaceRain };
 }

@@ -76,6 +76,7 @@ export async function createWorld({
   const [city, billboards, quadra, envTexture] = await Promise.all(loadTasks);
   const quadraCar = quadra?.car ?? null;
   const quadraCollider = quadra?.collider ?? null;
+  const carSurfaceRain = quadra?.surfaceRain ?? null;
 
   loaderOverlay.setProgress(0.7);
 
@@ -140,6 +141,7 @@ export async function createWorld({
     billboards,
     car: quadraCar,
     carCollider: quadraCollider,
+    carSurfaceRain,
     envTexture,
     ground,
     rain,
