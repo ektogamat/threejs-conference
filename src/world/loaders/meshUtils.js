@@ -15,3 +15,23 @@ export function findMeshByName(root, name) {
 
   return mesh;
 }
+
+export function findMaterialsByName(root, name) {
+  const matches = [];
+
+  root.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    getMeshMaterials(child).forEach((material, materialIndex) => {
+      if (material?.name !== name) {
+        return;
+      }
+
+      matches.push({ mesh: child, material, materialIndex });
+    });
+  });
+
+  return matches;
+}
