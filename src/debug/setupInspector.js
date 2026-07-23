@@ -13,6 +13,7 @@ export function setupInspector(
   smoke = null,
   planes = null,
   sky = null,
+  cityMaterials = null,
 ) {
   const {
     post,
@@ -468,6 +469,22 @@ export function setupInspector(
       1,
       0.01,
     ).name("ripple normal");
+  }
+
+  if (cityMaterials?.billboard?.uniforms) {
+    const billboardFolder = addClosedFolder(gui, "Billboard");
+    const { vignetteInner, vignetteOuter, vignetteMin } =
+      cityMaterials.billboard.uniforms;
+
+    addParam(billboardFolder, vignetteInner, "value", 0, 1, 0.01).name(
+      "vignette inner",
+    );
+    addParam(billboardFolder, vignetteOuter, "value", 0, 1, 0.01).name(
+      "vignette outer",
+    );
+    addParam(billboardFolder, vignetteMin, "value", 0, 1, 0.01).name(
+      "vignette min",
+    );
   }
 
   if (rain?.params) {

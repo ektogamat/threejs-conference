@@ -1,5 +1,6 @@
 import { addModel } from "./scene.js";
 import { loadCityModel } from "./city/loadCity.js";
+import { loadBillboards } from "./billboards/loadBillboards.js";
 import { loadQuadraCar } from "./car/loadCar.js";
 import { loadEnvironmentMap } from "./envMap.js";
 import { createGround } from "./ground/createGround.js";
@@ -24,11 +25,15 @@ function buildColliders({ city, carCollider }) {
   return colliders;
 }
 
-function buildFocusTargets({ city, car, ground }) {
+function buildFocusTargets({ city, car, ground, billboards }) {
   const targets = [];
 
   if (city) {
     targets.push(city);
+  }
+
+  if (billboards) {
+    targets.push(billboards);
   }
 
   if (car) {
@@ -54,7 +59,9 @@ export async function createWorld({
 
   if (FEATURES.city) {
     loadTasks.push(loadCityModel(renderer));
+    loadTasks.push(loadBillboards(renderer));
   } else {
+    loadTasks.push(Promise.resolve(null));
     loadTasks.push(Promise.resolve(null));
   }
 
@@ -66,7 +73,7 @@ export async function createWorld({
 
   loadTasks.push(loadEnvironmentMap());
 
-  const [city, quadra, envTexture] = await Promise.all(loadTasks);
+  const [city, billboards, quadra, envTexture] = await Promise.all(loadTasks);
   const quadraCar = quadra?.car ?? null;
   const quadraCollider = quadra?.collider ?? null;
 
@@ -74,6 +81,10 @@ export async function createWorld({
 
   if (city) {
     addModel(scene, city);
+  }
+
+  if (billboards) {
+    addModel(scene, billboards);
   }
 
   if (quadraCar) {
@@ -117,10 +128,16 @@ export async function createWorld({
   }
 
   const colliders = buildColliders({ city, carCollider: quadraCollider });
-  const focusTargets = buildFocusTargets({ city, car: quadraCar, ground });
+  const focusTargets = buildFocusTargets({
+    city,
+    car: quadraCar,
+    ground,
+    billboards,
+  });
 
   return {
     city,
+    billboards,
     car: quadraCar,
     carCollider: quadraCollider,
     envTexture,

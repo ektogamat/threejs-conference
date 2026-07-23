@@ -8,12 +8,12 @@ export const cameraParams = {
   fovDesktop: DESKTOP_FOV,
   fovMobile: MOBILE_FOV,
   walkEyeHeight: 1.55,
-  walkAcceleration: 10,
-  walkDeceleration: 14,
-  walkFovBoost: 3,
-  sprintFovBoost: 8,
+  walkAcceleration: 6,
+  walkDeceleration: 10,
+  walkFovBoost: 5,
+  sprintFovBoost: 15,
   walkFovBlendSpeed: 2,
-  sprintFovBlendSpeed: 2.5,
+  sprintFovBlendSpeed: 0.5,
 };
 
 // Y is eye height above the flat ground (createGround default y = -5.5).

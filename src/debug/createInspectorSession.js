@@ -59,6 +59,7 @@ export function createInspectorSession({
       world.smoke,
       world.planes,
       world.sky,
+      world.billboards?.userData?.billboardMaterials ?? null,
     );
     setupDone = true;
   }
