@@ -33,6 +33,10 @@ export function createIntroFlow({
   async function runIntroSequence() {
     introActive = true;
     setIntroWorldPaused(true);
+    // Block look / pointer-lock while the glass + title are up. Overlay uses
+    // pointer-events: none except the ENTER button, so clicks would otherwise
+    // hit the canvas under it (walk is already active for pose stability).
+    renderer.domElement.style.pointerEvents = "none";
     rainGlassIntro = createRainGlassIntro({ pipeline });
 
     const introOverlay = createIntroOverlay({
@@ -54,6 +58,7 @@ export function createIntroFlow({
         await new Promise((resolve) => setTimeout(resolve, 1000));
         await notice.hide();
         notice.destroy();
+        renderer.domElement.style.pointerEvents = "auto";
         revealAppUi();
       },
     });
@@ -64,6 +69,7 @@ export function createIntroFlow({
 
   async function enterAppWithoutIntro() {
     await revealCanvas();
+    renderer.domElement.style.pointerEvents = "auto";
     revealAppUi();
   }
 
