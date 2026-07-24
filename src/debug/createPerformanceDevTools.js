@@ -8,7 +8,7 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
   let fps = 0;
   let frameCount = 0;
   let lastSampleTime = performance.now();
-  const perfStats = { fps: 0, dpr: 0, maxPixels: 0 };
+  const perfStats = { fps: 0, dpr: 0 };
 
   function sampleFps() {
     frameCount += 1;
@@ -17,7 +17,6 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
       fps = frameCount;
       perfStats.fps = frameCount;
       perfStats.dpr = adaptiveDpr?.getDPR?.() ?? rendererDprFallback();
-      perfStats.maxPixels = adaptiveDpr?.getMaxPixels?.() ?? 0;
       adaptiveDpr?.onFpsSample?.(fps);
       frameCount = 0;
       lastSampleTime = now;
@@ -80,19 +79,18 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
       return setProfileFlag("adaptiveDpr", Boolean(enabled));
     },
     getAdaptiveDpr: () => adaptiveDpr?.getDPR?.() ?? getStaticPixelRatio(),
-    getMaxPixels: () => adaptiveDpr?.getMaxPixels?.() ?? 0,
     printHelp() {
       console.info(
         [
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
           "  groundReflection, bloom, dof, lensflare, smaa, carSurfaceRain, adaptiveDpr",
-          "  maxPixelRatio (1.25), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
+          "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
           "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
           "  planeEnabled (true)",
-          "  __app.perf.getFps() / getAdaptiveDpr() / getMaxPixels()",
+          "  __app.perf.getFps() / getAdaptiveDpr()",
           "  Inspector: Settings → Development Mode → Post-processing → Performance",
         ].join("\n"),
       );

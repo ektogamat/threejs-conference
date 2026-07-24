@@ -36,6 +36,7 @@ import {
   onMobileLayoutChange,
 } from "./platform/deviceLayout.js";
 import { createAdaptiveDprController } from "./platform/adaptiveDpr.js";
+import { performanceProfile } from "./platform/performanceProfile.js";
 import { getStoredLookPreset } from "./platform/userPreferences.js";
 import {
   DEFAULT_LOOK_PRESET,
@@ -122,6 +123,14 @@ async function init(loaderOverlay) {
   const adaptiveDpr = createAdaptiveDprController({
     renderer,
     pipeline,
+    // Once FPS forces the pixel ratio down, also shed DOF and billboard
+    // video decode — both are comparatively expensive and not worth the
+    // cost once we already know the device is struggling.
+    onForcedLow: () => {
+      performanceProfile.dof = false;
+      pipeline.perf.setDofEnabled(false);
+      world.billboards?.userData?.billboardMaterials?.billboard?.disable();
+    },
   });
   adaptiveDpr.onResize();
 
