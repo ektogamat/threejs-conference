@@ -94,9 +94,16 @@ export function createInspectorSession({
   }
 
   function revealInspector() {
-    if (isDevelopmentModeEnabled()) {
-      openInspector(inspectorInstance);
+    if (!isDevelopmentModeEnabled()) {
+      return;
     }
+
+    if (renderer.inspector !== inspectorInstance) {
+      return;
+    }
+
+    ensureInspectorSetup();
+    openInspector(inspectorInstance);
   }
 
   return {

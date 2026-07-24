@@ -37,7 +37,7 @@ import {
 } from "./platform/deviceLayout.js";
 import { createAdaptiveDprController } from "./platform/adaptiveDpr.js";
 import { performanceProfile } from "./platform/performanceProfile.js";
-import { getStoredLookPreset } from "./platform/userPreferences.js";
+import { getStoredLookPreset, isDevelopmentModeEnabled } from "./platform/userPreferences.js";
 import {
   DEFAULT_LOOK_PRESET,
   LOOK_PRESETS,
@@ -235,9 +235,6 @@ async function init(loaderOverlay) {
     post,
   });
 
-  attachRendererInspector(renderer, inspectorInstance);
-  inspectorSession.bootstrapInspector(appShell.settingsPanel);
-
   renderLoop.startLoop();
 
   // Rain / smoke / planes compile in parallel with the intro (canvas starts hidden).
@@ -263,4 +260,13 @@ async function init(loaderOverlay) {
 
   await introFlow.run();
   await deferredCompile;
+
+  // Inspector must attach only after off-loop compile/warmup — compileAsync and
+  // startup warmPostFrames render outside setAnimationLoop and trigger warnings.
+  attachRendererInspector(renderer, inspectorInstance);
+  inspectorSession.bootstrapInspector(appShell.settingsPanel);
+
+  if (isDevelopmentModeEnabled()) {
+    inspectorSession.revealInspector();
+  }
 }
