@@ -97,8 +97,9 @@ export function applyBillboardFace(entries) {
 
     const nodeMaterial = ensureStandardNodeMaterial(material);
     nodeMaterial.colorNode = output;
-    nodeMaterial.emissiveNode = output.rgb;
-    nodeMaterial.emissiveIntensity = 0.65;
+    // Multiply here: emissiveNode replaces the default path, so
+    // material.emissiveIntensity has no effect on the MRT bloom buffer.
+    nodeMaterial.emissiveNode = output.rgb.mul(vignetteUniforms.emissiveIntensity);
     nodeMaterial.needsUpdate = true;
 
     if (nodeMaterial !== material) {

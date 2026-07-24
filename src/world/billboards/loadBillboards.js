@@ -12,8 +12,8 @@ export async function loadBillboards(renderer) {
   billboards.position.y = CITY_OFFSET_Y;
 
   billboards.traverse((child) => {
-    child.castShadow = true;
-    child.receiveShadow = true;
+    child.castShadow = false;
+    child.receiveShadow = false;
   });
 
   return billboards;
