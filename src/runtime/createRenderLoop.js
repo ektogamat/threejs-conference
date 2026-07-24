@@ -9,6 +9,7 @@ export function createRenderLoop({
   performanceTools,
   renderer,
   getRainGlassIntro,
+  getIntroActive,
   onFrame,
 }) {
   const timer = new THREE.Timer();
@@ -21,12 +22,21 @@ export function createRenderLoop({
     onFrame?.(delta);
 
     world.rain?.update(delta, camera);
-    world.planes?.update?.(delta);
+
+    const introActive = getIntroActive?.() ?? false;
+
+    if (!introActive) {
+      world.planes?.update?.(delta);
+    }
+
     world.sky?.update(camera, timer.getElapsed());
     world.ground?.update?.(delta);
     const rainEnabled = world.rain?.params?.enabled ?? false;
     world.ground?.setRippleAmount?.(rainEnabled ? 1 : 0);
-    world.billboards?.userData?.billboardMaterials?.billboard?.update?.(camera);
+
+    if (!introActive) {
+      world.billboards?.userData?.billboardMaterials?.billboard?.update?.(camera);
+    }
     const carRainActive = world.carSurfaceRain?.syncProximity({
       camera,
       carRoot: world.car,
