@@ -63,25 +63,33 @@ function renderExpandedDiagram() {
   const keySize = 56;
   const gap = 8;
   const clusterX = 250;
-  const clusterY = 132;
+  const clusterY = 118;
+  const bottomY = clusterY + (keySize + gap) * 2 + 16;
+  const shiftX = clusterX - 18;
+  const shiftWidth = keySize * 2 + gap + 28;
+  const crouchX = shiftX + shiftWidth + gap;
+  const crouchSize = 40;
 
   return `
     <svg class="walk-controls__diagram" viewBox="0 0 860 440" role="img" aria-label="Walk mode controls">
-      <line class="walk-leader" x1="430" y1="88" x2="${clusterX + keySize + gap}" y2="${clusterY - 6}" />
-      <line class="walk-leader" x1="132" y1="268" x2="${clusterX + 12}" y2="${clusterY + keySize * 2 + gap + 20}" />
-      <line class="walk-leader" x1="706" y1="268" x2="620" y2="236" />
+      <line class="walk-leader" x1="430" y1="78" x2="${clusterX + keySize + gap}" y2="${clusterY - 6}" />
+      <line class="walk-leader" x1="132" y1="248" x2="${shiftX + 24}" y2="${bottomY + 12}" />
+      <line class="walk-leader" x1="430" y1="368" x2="${crouchX + crouchSize / 2}" y2="${bottomY + crouchSize}" />
+      <line class="walk-leader" x1="706" y1="248" x2="620" y2="220" />
 
-      ${renderCallout(318, 28, 224, "Movement", "WASD to move")}
-      ${renderCallout(38, 240, 188, "Sprint", "Hold Shift")}
-      ${renderCallout(634, 240, 188, "Look", "Click to lock mouse")}
+      ${renderCallout(318, 18, 224, "Movement", "WASD to move")}
+      ${renderCallout(38, 220, 188, "Sprint", "Hold Shift")}
+      ${renderCallout(318, 348, 224, "Crouch", "Press C to toggle")}
+      ${renderCallout(634, 220, 188, "Look", "Click to lock mouse")}
 
       ${renderKey(clusterX + keySize + gap, clusterY, keySize, keySize, "W", true)}
       ${renderKey(clusterX, clusterY + keySize + gap, keySize, keySize, "A", true)}
       ${renderKey(clusterX + keySize + gap, clusterY + keySize + gap, keySize, keySize, "S", true)}
       ${renderKey(clusterX + (keySize + gap) * 2, clusterY + keySize + gap, keySize, keySize, "D", true)}
-      ${renderKey(clusterX - 18, clusterY + (keySize + gap) * 2 + 16, keySize * 3 + gap * 2 + 36, 40, "Shift", true, "walk-key--shift")}
+      ${renderKey(shiftX, bottomY, shiftWidth, crouchSize, "Shift", true, "walk-key--shift")}
+      ${renderKey(crouchX, bottomY, crouchSize, crouchSize, "C", true)}
 
-      ${renderMouse(560, 156, 3.2, true)}
+      ${renderMouse(560, 140, 3.2, true)}
     </svg>
   `;
 }
