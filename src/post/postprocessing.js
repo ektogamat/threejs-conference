@@ -20,6 +20,7 @@ import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
 import { performanceProfile } from "../platform/performanceProfile.js";
+import { FEATURES } from "../world/features.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
 
@@ -161,12 +162,55 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     bloomContribution: bloomPass.mul(bloomEnabled).add(flareContribution),
   });
 
-  const introRainGlassUniforms = createRainGlassUniforms();
-  const rainGlassOut = applyRainGlass(composed, introRainGlassUniforms);
-  const finalOutput = mix(composed, rainGlassOut, introRainGlassUniforms.amount);
-  const finalOutputWithSmaa = smaa(finalOutput);
+  const steadyOutput = composed;
+  const steadyOutputWithSmaa = smaa(composed);
+
+  let introRainGlassUniforms = null;
+  let introOutput = null;
+  let introOutputWithSmaa = null;
+  let introRainGlassActive = FEATURES.intro;
+  let introRainGlassRef = null;
+
+  if (FEATURES.intro) {
+    introRainGlassUniforms = createRainGlassUniforms();
+    const rainGlassOut = applyRainGlass(composed, introRainGlassUniforms);
+    introOutput = mix(composed, rainGlassOut, introRainGlassUniforms.amount);
+    introOutputWithSmaa = smaa(introOutput);
+    introRainGlassRef = {
+      speed: introRainGlassUniforms.speed,
+      intensity: introRainGlassUniforms.intensity,
+      distortionStrength: introRainGlassUniforms.distortionStrength,
+      dropSize: introRainGlassUniforms.dropSize,
+      blurRadius: introRainGlassUniforms.blurRadius,
+      amount: introRainGlassUniforms.amount,
+    };
+  }
+
   let smaaActive = performanceProfile.smaa;
-  post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
+
+  function getActiveOutput() {
+    if (introRainGlassActive && introOutput) {
+      return smaaActive ? introOutputWithSmaa : introOutput;
+    }
+
+    return smaaActive ? steadyOutputWithSmaa : steadyOutput;
+  }
+
+  post.outputNode = getActiveOutput();
+
+  function disposeIntroRainGlass() {
+    if (!introRainGlassActive) {
+      return;
+    }
+
+    introRainGlassActive = false;
+    introRainGlassUniforms = null;
+    introOutput = null;
+    introOutputWithSmaa = null;
+    introRainGlassRef = null;
+    post.outputNode = getActiveOutput();
+    post.needsUpdate = true;
+  }
 
   function updateFocusPoint(focusPoint, activeCamera) {
     activeCamera.updateMatrixWorld();
@@ -174,7 +218,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function restoreCombinedOutput() {
-    post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
+    post.outputNode = getActiveOutput();
     post.needsUpdate = true;
   }
 
@@ -208,7 +252,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
 
   function setSmaaEnabled(enabled) {
     smaaActive = Boolean(enabled);
-    post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
+    post.outputNode = getActiveOutput();
     post.needsUpdate = true;
   }
 
@@ -269,14 +313,10 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     scenePassColor,
     scenePassEmissive,
     composedOutput: composed,
-    introRainGlass: {
-      speed: introRainGlassUniforms.speed,
-      intensity: introRainGlassUniforms.intensity,
-      distortionStrength: introRainGlassUniforms.distortionStrength,
-      dropSize: introRainGlassUniforms.dropSize,
-      blurRadius: introRainGlassUniforms.blurRadius,
-      amount: introRainGlassUniforms.amount,
+    get introRainGlass() {
+      return introRainGlassRef;
     },
+    disposeIntroRainGlass,
     refraction: {
       params: refractionParams,
       enabled: refractionEnabled,

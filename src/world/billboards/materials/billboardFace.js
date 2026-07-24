@@ -12,6 +12,9 @@ export const BILLBOARD_MATERIAL_NAMES = [
   "billboard_3",
 ];
 
+const PLAY_DISTANCE = 100;
+const PAUSE_DISTANCE = 120;
+
 function ensureStandardNodeMaterial(source) {
   if (source?.isMeshStandardNodeMaterial) {
     return source;
@@ -36,21 +39,25 @@ function replaceMeshMaterial(mesh, materialIndex, material) {
   mesh.material = material;
 }
 
-export function applyBillboardFace(entries) {
+export function applyBillboardFace(entries, { root } = {}) {
   if (!entries.length) {
     return null;
   }
 
   const pool = createShuffledVideoPool();
   const vignetteUniforms = createBillboardVignetteUniforms();
+  const videos = [];
   const disposables = [];
+  const rootPosition = new THREE.Vector3();
+  let playing = false;
 
   for (let i = 0; i < entries.length; i++) {
     const { mesh, material, materialIndex } = entries[i];
     const videoPath = pool[i % pool.length];
-    const video = createVideoTexture(videoPath);
+    const video = createVideoTexture(videoPath, { autoplay: false });
     const { output } = createBillboardFaceOutput(video.texture, vignetteUniforms);
 
+    videos.push(video);
     disposables.push(video.dispose);
 
     const nodeMaterial = ensureStandardNodeMaterial(material);
@@ -64,7 +71,43 @@ export function applyBillboardFace(entries) {
     }
   }
 
+  function setPlaying(nextPlaying) {
+    if (nextPlaying === playing) {
+      return;
+    }
+
+    playing = nextPlaying;
+
+    for (let i = 0; i < videos.length; i++) {
+      if (playing) {
+        videos[i].play();
+      } else {
+        videos[i].pause();
+      }
+    }
+  }
+
+  function update(camera) {
+    if (!root || !camera) {
+      return;
+    }
+
+    root.getWorldPosition(rootPosition);
+    const distance = camera.position.distanceTo(rootPosition);
+
+    if (!playing && distance < PLAY_DISTANCE) {
+      setPlaying(true);
+      return;
+    }
+
+    if (playing && distance > PAUSE_DISTANCE) {
+      setPlaying(false);
+    }
+  }
+
   function dispose() {
+    setPlaying(false);
+
     for (const disposeResource of disposables) {
       disposeResource();
     }
@@ -72,6 +115,7 @@ export function applyBillboardFace(entries) {
 
   return {
     dispose,
+    update,
     uniforms: vignetteUniforms,
   };
 }

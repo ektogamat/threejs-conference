@@ -61,6 +61,7 @@ export function createRainGlassIntro({
     fadeTween?.kill();
     fadeTween = null;
     glass.amount.value = 0;
+    pipeline?.disposeIntroRainGlass?.();
   }
 
   return {

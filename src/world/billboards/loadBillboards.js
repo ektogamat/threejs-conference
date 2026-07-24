@@ -1,6 +1,5 @@
 import { getGltfLoader } from "../loaders/createGltfLoaders.js";
 import { CITY_OFFSET_Y } from "../city/loadCity.js";
-import { applyBillboardMaterials } from "./applyBillboardMaterials.js";
 
 const BILLBOARDS_PATH = "/models/billboards.glb";
 
@@ -16,9 +15,6 @@ export async function loadBillboards(renderer) {
     child.castShadow = true;
     child.receiveShadow = true;
   });
-
-  const billboardMaterials = applyBillboardMaterials(billboards);
-  billboards.userData.billboardMaterials = billboardMaterials;
 
   return billboards;
 }
