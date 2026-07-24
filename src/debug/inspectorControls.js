@@ -9,6 +9,15 @@ export function clearInspectorLayout() {
   }
 }
 
+export function attachRendererInspector(renderer, inspector) {
+  if (!renderer || !inspector) {
+    return;
+  }
+
+  renderer.inspector = inspector;
+  inspector.init?.();
+}
+
 export function hideInspector(inspector) {
   if (!inspector) return;
   inspector.domElement.hidden = true;

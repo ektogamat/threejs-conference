@@ -15,6 +15,7 @@ import { AdditiveBlending, UnsignedByteType } from "three";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
+import { smaa } from "three/addons/tsl/display/SMAANode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
@@ -163,7 +164,9 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const introRainGlassUniforms = createRainGlassUniforms();
   const rainGlassOut = applyRainGlass(composed, introRainGlassUniforms);
   const finalOutput = mix(composed, rainGlassOut, introRainGlassUniforms.amount);
-  post.outputNode = finalOutput;
+  const finalOutputWithSmaa = smaa(finalOutput);
+  let smaaActive = performanceProfile.smaa;
+  post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
 
   function updateFocusPoint(focusPoint, activeCamera) {
     activeCamera.updateMatrixWorld();
@@ -171,7 +174,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function restoreCombinedOutput() {
-    post.outputNode = finalOutput;
+    post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
     post.needsUpdate = true;
   }
 
@@ -201,6 +204,12 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   function setLensflareBlurRadius(radius) {
     lensflareBlurRadius.value = radius;
     lensflareBlurRadius.needsUpdate = true;
+  }
+
+  function setSmaaEnabled(enabled) {
+    smaaActive = Boolean(enabled);
+    post.outputNode = smaaActive ? finalOutputWithSmaa : finalOutput;
+    post.needsUpdate = true;
   }
 
   function setRefractionEnabled(enabled) {
@@ -291,6 +300,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
       setLensflareEnabled,
       setLensflareResolutionScale,
       setLensflareBlurRadius,
+      setSmaaEnabled,
     },
   };
 }

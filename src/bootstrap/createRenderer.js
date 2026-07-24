@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 import { Inspector } from "three/addons/inspector/Inspector.js";
-import { performanceProfile } from "../platform/performanceProfile.js";
+import { getStaticPixelRatio } from "../platform/performanceProfile.js";
 import { clearInspectorLayout } from "../debug/inspectorControls.js";
 
 async function getWebGPULimits() {
@@ -37,9 +37,7 @@ export async function createRenderer() {
     stencil: false,
     requiredLimits,
   });
-  renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
-  );
+  renderer.setPixelRatio(getStaticPixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -81,13 +79,20 @@ export function createShadowUpdater({ renderer, getSunLight }) {
   return { requestShadowMapUpdate };
 }
 
-export function resizeRenderer(renderer, pipeline) {
+export function applyRendererPixelRatio(renderer, pipeline, dpr) {
   const width = window.innerWidth;
   const height = window.innerHeight;
 
-  renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio),
-  );
+  renderer.setPixelRatio(dpr);
   renderer.setSize(width, height);
   pipeline?.resizePostProcessing?.(width, height);
+}
+
+export function resizeRenderer(renderer, pipeline, adaptiveDpr = null) {
+  if (adaptiveDpr) {
+    adaptiveDpr.onResize();
+    return;
+  }
+
+  applyRendererPixelRatio(renderer, pipeline, getStaticPixelRatio());
 }

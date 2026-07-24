@@ -5,6 +5,7 @@ import {
   setDevelopmentModeEnabled,
 } from "../platform/userPreferences.js";
 import {
+  attachRendererInspector,
   openInspector,
   hideInspector,
 } from "./inspectorControls.js";
@@ -23,6 +24,7 @@ export function createInspectorSession({
   envMapBaseIntensity,
   requestShadowMapUpdate,
   inspectorInstance,
+  adaptiveDpr = null,
 }) {
   let setupDone = false;
 
@@ -60,6 +62,7 @@ export function createInspectorSession({
       world.planes,
       world.sky,
       world.billboards?.userData?.billboardMaterials ?? null,
+      adaptiveDpr,
     );
     setupDone = true;
   }
@@ -74,6 +77,7 @@ export function createInspectorSession({
     settingsPanel?.syncDevelopmentMode(enabled);
 
     if (enabled) {
+      attachRendererInspector(renderer, inspectorInstance);
       ensureInspectorSetup();
       openInspector(inspectorInstance);
     } else {

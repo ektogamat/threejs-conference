@@ -113,6 +113,14 @@ export const Drops = /*#__PURE__*/ Fn(([uv, t, l0, l1, l2, size, dropletMix = fl
   return vec2(c, max(m1.y.mul(l0), m2.y.mul(l1)));
 });
 
+/** Car paint/glass: moving layers only (static drops always zero on car). */
+export const CarDrops = /*#__PURE__*/ Fn(([uv, t, l1, l2, size, dropletMix = float(1)]) => {
+  const m1 = MovingDropLayer(uv, t, size, dropletMix);
+  const m2 = MovingDropLayer(uv.mul(1.85), t, size, dropletMix);
+  const c = smoothstep(float(0.3), float(1), m1.x.add(m2.x));
+  return vec2(c, max(m1.y.mul(l1), m2.y.mul(l2)));
+});
+
 export function getRainLayerWeights(rainAmount) {
   return {
     staticDrops: smoothstep(float(-0.5), float(1), rainAmount).mul(2),
@@ -147,6 +155,31 @@ export function computeDropNormalOffset(
   const c = Drops(rainUv, t, staticDrops, layer1, layer2, size, dropletMix);
   const cx = Drops(rainUv.add(e), t, staticDrops, layer1, layer2, size, dropletMix).x;
   const cy = Drops(rainUv.add(e.yx), t, staticDrops, layer1, layer2, size, dropletMix).x;
+
+  return {
+    mask: c.x,
+    edge: c.y,
+    normalOffset: vec2(cx.sub(c.x), cy.sub(c.x)),
+  };
+}
+
+/**
+ * Finite-diff normal for car rain (skips static drop layer).
+ */
+export function computeCarDropNormalOffset(
+  rainUv,
+  t,
+  layerWeights,
+  size,
+  epsilon = 0.005,
+  dropletMix = float(1),
+) {
+  const { layer1, layer2 } = layerWeights;
+  const e = vec2(epsilon, 0);
+
+  const c = CarDrops(rainUv, t, layer1, layer2, size, dropletMix);
+  const cx = CarDrops(rainUv.add(e), t, layer1, layer2, size, dropletMix).x;
+  const cy = CarDrops(rainUv.add(e.yx), t, layer1, layer2, size, dropletMix).x;
 
   return {
     mask: c.x,
@@ -192,7 +225,7 @@ export function evaluateSurfaceRain(rainUv, uniforms) {
 export function evaluateCarSurfaceRain(rainUv, uniforms) {
   const t = uniforms.uTime.mul(1.2).mul(uniforms.uSpeed);
   const layerWeights = getCarRainLayerWeights(uniforms.uIntensity);
-  return computeDropNormalOffset(
+  return computeCarDropNormalOffset(
     rainUv.mul(uniforms.uScale),
     t,
     layerWeights,

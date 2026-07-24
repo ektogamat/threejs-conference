@@ -20,6 +20,11 @@ export const QUADRA_START = {
   scale: 1.1,
 };
 
+/** Full car rain intensity below this camera distance (meters). */
+export const CAR_SURFACE_RAIN_FADE_START = 20;
+/** Car rain fully off beyond this camera distance (meters). */
+export const CAR_SURFACE_RAIN_FADE_END = 32;
+
 /** Extra XZ padding around the car walk hitbox (meters). */
 const CAR_COLLIDER_PAD_XZ = -0.5;
 /**

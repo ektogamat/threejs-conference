@@ -9,10 +9,14 @@ import {
   vec4,
 } from "three/tsl";
 import { getMeshMaterials } from "../loaders/meshUtils.js";
+import { performanceProfile } from "../../platform/performanceProfile.js";
 import {
   createSurfaceRainUniforms,
   evaluateCarSurfaceRain,
 } from "../../tsl/surfaceRain.js";
+
+const INTENSITY_EPSILON = 0.01;
+const _carWorldPos = new THREE.Vector3();
 
 const GLASS_MATERIAL_NAMES = new Set(["77_5"]);
 const EXCLUDED_MATERIAL_NAMES = new Set(["mat_0.001"]);
@@ -270,13 +274,47 @@ export function applyCarSurfaceRain(carRoot) {
   }
 
   function setEnabled(enabled) {
-    uniforms.uIntensity.value = enabled ? 1 : 0;
-    uniforms.uIntensity.needsUpdate = true;
+    setIntensity(enabled ? 1 : 0);
   }
 
   function setIntensity(value) {
+    if (Math.abs(uniforms.uIntensity.value - value) <= INTENSITY_EPSILON) {
+      return;
+    }
+
     uniforms.uIntensity.value = value;
     uniforms.uIntensity.needsUpdate = true;
+  }
+
+  function computeProximityIntensity({ camera, carRoot, rainEnabled }) {
+    if (!camera || !carRoot || !performanceProfile.carSurfaceRain || !rainEnabled) {
+      return 0;
+    }
+
+    carRoot.getWorldPosition(_carWorldPos);
+    const distance = camera.position.distanceTo(_carWorldPos);
+    const fadeStart = performanceProfile.carSurfaceRainFadeStart;
+    const fadeEnd = Math.max(
+      fadeStart + 0.001,
+      performanceProfile.carSurfaceRainFadeEnd,
+    );
+    const fadeT = THREE.MathUtils.clamp(
+      (distance - fadeStart) / (fadeEnd - fadeStart),
+      0,
+      1,
+    );
+
+    return 1 - THREE.MathUtils.smoothstep(0, 1, fadeT);
+  }
+
+  function syncProximity({ camera, carRoot, rainEnabled }) {
+    const targetIntensity = computeProximityIntensity({
+      camera,
+      carRoot,
+      rainEnabled,
+    });
+    setIntensity(targetIntensity);
+    return targetIntensity > INTENSITY_EPSILON;
   }
 
   function dispose() {
@@ -290,6 +328,7 @@ export function applyCarSurfaceRain(carRoot) {
     update,
     setEnabled,
     setIntensity,
+    syncProximity,
     dispose,
   };
 }

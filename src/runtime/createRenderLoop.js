@@ -24,10 +24,16 @@ export function createRenderLoop({
     world.planes?.update?.(delta);
     world.sky?.update(camera, timer.getElapsed());
     world.ground?.update?.(delta);
-    world.carSurfaceRain?.update(delta);
     const rainEnabled = world.rain?.params?.enabled ?? false;
     world.ground?.setRippleAmount?.(rainEnabled ? 1 : 0);
-    world.carSurfaceRain?.setEnabled(rainEnabled);
+    const carRainActive = world.carSurfaceRain?.syncProximity({
+      camera,
+      carRoot: world.car,
+      rainEnabled,
+    });
+    if (carRainActive) {
+      world.carSurfaceRain.update(delta);
+    }
 
     if (performanceTools?.shouldUpdateGroundReflection()) {
       world.ground?.updateReflection?.(renderer, camera);

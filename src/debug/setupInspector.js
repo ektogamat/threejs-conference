@@ -14,6 +14,7 @@ export function setupInspector(
   planes = null,
   sky = null,
   cityMaterials = null,
+  adaptiveDpr = null,
 ) {
   const {
     post,
@@ -267,14 +268,14 @@ export function setupInspector(
       0.5,
       1.5,
       0.05,
-      (value) => {
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, value));
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        renderer.setSize(width, height);
-        pipeline?.resizePostProcessing?.(width, height);
+      () => {
+        adaptiveDpr?.onResize?.();
       },
     );
+
+    bindPerfToggle("adaptiveDpr", "adaptive dpr", (enabled) => {
+      adaptiveDpr?.setEnabled?.(enabled);
+    });
 
     bindPerfToggle(
       "groundReflection",
@@ -295,6 +296,10 @@ export function setupInspector(
       4,
       1,
     );
+
+    bindPerfToggle("carSurfaceRain", "car surface rain");
+    bindPerfSlider("carSurfaceRainFadeStart", "car rain fade start", 5, 40, 1);
+    bindPerfSlider("carSurfaceRainFadeEnd", "car rain fade end", 10, 60, 1);
 
     bindPerfToggle("bloom", "bloom", pipelinePerf.setBloomEnabled);
     bindPerfSlider(
@@ -325,6 +330,8 @@ export function setupInspector(
       1,
       pipelinePerf.setLensflareBlurRadius,
     );
+
+    bindPerfToggle("smaa", "smaa", pipelinePerf.setSmaaEnabled);
   }
 
   if (lensflare) {

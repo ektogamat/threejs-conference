@@ -17,6 +17,7 @@ import {
   createShadowUpdater,
   resizeRenderer,
 } from "./bootstrap/createRenderer.js";
+import { attachRendererInspector } from "./debug/inspectorControls.js";
 import { createCameraDirector } from "./runtime/createCameraDirector.js";
 import { createRenderLoop } from "./runtime/createRenderLoop.js";
 import { finalizeStartupLighting } from "./runtime/warmup.js";
@@ -31,6 +32,7 @@ import {
   syncLayoutClass,
   onMobileLayoutChange,
 } from "./platform/deviceLayout.js";
+import { createAdaptiveDprController } from "./platform/adaptiveDpr.js";
 import { getStoredLookPreset } from "./platform/userPreferences.js";
 import {
   DEFAULT_LOOK_PRESET,
@@ -114,9 +116,16 @@ async function init(loaderOverlay) {
     lensflare: pipeline.lensflare,
   });
 
+  const adaptiveDpr = createAdaptiveDprController({
+    renderer,
+    pipeline,
+  });
+  adaptiveDpr.onResize();
+
   const performanceTools = createPerformanceDevTools({
     pipeline,
     ground: world.ground,
+    adaptiveDpr,
   });
 
   const walkModeBridge = { onChange: null };
@@ -148,6 +157,7 @@ async function init(loaderOverlay) {
     envMapBaseIntensity,
     requestShadowMapUpdate,
     inspectorInstance,
+    adaptiveDpr,
   });
 
   const appShell = createAppShell({
@@ -209,7 +219,7 @@ async function init(loaderOverlay) {
     post,
   });
 
-  renderer.inspector = inspectorInstance;
+  attachRendererInspector(renderer, inspectorInstance);
   inspectorSession.bootstrapInspector(appShell.settingsPanel);
 
   renderLoop.startLoop();
@@ -217,7 +227,7 @@ async function init(loaderOverlay) {
   window.addEventListener("resize", () => {
     syncLayoutClass();
     cameraLayout.onWindowResizeAspect();
-    resizeRenderer(renderer, pipeline);
+    resizeRenderer(renderer, pipeline, adaptiveDpr);
     requestShadowMapUpdate("resize");
   });
 

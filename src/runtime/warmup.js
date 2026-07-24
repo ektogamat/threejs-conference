@@ -28,10 +28,16 @@ export async function finalizeStartupLighting({
   for (let i = 0; i < 4; i += 1) {
     world.rain?.update(1 / 60, camera);
     world.ground?.update?.(1 / 60);
-    world.carSurfaceRain?.update(1 / 60);
     const rainEnabled = world.rain?.params?.enabled ?? false;
     world.ground?.setRippleAmount?.(rainEnabled ? 1 : 0);
-    world.carSurfaceRain?.setEnabled(rainEnabled);
+    const carRainActive = world.carSurfaceRain?.syncProximity({
+      camera,
+      carRoot: world.car,
+      rainEnabled,
+    });
+    if (carRainActive) {
+      world.carSurfaceRain.update(1 / 60);
+    }
     world.ground?.updateReflection?.(renderer, camera);
     pipeline.syncCameras?.(camera);
     post.render();
