@@ -3,9 +3,9 @@ import gsap from "gsap";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createWalkControls } from "../controls/createWalkControls.js";
 import {
-  FREE_CAMERA_START,
-  cameraParams,
-  getBaseFovForLayout,
+    FREE_CAMERA_START,
+    cameraParams,
+    getBaseFovForLayout,
 } from "../bootstrap/createCamera.js";
 
 const WALK_FOCUS_DISTANCE = 12;
