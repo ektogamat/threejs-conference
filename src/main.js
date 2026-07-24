@@ -123,12 +123,14 @@ async function init(loaderOverlay) {
   const adaptiveDpr = createAdaptiveDprController({
     renderer,
     pipeline,
-    // Once FPS forces the pixel ratio down, also shed DOF and billboard
-    // video decode — both are comparatively expensive and not worth the
-    // cost once we already know the device is struggling.
+    // Once FPS forces the pixel ratio down, also shed DOF, lensflare, and
+    // billboard video decode — all comparatively expensive once we know the
+    // device is struggling.
     onForcedLow: () => {
       performanceProfile.dof = false;
       pipeline.perf.setDofEnabled(false);
+      performanceProfile.lensflare = false;
+      pipeline.perf.setLensflareEnabled(false);
       world.billboards?.userData?.billboardMaterials?.billboard?.disable();
     },
   });
