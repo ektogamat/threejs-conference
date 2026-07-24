@@ -139,7 +139,8 @@ export function createCameraDirector({
     if (walk) {
       walkControls?.setBaseFov(getBaseFovForLayout());
       walkControls?.syncEulerFromCamera();
-      walkControls?.snapCameraToGround();
+      // Snap happens inside setActive when entering walk. Do not snap again
+      // here — a second raycast at revealAppUi was causing a visible pop.
       syncWalkFocusPoint();
     } else {
       camera.getWorldDirection(orbitLookTarget);
@@ -161,16 +162,26 @@ export function createCameraDirector({
 
   function preparePreRevealPose() {
     camera.position.set(...FREE_CAMERA_START.position);
-    walkControls?.snapCameraToGround();
     controls.target.set(...FREE_CAMERA_START.target);
     controls.enabled = false;
     controls.update();
+
+    // Activate walk now so the intro view already matches the post-ENTER
+    // pose. Movement stays gated in update() until getFinishedIntro().
+    cameraModeState.orbitEnabled = false;
+    walkControls?.setActive(true);
+    walkControls?.setBaseFov(getBaseFovForLayout());
+    walkControls?.syncEulerFromCamera();
     syncWalkFocusPoint();
   }
 
   function update(delta) {
     if (walkControls?.isActive()) {
-      walkControls.update(delta);
+      // Keep the camera frozen during the title/glass sequence — walk is
+      // active only so the pose matches revealAppUi without a late snap.
+      if (getFinishedIntro?.()) {
+        walkControls.update(delta);
+      }
       setWalkFocusPoint();
     } else if (controls.enabled) {
       controls.update();

@@ -134,6 +134,22 @@ export function createIntroOverlay({ onStart } = {}) {
       );
   }
 
+  function playExit({ duration = 0.6 } = {}) {
+    return new Promise((resolve) => {
+      enterTween?.kill();
+      exitTween?.kill();
+      exitTween = gsap.to(root, {
+        opacity: 0,
+        duration,
+        ease: "power1.out",
+        onComplete: () => {
+          root.remove();
+          resolve();
+        },
+      });
+    });
+  }
+
   function handleStart() {
     if (started || button.disabled) {
       return;
@@ -143,17 +159,10 @@ export function createIntroOverlay({ onStart } = {}) {
     button.disabled = true;
     button.style.pointerEvents = "none";
 
-    exitTween?.kill();
-    exitTween = gsap.to(root, {
-      opacity: 0,
-      duration: 0.6,
-      ease: "power1.out",
-      onComplete: () => {
-        root.remove();
-      },
-    });
-
-    onStart?.();
+    void (async () => {
+      await playExit();
+      await onStart?.();
+    })();
   }
 
   button.addEventListener("click", handleStart);
@@ -161,6 +170,7 @@ export function createIntroOverlay({ onStart } = {}) {
   return {
     root,
     playEnter,
+    playExit,
     destroy() {
       enterTween?.kill();
       exitTween?.kill();

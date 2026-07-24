@@ -1,0 +1,29 @@
+.performance-notice {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 21;
+  transform: translate(-50%, calc(-50% + 0.6rem));
+  margin: 0;
+  padding: 0.85rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 10, 14, 0.78);
+  backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 320ms ease,
+    transform 320ms ease;
+}
+
+.performance-notice--visible {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
