@@ -173,8 +173,6 @@ async function init(loaderOverlay) {
   const { carEngineAudio, planeEngineAudio } = await appShell.initAudio();
   attachDevAudio(devApp, carEngineAudio, planeEngineAudio);
 
-  inspectorSession.bootstrapInspector(appShell.settingsPanel);
-
   appShell.bindIdleListeners();
   appShell.bindOrbitIdleListeners(cameraDirector.controls);
 
@@ -183,7 +181,6 @@ async function init(loaderOverlay) {
   const introFlow = createIntroFlow({
     pipeline,
     renderer,
-    post,
     loaderOverlay,
     revealAppUi: () => appShell.revealAppUi(),
   });
@@ -211,6 +208,9 @@ async function init(loaderOverlay) {
     world,
     post,
   });
+
+  renderer.inspector = inspectorInstance;
+  inspectorSession.bootstrapInspector(appShell.settingsPanel);
 
   renderLoop.startLoop();
 

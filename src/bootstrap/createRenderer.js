@@ -49,7 +49,6 @@ export async function createRenderer() {
   clearInspectorLayout();
 
   const inspector = new Inspector();
-  renderer.inspector = inspector;
 
   renderer.domElement.style.opacity = "0";
   renderer.domElement.style.zIndex = "14";

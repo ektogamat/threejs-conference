@@ -5,7 +5,6 @@ import { createIntroOverlay } from "../ui/intro/createIntroOverlay.js";
 export function createIntroFlow({
   pipeline,
   renderer,
-  post,
   loaderOverlay,
   revealAppUi,
 }) {
@@ -15,7 +14,6 @@ export function createIntroFlow({
     await new Promise((resolve) => requestAnimationFrame(resolve));
     renderer.domElement.style.opacity = "1";
     renderer.domElement.style.zIndex = "14";
-    post.render();
     await loaderOverlay.finish();
   }
 

@@ -10,10 +10,10 @@ export const cameraParams = {
   walkEyeHeight: 1.55,
   walkAcceleration: 6,
   walkDeceleration: 10,
-  walkFovBoost: 5,
-  sprintFovBoost: 15,
-  walkFovBlendSpeed: 2,
-  sprintFovBlendSpeed: 0.5,
+  walkFovBoost: 3,
+  sprintFovBoost: 8,
+  walkFovBlendSpeed: 5,
+  sprintFovBlendSpeed: 4,
 };
 
 // Y is eye height above the flat ground (createGround default y = -5.5).
