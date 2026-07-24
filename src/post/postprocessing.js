@@ -156,7 +156,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   let steadyOutputWithSmaa = null;
   let composedOutputRef = null;
   let introOutput = null;
-  let introOutputWithSmaa = null;
   let introRainGlassActive = FEATURES.intro;
   let introRainGlassRef = null;
   let introRainGlassUniformsRef = null;
@@ -218,7 +217,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     if (introRainGlassActive && introRainGlassUniformsRef) {
       const rainGlassOut = applyRainGlass(steadyOutput, introRainGlassUniformsRef);
       introOutput = mix(steadyOutput, rainGlassOut, introRainGlassUniformsRef.amount);
-      introOutputWithSmaa = smaa(introOutput);
     }
 
     post.outputNode = getActiveOutput();
@@ -229,7 +227,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
 
   function getActiveOutput() {
     if (introRainGlassActive && introOutput) {
-      return smaaActive ? introOutputWithSmaa : introOutput;
+      return introOutput;
     }
 
     return smaaActive ? steadyOutputWithSmaa : steadyOutput;
@@ -245,7 +243,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     introRainGlassActive = false;
     introRainGlassUniformsRef = null;
     introOutput = null;
-    introOutputWithSmaa = null;
     introRainGlassRef = null;
     post.outputNode = getActiveOutput();
     post.needsUpdate = true;

@@ -7,8 +7,20 @@ export function createIntroFlow({
   renderer,
   loaderOverlay,
   revealAppUi,
+  world,
 }) {
   let rainGlassIntro = null;
+  let introActive = false;
+
+  function setIntroWorldPaused(paused) {
+    if (!world) {
+      return;
+    }
+
+    for (const emitter of world.smoke?.emitters ?? []) {
+      emitter.mesh.visible = !paused;
+    }
+  }
 
   async function revealCanvas() {
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -18,6 +30,8 @@ export function createIntroFlow({
   }
 
   async function runIntroSequence() {
+    introActive = true;
+    setIntroWorldPaused(true);
     rainGlassIntro = createRainGlassIntro({ pipeline });
 
     const introOverlay = createIntroOverlay({
@@ -27,6 +41,8 @@ export function createIntroFlow({
           await fadePromise;
           rainGlassIntro?.destroy();
           rainGlassIntro = null;
+          introActive = false;
+          setIntroWorldPaused(false);
           revealAppUi();
         })();
       },
@@ -52,5 +68,6 @@ export function createIntroFlow({
   return {
     run,
     getRainGlassIntro: () => rainGlassIntro,
+    isIntroActive: () => introActive,
   };
 }

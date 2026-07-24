@@ -145,8 +145,8 @@ export function createRainGlassUniforms() {
  * Rain-on-glass pass (rocksdanister MovingDropLayer + light gaussian blur).
  */
 export function applyRainGlass(sceneColorNode, uniforms) {
-  const blurredScene = gaussianBlur(sceneColorNode, uniforms.blurRadius, 4, {
-    resolutionScale: 0.7,
+  const blurredScene = gaussianBlur(sceneColorNode, uniforms.blurRadius, 2, {
+    resolutionScale: 0.4,
   });
   const tex = convertToTexture(blurredScene);
 

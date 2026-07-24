@@ -1,4 +1,5 @@
 import gsap from "gsap";
+import { performanceProfile } from "../platform/performanceProfile.js";
 
 /**
  * Controls the intro rain-on-glass post pass (no separate renderer).
@@ -26,6 +27,11 @@ export function createRainGlassIntro({
   glass.distortionStrength.value = distortionStrength;
   glass.dropSize.value = dropSize;
   glass.amount.value = 1;
+
+  // Shed expensive steady-state passes while the glass is fullscreen — the
+  // effect blurs/distorts everything anyway, so DoF and lensflare are wasted.
+  pipeline?.perf?.setDofEnabled?.(false);
+  pipeline?.perf?.setLensflareEnabled?.(false);
 
   function update() {
     // Animation is driven by TSL `time` inside the shader graph.
@@ -61,6 +67,8 @@ export function createRainGlassIntro({
     fadeTween?.kill();
     fadeTween = null;
     glass.amount.value = 0;
+    pipeline?.perf?.setDofEnabled?.(performanceProfile.dof);
+    pipeline?.perf?.setLensflareEnabled?.(performanceProfile.lensflare);
     pipeline?.disposeIntroRainGlass?.();
   }
 

@@ -205,6 +205,7 @@ async function init(loaderOverlay) {
     renderer,
     loaderOverlay,
     revealAppUi: () => appShell.revealAppUi(),
+    world,
   });
 
   const renderLoop = createRenderLoop({
@@ -216,6 +217,7 @@ async function init(loaderOverlay) {
     performanceTools,
     renderer,
     getRainGlassIntro: introFlow.getRainGlassIntro,
+    getIntroActive: introFlow.isIntroActive,
     onFrame: (delta) => appShell.updateHud(delta),
   });
 
