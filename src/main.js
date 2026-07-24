@@ -20,7 +20,10 @@ import {
 import { attachRendererInspector } from "./debug/inspectorControls.js";
 import { createCameraDirector } from "./runtime/createCameraDirector.js";
 import { createRenderLoop } from "./runtime/createRenderLoop.js";
-import { finalizeStartupLighting } from "./runtime/warmup.js";
+import {
+  compileDeferredStartup,
+  finalizeStartupLighting,
+} from "./runtime/warmup.js";
 import { createPerformanceDevTools } from "./debug/createPerformanceDevTools.js";
 import { createInspectorSession } from "./debug/createInspectorSession.js";
 import {
@@ -224,6 +227,15 @@ async function init(loaderOverlay) {
 
   renderLoop.startLoop();
 
+  // Rain / smoke / planes compile in parallel with the intro (canvas starts hidden).
+  const deferredCompile = compileDeferredStartup({
+    renderer,
+    scene,
+    pipeline,
+  }).catch((error) => {
+    console.warn("[warmup] Deferred shader compile failed:", error);
+  });
+
   window.addEventListener("resize", () => {
     syncLayoutClass();
     cameraLayout.onWindowResizeAspect();
@@ -237,4 +249,5 @@ async function init(loaderOverlay) {
   });
 
   await introFlow.run();
+  await deferredCompile;
 }
