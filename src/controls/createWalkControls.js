@@ -6,6 +6,8 @@ const DEFAULTS = {
   sprintMultiplier: 1.8,
   mouseSensitivity: 0.002,
   eyeHeight: 1.55,
+  /** Standing eye height scale while crouched (toggle with C). */
+  crouchMultiplier: 0.55,
   acceleration: 10,
   deceleration: 14,
   /** How quickly walk speed ramps into sprint. */
@@ -93,6 +95,9 @@ export function createWalkControls({
     right: false,
     sprint: false,
   };
+
+  let standingEyeHeight = settings.eyeHeight;
+  let crouched = false;
 
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   const moveInput = new THREE.Vector2();
@@ -411,6 +416,29 @@ export function createWalkControls({
     }
   }
 
+  function applyEffectiveEyeHeight() {
+    const nextEyeHeight = crouched
+      ? standingEyeHeight * settings.crouchMultiplier
+      : standingEyeHeight;
+    // Keep feet planted — re-snapping from the new eye height would treat the
+    // ground as an illegal step-up when standing from crouch.
+    const delta = nextEyeHeight - settings.eyeHeight;
+    settings.eyeHeight = nextEyeHeight;
+    if (active && Math.abs(delta) > 1e-6) {
+      camera.position.y += delta;
+    }
+  }
+
+  function setCrouched(nextCrouched) {
+    const next = Boolean(nextCrouched);
+    if (crouched === next) {
+      return;
+    }
+
+    crouched = next;
+    applyEffectiveEyeHeight();
+  }
+
   function onKeyDown(event) {
     if (!active || isEditableTarget(event.target)) {
       return;
@@ -420,6 +448,12 @@ export function createWalkControls({
 
     if (isSprintKey(event)) {
       keys.sprint = true;
+      return;
+    }
+
+    if (event.code === "KeyC" && !event.repeat) {
+      setCrouched(!crouched);
+      event.preventDefault();
       return;
     }
 
@@ -620,6 +654,8 @@ export function createWalkControls({
       for (const key of Object.keys(keys)) {
         keys[key] = false;
       }
+      crouched = false;
+      settings.eyeHeight = standingEyeHeight;
       externalMoveAxes.set(0, 0);
       touchLookPointers.clear();
       hasTouchLooked = false;
@@ -729,15 +765,15 @@ export function createWalkControls({
   }
 
   function setEyeHeight(value) {
-    settings.eyeHeight = value;
-    if (active) {
-      snapCameraToGround({ allowLongDrop: true });
-    }
+    standingEyeHeight = value;
+    applyEffectiveEyeHeight();
   }
 
   return {
     settings,
     setEyeHeight,
+    setCrouched,
+    isCrouched: () => crouched,
     setBaseFov,
     setActive,
     isActive: () => active,
