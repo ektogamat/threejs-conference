@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,9 +46,11 @@ function serveInspectorExtensions() {
 
 export default defineConfig({
   server: {
+    host: true,
     open: true,
   },
   plugins: [
+    basicSsl(),
     {
       name: "three-inspector-extensions",
       configureServer(server) {

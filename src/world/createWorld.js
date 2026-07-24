@@ -1,6 +1,7 @@
 import { addModel } from "./scene.js";
 import { loadCityModel } from "./city/loadCity.js";
 import { loadBillboards } from "./billboards/loadBillboards.js";
+import { applyBillboardMaterials } from "./billboards/applyBillboardMaterials.js";
 import { loadQuadraCar } from "./car/loadCar.js";
 import { loadEnvironmentMap } from "./envMap.js";
 import { createGround } from "./ground/createGround.js";
@@ -86,6 +87,7 @@ export async function createWorld({
 
   if (billboards) {
     addModel(scene, billboards);
+    billboards.userData.billboardMaterials = applyBillboardMaterials(billboards);
   }
 
   if (quadraCar) {

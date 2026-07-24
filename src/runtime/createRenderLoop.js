@@ -26,6 +26,7 @@ export function createRenderLoop({
     world.ground?.update?.(delta);
     const rainEnabled = world.rain?.params?.enabled ?? false;
     world.ground?.setRippleAmount?.(rainEnabled ? 1 : 0);
+    world.billboards?.userData?.billboardMaterials?.billboard?.update?.(camera);
     const carRainActive = world.carSurfaceRain?.syncProximity({
       camera,
       carRoot: world.car,
