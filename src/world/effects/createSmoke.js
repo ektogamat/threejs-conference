@@ -19,6 +19,19 @@ function loadTexture(path) {
   });
 }
 
+function setSmokeBounds(sprite, offsetMin, offsetMax, worldScale) {
+  const reach = Math.max(
+    offsetMin.length(),
+    offsetMax.length(),
+    worldScale,
+  );
+  sprite.geometry.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(0, reach * 0.5, 0),
+    reach,
+  );
+  sprite.frustumCulled = true;
+}
+
 function createSmokeEmitter({
   map,
   count,
@@ -59,7 +72,7 @@ function createSmokeEmitter({
   const sprite = new THREE.Sprite(material);
   sprite.scale.setScalar(worldScale);
   sprite.count = count;
-  sprite.frustumCulled = false;
+  setSmokeBounds(sprite, offsetMin, offsetMax, worldScale);
   sprite.renderOrder = 5;
 
   return { mesh: sprite, material, speedUniform, opacityUniform };

@@ -12,8 +12,8 @@ export const BILLBOARD_MATERIAL_NAMES = [
   "billboard_3",
 ];
 
-const PLAY_DISTANCE = 100;
-const PAUSE_DISTANCE = 120;
+const PLAY_DISTANCE = 140;
+const PAUSE_DISTANCE = 170;
 
 function ensureStandardNodeMaterial(source) {
   if (source?.isMeshStandardNodeMaterial) {
@@ -39,7 +39,7 @@ function replaceMeshMaterial(mesh, materialIndex, material) {
   mesh.material = material;
 }
 
-export function applyBillboardFace(entries, { root } = {}) {
+export function applyBillboardFace(entries) {
   if (!entries.length) {
     return null;
   }
@@ -48,7 +48,8 @@ export function applyBillboardFace(entries, { root } = {}) {
   const vignetteUniforms = createBillboardVignetteUniforms();
   const videos = [];
   const disposables = [];
-  const rootPosition = new THREE.Vector3();
+  const faceMeshes = [];
+  const facePosition = new THREE.Vector3();
   let playing = false;
 
   for (let i = 0; i < entries.length; i++) {
@@ -59,6 +60,7 @@ export function applyBillboardFace(entries, { root } = {}) {
 
     videos.push(video);
     disposables.push(video.dispose);
+    faceMeshes.push(mesh);
 
     const nodeMaterial = ensureStandardNodeMaterial(material);
     nodeMaterial.colorNode = output;
@@ -69,6 +71,20 @@ export function applyBillboardFace(entries, { root } = {}) {
     if (nodeMaterial !== material) {
       replaceMeshMaterial(mesh, materialIndex, nodeMaterial);
     }
+  }
+
+  function getNearestFaceDistance(camera) {
+    let nearestDistance = Infinity;
+
+    for (let i = 0; i < faceMeshes.length; i++) {
+      faceMeshes[i].getWorldPosition(facePosition);
+      const distance = camera.position.distanceTo(facePosition);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+      }
+    }
+
+    return nearestDistance;
   }
 
   function setPlaying(nextPlaying) {
@@ -88,12 +104,11 @@ export function applyBillboardFace(entries, { root } = {}) {
   }
 
   function update(camera) {
-    if (!root || !camera) {
+    if (!camera || !faceMeshes.length) {
       return;
     }
 
-    root.getWorldPosition(rootPosition);
-    const distance = camera.position.distanceTo(rootPosition);
+    const distance = getNearestFaceDistance(camera);
 
     if (!playing && distance < PLAY_DISTANCE) {
       setPlaying(true);

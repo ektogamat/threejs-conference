@@ -14,11 +14,11 @@ import {
 export const RAIN_LAYER = 2;
 
 const RAIN_TEXTURE_PATH = "/textures/rainDrop.png";
-const MAX_COUNT = 15000;
-const DEFAULT_COUNT = 15000;
+const MAX_COUNT = 9000;
+const DEFAULT_COUNT = 7000;
 const REFRACT_MAX_COUNT = 2000;
 const DEFAULT_REFRACT_COUNT = 800;
-const DEFAULT_RADIUS = 38;
+const DEFAULT_RADIUS = 10;
 const DEFAULT_HEIGHT = 18;
 const Y_OFFSET = 3;
 const BASE_SIZE = 6;
@@ -123,12 +123,12 @@ export async function createRainStreaks({
     enabled: true,
     count: activeCount,
     opacity: 0.25,
-    overallSpeed: 56,
+    overallSpeed: 30,
     radius,
     height,
-    intensity: 0.5,
+    intensity: 1.05,
     // Lower = finer streaks (sprite size + UV pinch).
-    thickness: 0.45,
+    thickness: 0.31,
     refractEnabled: false,
     refractCount: activeRefractCount,
     refractSizeScale: REFRACT_SIZE_MULTIPLIER,

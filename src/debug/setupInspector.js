@@ -356,7 +356,10 @@ export function setupInspector(
 
   if (dof) {
     const dofFolder = addClosedFolder(gui, "DOF");
-    addParam(dofFolder, dof.enabled, "value", 0, 1).name("enabled");
+    bindParamControl(
+      dofFolder.add({ enabled: Boolean(dof.enabled.value) }, "enabled").name("enabled"),
+      (value) => pipelinePerf?.setDofEnabled?.(value),
+    );
     addParam(dofFolder, dof.minDistance, "value", 0, 50).name("min distance");
     addParam(dofFolder, dof.maxDistance, "value", 0, 100).name("max distance");
     addParam(dofFolder, dof.blurSize, "value", 1, 3, 1).name("blur size");
@@ -502,7 +505,7 @@ export function setupInspector(
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "count", 200, 40000, 100)
+        .add(rain.params, "count", 200, 9000, 100)
         .name("drop count"),
       (value) => rain.setDropCount(value),
     );
@@ -548,7 +551,7 @@ export function setupInspector(
       );
       bindParamControl(
         rainFolder
-          .add(pipeline.refraction.params, "strength", 0, 0.12, 0.001)
+          .add(pipeline.refraction.params, "strength", 0, 0.5, 0.001)
           .name("refraction strength"),
         (value) => pipeline.refraction.setStrength(value),
       );
@@ -883,8 +886,8 @@ export function setupInspector(
       post.outputNode = scenePassEmissive;
     } else if (value === 3) {
       post.outputNode = vec4(bloomPass.rgb, 1);
-    } else if (value === 4 && composedOutput) {
-      post.outputNode = composedOutput;
+    } else if (value === 4 && pipeline.composedOutput) {
+      post.outputNode = pipeline.composedOutput;
     } else if (value === 5 && lensflare?.pass) {
       post.outputNode = vec4(lensflare.pass.rgb, 1);
     } else {

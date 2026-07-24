@@ -32,28 +32,35 @@ export function calculateAdaptiveDPR(maxPixels = 3_500_000, maxDPR = 1.0) {
   return Math.max(0.5, Math.min(maxDPR, idealDPR));
 }
 
+/**
+ * Adaptive DPR — starts from a resolution-based budget. If sustained FPS
+ * falls below `targetFps`, the pixel ratio drops to `droppedDPR` (1) once
+ * and stays there for the rest of the session; it never tries to climb back
+ * up automatically (only a page reload resets it).
+ */
 export function createAdaptiveDprController({
   renderer,
   pipeline,
   baseMaxPixels = 3_500_000,
   minMaxPixels = 2_000_000,
-  maxMaxPixels = 4_500_000,
-  targetFps = 45,
-  fastFps = 55,
-  fpsBudgetConfirmWindows = 2,
-  budgetCooldownWindows = 2,
+  targetFps = 50,
+  fpsConfirmWindows = 2,
   minDPR = 0.75,
+  droppedDPR = 1,
 } = {}) {
   let baseBudget = resolveMaxPixels(baseMaxPixels, minMaxPixels);
   let currentMaxPixels = baseBudget;
   let currentDPR = getStaticPixelRatio();
-  let budgetCooldown = 0;
   let consecutiveSlowWindows = 0;
-  let consecutiveFastWindows = 0;
+  let forcedLow = false;
 
   function getTargetDPR() {
     if (!performanceProfile.adaptiveDpr) {
       return getStaticPixelRatio();
+    }
+
+    if (forcedLow) {
+      return droppedDPR;
     }
 
     const maxDPR = Math.min(
@@ -63,10 +70,11 @@ export function createAdaptiveDprController({
     return Math.max(minDPR, calculateAdaptiveDPR(currentMaxPixels, maxDPR));
   }
 
-  function apply() {
+  function apply({ force = false } = {}) {
     const nextDPR = getTargetDPR();
+    const changed = Math.abs(nextDPR - currentDPR) >= 0.01;
 
-    if (Math.abs(nextDPR - currentDPR) < 0.01) {
+    if (!changed && !force) {
       return false;
     }
 
@@ -77,87 +85,42 @@ export function createAdaptiveDprController({
 
   function resetBudgetFromViewport() {
     baseBudget = resolveMaxPixels(baseMaxPixels, minMaxPixels);
-    currentMaxPixels = baseBudget;
+    currentMaxPixels = clamp(baseBudget, minMaxPixels, baseMaxPixels);
     consecutiveSlowWindows = 0;
-    consecutiveFastWindows = 0;
-    budgetCooldown = 0;
   }
 
   function onResize() {
-    resetBudgetFromViewport();
-    apply();
+    // Always resync the renderer size on resize, even when the computed DPR
+    // doesn't change — otherwise the backbuffer keeps its old dimensions and
+    // rendering looks broken after resizing the window.
+    if (!forcedLow) {
+      resetBudgetFromViewport();
+    }
+    apply({ force: true });
   }
 
   function onFpsSample(fps) {
-    if (!performanceProfile.adaptiveDpr || fps <= 0) {
-      return;
-    }
-
-    if (budgetCooldown > 0) {
-      budgetCooldown -= 1;
+    if (!performanceProfile.adaptiveDpr || fps <= 0 || forcedLow) {
       return;
     }
 
     if (fps < targetFps) {
       consecutiveSlowWindows += 1;
-      consecutiveFastWindows = 0;
 
-      if (consecutiveSlowWindows < fpsBudgetConfirmWindows) {
-        return;
-      }
-
-      const nextMaxPixels = currentMaxPixels * 0.94;
-      const clamped = clamp(nextMaxPixels, minMaxPixels, maxMaxPixels);
-
-      if (Math.abs(clamped - currentMaxPixels) >= 1000) {
-        currentMaxPixels = Math.round(clamped);
-        consecutiveSlowWindows = 0;
-        apply();
-        budgetCooldown = budgetCooldownWindows;
-      }
-
-      return;
-    }
-
-    if (fps >= fastFps) {
-      consecutiveFastWindows += 1;
-      consecutiveSlowWindows = 0;
-
-      if (consecutiveFastWindows < fpsBudgetConfirmWindows) {
-        return;
-      }
-
-      const nextMaxPixels = Math.min(
-        currentMaxPixels * 1.03,
-        baseBudget,
-        maxMaxPixels,
-      );
-      const clamped = clamp(nextMaxPixels, minMaxPixels, maxMaxPixels);
-
-      if (Math.abs(clamped - currentMaxPixels) >= 1000) {
-        currentMaxPixels = Math.round(clamped);
-        consecutiveFastWindows = 0;
-        apply();
-        budgetCooldown = budgetCooldownWindows;
+      if (consecutiveSlowWindows >= fpsConfirmWindows) {
+        forcedLow = true;
+        apply({ force: true });
       }
 
       return;
     }
 
     consecutiveSlowWindows = 0;
-    consecutiveFastWindows = 0;
   }
 
   function setEnabled(enabled) {
     performanceProfile.adaptiveDpr = Boolean(enabled);
-
-    if (performanceProfile.adaptiveDpr) {
-      onResize();
-      return;
-    }
-
-    resetBudgetFromViewport();
-    apply();
+    apply({ force: true });
   }
 
   return {
@@ -168,5 +131,6 @@ export function createAdaptiveDprController({
     getDPR: () => currentDPR,
     getMaxPixels: () => currentMaxPixels,
     getBaseBudget: () => baseBudget,
+    isForcedLow: () => forcedLow,
   };
 }

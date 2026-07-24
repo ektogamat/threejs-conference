@@ -108,19 +108,17 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const rainStreaks = rainPassColor
     ? rainPassColor.rgb.mul(rainPassColor.a)
     : null;
-  const beautyWithRain = rainStreaks
+  const beautyWithRainFull = rainStreaks
     ? warpedBeauty.add(rainStreaks)
     : warpedBeauty;
 
   const bloomPass = bloom(scenePassEmissive, 2.5, 0.45);
   bloomPass.setResolutionScale(performanceProfile.bloomResolutionScale);
-  const bloomEnabled = uniform(performanceProfile.bloom ? 1 : 0);
 
   const lensflareThreshold = uniform(0.09);
   const lensflareGhostAttenuation = uniform(50);
   const lensflareGhostSpacing = uniform(0.27);
   const lensflareStrength = uniform(0.3);
-  const lensflareEnabled = uniform(performanceProfile.lensflare ? 1 : 0);
   const lensflareBlurRadius = uniform(performanceProfile.lensflareBlurRadius);
 
   const flarePass = lensflare(bloomPass, {
@@ -131,7 +129,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const flareBlurred = gaussianBlur(flarePass, lensflareBlurRadius, 4, {
     resolutionScale: performanceProfile.lensflareResolutionScale,
   });
-  const flareContribution = flareBlurred.mul(lensflareStrength).mul(lensflareEnabled);
 
   const look = createCyberpunkLook({ scenePass });
 
@@ -139,7 +136,6 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const blurSpread = uniform(2);
   const minDistance = uniform(36);
   const maxDistance = uniform(75);
-  const dofEnabled = uniform(performanceProfile.dof ? 1 : 0);
   const focusPointView = uniform(vec3());
 
   const scenePassViewZ = scenePass.getViewZNode();
@@ -149,44 +145,87 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     maxDistance,
     scenePassViewZ.sub(focusPointView.z).abs(),
   );
-  const dofMix = blurFactor.mul(dofEnabled);
 
-  const blurredBeauty = boxBlurSeparable(beautyWithRain, {
-    size: blurSize,
-    separation: blurSpread,
-    premultipliedAlpha: true,
-  });
-  const beautyWithDof = mix(beautyWithRain, blurredBeauty, dofMix);
+  let bloomActive = performanceProfile.bloom;
+  let dofActive = performanceProfile.dof;
+  let lensflareActive = performanceProfile.lensflare;
+  let rainPassActive = rain?.params?.enabled ?? Boolean(rainPassColor);
+  const dofEnabled = uniform(dofActive ? 1 : 0);
 
-  const composed = look.buildComposite(beautyWithDof, {
-    bloomContribution: bloomPass.mul(bloomEnabled).add(flareContribution),
-  });
-
-  const steadyOutput = composed;
-  const steadyOutputWithSmaa = smaa(composed);
-
-  let introRainGlassUniforms = null;
+  let steadyOutput = null;
+  let steadyOutputWithSmaa = null;
+  let composedOutputRef = null;
   let introOutput = null;
   let introOutputWithSmaa = null;
   let introRainGlassActive = FEATURES.intro;
   let introRainGlassRef = null;
+  let introRainGlassUniformsRef = null;
+  let smaaActive = performanceProfile.smaa;
 
   if (FEATURES.intro) {
-    introRainGlassUniforms = createRainGlassUniforms();
-    const rainGlassOut = applyRainGlass(composed, introRainGlassUniforms);
-    introOutput = mix(composed, rainGlassOut, introRainGlassUniforms.amount);
-    introOutputWithSmaa = smaa(introOutput);
+    introRainGlassUniformsRef = createRainGlassUniforms();
     introRainGlassRef = {
-      speed: introRainGlassUniforms.speed,
-      intensity: introRainGlassUniforms.intensity,
-      distortionStrength: introRainGlassUniforms.distortionStrength,
-      dropSize: introRainGlassUniforms.dropSize,
-      blurRadius: introRainGlassUniforms.blurRadius,
-      amount: introRainGlassUniforms.amount,
+      speed: introRainGlassUniformsRef.speed,
+      intensity: introRainGlassUniformsRef.intensity,
+      distortionStrength: introRainGlassUniformsRef.distortionStrength,
+      dropSize: introRainGlassUniformsRef.dropSize,
+      blurRadius: introRainGlassUniformsRef.blurRadius,
+      amount: introRainGlassUniformsRef.amount,
     };
   }
 
-  let smaaActive = performanceProfile.smaa;
+  function buildBloomContribution() {
+    if (bloomActive && lensflareActive) {
+      return bloomPass.add(flareBlurred.mul(lensflareStrength));
+    }
+
+    if (bloomActive) {
+      return bloomPass;
+    }
+
+    if (lensflareActive) {
+      return flareBlurred.mul(lensflareStrength);
+    }
+
+    return null;
+  }
+
+  function buildBeautyInput() {
+    if (rainPassActive && beautyWithRainFull) {
+      return beautyWithRainFull;
+    }
+
+    return scenePassColor;
+  }
+
+  function rebuildSteadyOutput() {
+    let beauty = buildBeautyInput();
+
+    if (dofActive) {
+      const blurredBeauty = boxBlurSeparable(beauty, {
+        size: blurSize,
+        separation: blurSpread,
+        premultipliedAlpha: true,
+      });
+      beauty = mix(beauty, blurredBeauty, blurFactor);
+    }
+
+    const bloomContribution = buildBloomContribution();
+    steadyOutput = look.buildComposite(beauty, { bloomContribution });
+    steadyOutputWithSmaa = smaa(steadyOutput);
+    composedOutputRef = steadyOutput;
+
+    if (introRainGlassActive && introRainGlassUniformsRef) {
+      const rainGlassOut = applyRainGlass(steadyOutput, introRainGlassUniformsRef);
+      introOutput = mix(steadyOutput, rainGlassOut, introRainGlassUniformsRef.amount);
+      introOutputWithSmaa = smaa(introOutput);
+    }
+
+    post.outputNode = getActiveOutput();
+    post.needsUpdate = true;
+  }
+
+  rebuildSteadyOutput();
 
   function getActiveOutput() {
     if (introRainGlassActive && introOutput) {
@@ -204,12 +243,30 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     }
 
     introRainGlassActive = false;
-    introRainGlassUniforms = null;
+    introRainGlassUniformsRef = null;
     introOutput = null;
     introOutputWithSmaa = null;
     introRainGlassRef = null;
     post.outputNode = getActiveOutput();
     post.needsUpdate = true;
+  }
+
+  function setRainPassEnabled(enabled) {
+    const nextActive = Boolean(enabled);
+    if (nextActive === rainPassActive) {
+      return;
+    }
+
+    rainPassActive = nextActive;
+    rebuildSteadyOutput();
+  }
+
+  if (rain?.setEnabled) {
+    const originalSetEnabled = rain.setEnabled.bind(rain);
+    rain.setEnabled = (value) => {
+      originalSetEnabled(value);
+      setRainPassEnabled(value);
+    };
   }
 
   function updateFocusPoint(focusPoint, activeCamera) {
@@ -223,8 +280,8 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function setBloomEnabled(enabled) {
-    bloomEnabled.value = enabled ? 1 : 0;
-    bloomEnabled.needsUpdate = true;
+    bloomActive = Boolean(enabled);
+    rebuildSteadyOutput();
   }
 
   function setBloomResolutionScale(scale) {
@@ -232,13 +289,15 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function setDofEnabled(enabled) {
-    dofEnabled.value = enabled ? 1 : 0;
+    dofActive = Boolean(enabled);
+    dofEnabled.value = dofActive ? 1 : 0;
     dofEnabled.needsUpdate = true;
+    rebuildSteadyOutput();
   }
 
   function setLensflareEnabled(enabled) {
-    lensflareEnabled.value = enabled ? 1 : 0;
-    lensflareEnabled.needsUpdate = true;
+    lensflareActive = Boolean(enabled);
+    rebuildSteadyOutput();
   }
 
   function setLensflareResolutionScale(scale) {
@@ -312,7 +371,10 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     resizePostProcessing,
     scenePassColor,
     scenePassEmissive,
-    composedOutput: composed,
+    get composedOutput() {
+      return composedOutputRef;
+    },
+    setRainPassEnabled,
     get introRainGlass() {
       return introRainGlassRef;
     },

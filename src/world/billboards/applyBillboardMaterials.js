@@ -13,7 +13,7 @@ function findAllBillboardEntries(root) {
 export function applyBillboardMaterials(root) {
   const disposables = [];
 
-  const billboard = applyBillboardFace(findAllBillboardEntries(root), { root });
+  const billboard = applyBillboardFace(findAllBillboardEntries(root));
 
   if (billboard) {
     disposables.push(billboard.dispose);
