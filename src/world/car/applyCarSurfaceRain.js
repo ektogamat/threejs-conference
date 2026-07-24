@@ -10,8 +10,8 @@ import {
 } from "three/tsl";
 import { getMeshMaterials } from "../loaders/meshUtils.js";
 import {
-  createSurfaceRainUniforms,
-  evaluateTriplanarSurfaceRain,
+    createSurfaceRainUniforms,
+    evaluateCarSurfaceRain,
 } from "../../tsl/surfaceRain.js";
 
 const GLASS_MATERIAL_NAMES = new Set(["77_5"]);
@@ -144,8 +144,9 @@ function wireSurfaceRain(
   uniforms,
   { wetRoughness, normalStrength, wetBrighten = null },
 ) {
+  // Albedo / PBR maps stay on UV0; rain uses the model secondary UV (TEXCOORD_1).
   const uvNode = uv();
-  const rain = evaluateTriplanarSurfaceRain(uniforms);
+  const rain = evaluateCarSurfaceRain(uv(1), uniforms);
   const rainAmount = rain.mask.mul(uniforms.uIntensity);
 
   const baseRoughSample = material.roughnessMap

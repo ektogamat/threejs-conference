@@ -7,10 +7,7 @@ import {
   fract,
   length,
   max,
-  normalWorld,
-  positionWorld,
   pow,
-  sign,
   sin,
   smoothstep,
   sqrt,
@@ -158,30 +155,18 @@ export function computeDropNormalOffset(
   };
 }
 
-/**
- * Triplanar blend weights (same as three.js triplanarTexture).
- */
-function getTriplanarBlendWeights(sharpness) {
-  let bf = abs(normalWorld).normalize();
-  bf = bf.div(dot(bf, vec3(1, 1, 1)));
-  bf = pow(bf, sharpness);
-  bf = bf.div(dot(bf, vec3(1, 1, 1)));
-  return bf;
-}
-
 export function createSurfaceRainUniforms() {
   return {
     uTime: uniform(0),
     uSpeed: uniform(1),
     uIntensity: uniform(1),
-    uScale: uniform(4.5),
-    uDropSize: uniform(0.85),
-    uNormalStrength: uniform(0.15),
+    uScale: uniform(20.5),
+    uDropSize: uniform(0.45),
+    uNormalStrength: uniform(0.25),
     uWetRoughness: uniform(0.1),
     uGlassNormalStrength: uniform(0.7),
     uGlassWetRoughness: uniform(0.05),
     uGlassWetBrighten: uniform(1.2),
-    uTriplanarSharpness: uniform(4),
     uDropletMix: uniform(0.15),
   };
 }
@@ -202,38 +187,17 @@ export function evaluateSurfaceRain(rainUv, uniforms) {
 }
 
 /**
- * Triplanar rain: evaluate Drops on X/Y/Z gravity-aligned projections and blend.
+ * Car paint/glass rain on a mesh UV channel (typically uv1 / TEXCOORD_1).
  */
-export function evaluateTriplanarSurfaceRain(uniforms) {
-  const scale = uniforms.uScale;
+export function evaluateCarSurfaceRain(rainUv, uniforms) {
   const t = uniforms.uTime.mul(1.2).mul(uniforms.uSpeed);
   const layerWeights = getCarRainLayerWeights(uniforms.uIntensity);
-  const size = uniforms.uDropSize;
-  const dropletMix = uniforms.uDropletMix;
-  const epsilon = 0.005;
-
-  const pos = positionWorld;
-  const n = normalWorld;
-
-  const uvX = vec2(pos.z.mul(sign(n.x)), pos.y).mul(scale);
-  const uvY = vec2(pos.x.mul(sign(n.y)), pos.z.mul(sign(n.y))).mul(scale);
-  const uvZ = vec2(pos.x.mul(sign(n.z)), pos.y).mul(scale);
-
-  const rainX = computeDropNormalOffset(uvX, t, layerWeights, size, epsilon, dropletMix);
-  const rainY = computeDropNormalOffset(uvY, t, layerWeights, size, epsilon, dropletMix);
-  const rainZ = computeDropNormalOffset(uvZ, t, layerWeights, size, epsilon, dropletMix);
-
-  const bf = getTriplanarBlendWeights(uniforms.uTriplanarSharpness);
-
-  const mask = rainX.mask
-    .mul(bf.x)
-    .add(rainY.mask.mul(bf.y))
-    .add(rainZ.mask.mul(bf.z));
-
-  const normalOffset = rainX.normalOffset
-    .mul(bf.x)
-    .add(rainY.normalOffset.mul(bf.y))
-    .add(rainZ.normalOffset.mul(bf.z));
-
-  return { mask, normalOffset };
+  return computeDropNormalOffset(
+    rainUv.mul(uniforms.uScale),
+    t,
+    layerWeights,
+    uniforms.uDropSize,
+    0.005,
+    uniforms.uDropletMix,
+  );
 }
