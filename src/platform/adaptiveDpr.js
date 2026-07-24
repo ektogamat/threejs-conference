@@ -13,7 +13,7 @@ export function createAdaptiveDprController({
   pipeline,
   targetFps = 50,
   fpsConfirmWindows = 2,
-  droppedDPR = 1,
+  droppedDPR = 0.85,
   onForcedLow = null,
 } = {}) {
   let currentDPR = getStaticPixelRatio();

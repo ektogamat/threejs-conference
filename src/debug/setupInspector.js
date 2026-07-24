@@ -505,7 +505,7 @@ export function setupInspector(
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "count", 200, 9000, 100)
+        .add(rain.params, "count", 200, 2000, 100)
         .name("drop count"),
       (value) => rain.setDropCount(value),
     );
