@@ -4,7 +4,7 @@
  */
 export const performanceProfile = {
   adaptiveDpr: true,
-  maxPixelRatio: 1.0,
+  maxPixelRatio: 1.25,
 
   carSurfaceRain: true,
   carSurfaceRainFadeStart: 20,

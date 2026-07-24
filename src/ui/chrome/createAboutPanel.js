@@ -1,4 +1,5 @@
 import "./aboutPanel.css";
+import { isMobileLayout, onMobileLayoutChange } from "../../platform/deviceLayout.js";
 
 const CLOSE_ICON = `
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -66,6 +67,19 @@ export function createAboutPanel({ state } = {}) {
         <p class="about-model-credits">
           By Anderson Mancini &amp; Sunag
         </p>
+        <p class="about-recommended about-recommended--desktop">
+          <span class="about-recommended-title">Recommended setup</span>
+          GPU power and 16 GB RAM are what matter most. Mac: M2 or newer.
+          PC: discrete GPU, 16 GB RAM.
+          Chrome or Edge (latest) · WebGPU required · 1080p fullscreen (4K scales down automatically).
+          WASD + Shift sprint · click to look · Settings for Look · headphones recommended.
+        </p>
+        <p class="about-recommended about-recommended--mobile">
+          <span class="about-recommended-title">Recommended setup</span>
+          iPhone 15 or newer · Android: 2023 flagship or newer (Snapdragon 8 Gen 2 / equivalent, 8 GB RAM).
+          Chrome (latest) · WebGPU required · landscape orientation.
+          On-screen joystick · Settings for Look · headphones recommended.
+        </p>
       </div>
     </div>
   `;
@@ -73,9 +87,21 @@ export function createAboutPanel({ state } = {}) {
   const closeButton = root.querySelector(".close-button-panel");
   const andersonButton = root.querySelector(".about-link-anderson");
   const sunagButton = root.querySelector(".about-link-sunag");
+  const desktopRecommended = root.querySelector(".about-recommended--desktop");
+  const mobileRecommended = root.querySelector(".about-recommended--mobile");
+
+  function syncRecommendedVisibility() {
+    const mobile = isMobileLayout();
+    desktopRecommended.hidden = mobile;
+    mobileRecommended.hidden = !mobile;
+  }
+
+  syncRecommendedVisibility();
+  const unsubscribeLayout = onMobileLayoutChange(syncRecommendedVisibility);
 
   function open() {
     root.classList.remove("about-overlay--force-hidden");
+    syncRecommendedVisibility();
     root.hidden = false;
   }
 
@@ -126,6 +152,7 @@ export function createAboutPanel({ state } = {}) {
     close,
     setForceHidden,
     destroy() {
+      unsubscribeLayout?.();
       document.removeEventListener("keydown", onKeyDown);
       root.remove();
     },

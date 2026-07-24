@@ -122,6 +122,30 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
+.about-recommended {
+  margin: clamp(12px, 2vh, 20px) 0 0;
+  max-width: 520px;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(0.65rem, 1.1vw, 0.75rem);
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.about-recommended-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: clamp(0.6rem, 1vw, 0.68rem);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(34, 211, 238, 0.55);
+}
+
+.about-recommended[hidden] {
+  display: none;
+}
+
 .close-button-panel {
   cursor: pointer;
   pointer-events: auto;

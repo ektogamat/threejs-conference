@@ -86,7 +86,7 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
         [
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
           "  groundReflection, bloom, dof, lensflare, smaa, carSurfaceRain, adaptiveDpr",
-          "  maxPixelRatio (1.0), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
+          "  maxPixelRatio (1.25), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
