@@ -10,8 +10,8 @@ import {
 } from "three/tsl";
 import { getMeshMaterials } from "../loaders/meshUtils.js";
 import {
-    createSurfaceRainUniforms,
-    evaluateCarSurfaceRain,
+  createSurfaceRainUniforms,
+  evaluateCarSurfaceRain,
 } from "../../tsl/surfaceRain.js";
 
 const GLASS_MATERIAL_NAMES = new Set(["77_5"]);
