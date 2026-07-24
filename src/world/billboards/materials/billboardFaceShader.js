@@ -14,11 +14,15 @@ export function createBillboardVignetteUniforms({
   vignetteInner = 0.05,
   vignetteOuter = 0.9,
   vignetteMin = 0.01,
+  // Applied in emissiveNode — material.emissiveIntensity is ignored once
+  // emissiveNode is set (Three.js overwrites the default emissive path).
+  emissiveIntensity = 0.2,
 } = {}) {
   return {
     vignetteInner: uniform(vignetteInner),
     vignetteOuter: uniform(vignetteOuter),
     vignetteMin: uniform(vignetteMin),
+    emissiveIntensity: uniform(emissiveIntensity),
   };
 }
 

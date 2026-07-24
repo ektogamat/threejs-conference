@@ -483,7 +483,7 @@ export function setupInspector(
 
   if (cityMaterials?.billboard?.uniforms) {
     const billboardFolder = addClosedFolder(gui, "Billboard");
-    const { vignetteInner, vignetteOuter, vignetteMin } =
+    const { vignetteInner, vignetteOuter, vignetteMin, emissiveIntensity } =
       cityMaterials.billboard.uniforms;
 
     addParam(billboardFolder, vignetteInner, "value", 0, 1, 0.01).name(
@@ -494,6 +494,9 @@ export function setupInspector(
     );
     addParam(billboardFolder, vignetteMin, "value", 0, 1, 0.01).name(
       "vignette min",
+    );
+    addParam(billboardFolder, emissiveIntensity, "value", 0, 2, 0.01).name(
+      "emissive",
     );
   }
 
