@@ -99,7 +99,7 @@ export function createPerformanceDevTools({
           "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
-          "  aoResolutionScale (0.5), aoSamples (12), aoRadius (0.27), aoScale (1.98)",
+          "  aoResolutionScale (0.5), aoSamples (6), aoRadius (0.4), aoScale (1.7)",
           "  lensflareBlurRadius (4)",
           "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
           "  planeEnabled (true), billboardsEnabled (true)",

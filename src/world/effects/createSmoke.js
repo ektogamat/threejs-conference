@@ -74,7 +74,8 @@ function createSmokeEmitter({
   material.positionNode = offsetRange.mul(lifeTime);
   material.scaleNode = scaleRange.mul(lifeTime.max(0.25));
   material.depthWrite = false;
-  material.depthTest = false;
+  material.depthTest = true;
+  material.alphaTest = 0.05;
   material.transparent = true;
   material.toneMapped = false;
 

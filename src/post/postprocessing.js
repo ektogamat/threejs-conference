@@ -35,12 +35,20 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   const rainLayer = rain?.layer ?? null;
   const smokeLayer = smoke?.layer ?? null;
 
-  const beautyCamera = camera.clone();
+  const aoCamera = camera.clone();
   if (rainLayer !== null) {
-    beautyCamera.layers.disable(rainLayer);
+    aoCamera.layers.disable(rainLayer);
   }
   if (smokeLayer !== null) {
-    beautyCamera.layers.disable(smokeLayer);
+    aoCamera.layers.disable(smokeLayer);
+  }
+
+  const sceneCamera = camera.clone();
+  if (rainLayer !== null) {
+    sceneCamera.layers.disable(rainLayer);
+  }
+  if (smokeLayer !== null) {
+    sceneCamera.layers.enable(smokeLayer);
   }
 
   const rainCamera =
@@ -53,25 +61,24 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
         })()
       : null;
 
-  const smokeCamera =
-    smokeLayer !== null
-      ? (() => {
-          const nextCamera = camera.clone();
-          nextCamera.layers.disable(0);
-          nextCamera.layers.enable(smokeLayer);
-          return nextCamera;
-        })()
-      : null;
-
   function syncCameras(sourceCamera) {
-    beautyCamera.copy(sourceCamera, false);
+    aoCamera.copy(sourceCamera, false);
     if (rainLayer !== null) {
-      beautyCamera.layers.disable(rainLayer);
+      aoCamera.layers.disable(rainLayer);
     }
     if (smokeLayer !== null) {
-      beautyCamera.layers.disable(smokeLayer);
+      aoCamera.layers.disable(smokeLayer);
     }
-    beautyCamera.updateMatrixWorld(true);
+    aoCamera.updateMatrixWorld(true);
+
+    sceneCamera.copy(sourceCamera, false);
+    if (rainLayer !== null) {
+      sceneCamera.layers.disable(rainLayer);
+    }
+    if (smokeLayer !== null) {
+      sceneCamera.layers.enable(smokeLayer);
+    }
+    sceneCamera.updateMatrixWorld(true);
 
     if (rainCamera) {
       rainCamera.copy(sourceCamera, false);
@@ -79,39 +86,39 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
       rainCamera.layers.enable(rainLayer);
       rainCamera.updateMatrixWorld(true);
     }
-
-    if (smokeCamera) {
-      smokeCamera.copy(sourceCamera, false);
-      smokeCamera.layers.disable(0);
-      smokeCamera.layers.enable(smokeLayer);
-      smokeCamera.updateMatrixWorld(true);
-    }
   }
 
   syncCameras(camera);
 
-  const scenePass = pass(scene, beautyCamera);
+  const aoPrePass = pass(scene, aoCamera);
+  aoPrePass.transparent = true;
+  aoPrePass.setMRT(
+    mrt({
+      output: packNormalToRGB(normalView),
+    }),
+  );
+  aoPrePass.getTexture("output").type = UnsignedByteType;
+
+  const aoPrePassDepth = aoPrePass.getTextureNode("depth");
+  const aoPrePassNormal = sample((uv) =>
+    unpackRGBToNormal(aoPrePass.getTextureNode("output").sample(uv)),
+  );
+
+  const scenePass = pass(scene, sceneCamera);
   const mrtNode = mrt({
     output,
     emissive: vec4(emissive, output.a),
-    // Packed view normals for GTAO (UnsignedByte bandwidth).
-    normal: packNormalToRGB(normalView),
   });
   mrtNode.setBlendMode("emissive", new BlendMode(NormalBlending));
   scenePass.setMRT(mrtNode);
 
   const scenePassColor = scenePass.getTextureNode("output");
   const scenePassEmissive = scenePass.getTextureNode("emissive");
-  const scenePassDepth = scenePass.getTextureNode("depth");
-  const scenePassNormal = sample((uv) =>
-    unpackRGBToNormal(scenePass.getTextureNode("normal").sample(uv)),
-  );
 
   scenePass.getTexture("emissive").type = UnsignedByteType;
   scenePass.getTexture("output").type = UnsignedByteType;
-  scenePass.getTexture("normal").type = UnsignedByteType;
 
-  const aoPass = ao(scenePassDepth, scenePassNormal, beautyCamera);
+  const aoPass = ao(aoPrePassDepth, aoPrePassNormal, aoCamera);
   aoPass.resolutionScale = performanceProfile.aoResolutionScale;
   aoPass.samples.value = performanceProfile.aoSamples;
   aoPass.radius.value = performanceProfile.aoRadius;
@@ -132,8 +139,6 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   let rainPass = null;
   let rainPassColor = null;
   let rainPassOffset = null;
-  let smokePass = null;
-  let smokePassColor = null;
 
   if (rainCamera) {
     rainPass = pass(scene, rainCamera);
@@ -152,12 +157,6 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
       rainPassColor = rainPass.getTextureNode("output");
       rainPassOffset = rainPass.getTextureNode("offset");
     }
-  }
-
-  if (smokeCamera) {
-    // Separate pass so transparent sprites never pollute GTAO depth/normals.
-    smokePass = pass(scene, smokeCamera);
-    smokePassColor = smokePass.getTextureNode("output");
   }
 
   const distortionOffset = rainPassOffset
@@ -203,7 +202,6 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   let lensflareActive = performanceProfile.lensflare;
   let aoActive = performanceProfile.ao;
   let rainPassActive = rain?.params?.enabled ?? Boolean(rainPassColor);
-  let smokePassActive = Boolean(smokePassColor);
   const dofEnabled = uniform(dofActive ? 1 : 0);
 
   let steadyOutput = null;
@@ -257,12 +255,8 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
       const aoValue = sampleUv
         ? aoPass.getTextureNode().sample(sampleUv).r
         : aoPass.getTextureNode().r;
-      // Post-multiply GTAO onto opaque beauty only (smoke/rain composite after).
+      // Post-multiply GTAO onto beauty (smoke is in scenePass; excluded from aoPrePass).
       beauty = beauty.mul(vec4(vec3(aoValue), 1));
-    }
-
-    if (smokePassActive && smokePassColor) {
-      beauty = beauty.add(smokePassColor.rgb.mul(smokePassColor.a));
     }
 
     if (rainPassActive && rainPassColor) {
@@ -435,16 +429,17 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   function resizePostProcessing() {
     const width = Math.max(1, renderer.domElement.width);
     const height = Math.max(1, renderer.domElement.height);
+    aoPrePass.setSize(width, height);
     scenePass.setSize(width, height);
     rainPass?.setSize(width, height);
-    smokePass?.setSize(width, height);
   }
 
   return {
     post,
-    beautyCamera,
+    beautyCamera: sceneCamera,
+    sceneCamera,
+    aoCamera,
     rainCamera,
-    smokeCamera,
     syncCameras,
     bloomPass,
     aoPass,

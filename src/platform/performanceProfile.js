@@ -31,9 +31,9 @@ export const performanceProfile = {
   // GTAO — half-res by default; toggle via inspector / __app.perf for FPS A/B.
   ao: true,
   aoResolutionScale: 0.5,
-  aoSamples: 12,
-  aoRadius: 0.27,
-  aoScale: 1.98,
+  aoSamples: 6,
+  aoRadius: 0.4,
+  aoScale: 1.7,
   aoThickness: 1,
   aoDistanceExponent: 1,
   aoDistanceFallOff: 1,
@@ -69,9 +69,9 @@ export function applyDevicePerformanceDefaults() {
   performanceProfile.ao = false;
 
   if (isAppleMobile() || isSafari()) {
-    performanceProfile.maxPixelRatio = 1;
+    performanceProfile.maxPixelRatio = 1.25;
     performanceProfile.adaptiveDpr = false;
-    performanceProfile.smaa = false;
+    performanceProfile.smaa = true;
   }
 }
 

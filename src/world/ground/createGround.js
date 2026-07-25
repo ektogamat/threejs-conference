@@ -119,6 +119,7 @@ export function createGround(scene, {
 
   const material = new THREE.MeshStandardNodeMaterial();
   material.transparent = true;
+  material.depthWrite = true;
   material.metalness = 0;
   material.roughnessNode = roughness.mul(uRoughnessScale);
   material.normalNode = normalMap(perturbedNormalSample);
