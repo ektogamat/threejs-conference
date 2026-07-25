@@ -285,8 +285,10 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
     }
 
     const bloomContribution = buildBloomContribution();
-    steadyOutput = look.buildComposite(beauty, { bloomContribution });
-    steadyOutputWithSmaa = smaa(steadyOutput);
+    const preAA = look.buildComposite(beauty, { bloomContribution });
+    const aaOutput = smaa(preAA);
+    steadyOutput = look.applyFilmGrain(preAA);
+    steadyOutputWithSmaa = look.applyFilmGrain(aaOutput);
     composedOutputRef = steadyOutput;
 
     if (introRainGlassActive && introRainGlassUniformsRef) {

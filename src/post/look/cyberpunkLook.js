@@ -414,7 +414,11 @@ export function createCyberpunkLook({ scenePass }) {
     );
     const vignetted = vec4(withChroma.rgb.mul(vigFactor), withChroma.a);
 
-    return film(vignetted, uniforms.grainIntensity);
+    return vignetted;
+  }
+
+  function applyFilmGrain(node) {
+    return film(node, uniforms.grainIntensity);
   }
 
   applyPreset(DEFAULT_LOOK_PRESET);
@@ -422,6 +426,7 @@ export function createCyberpunkLook({ scenePass }) {
   return {
     uniforms,
     buildComposite,
+    applyFilmGrain,
     applyPreset,
     getCurrentPresetId: () => currentPresetId,
     getPresetLabels: () => LOOK_PRESET_LABELS,
