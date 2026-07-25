@@ -203,8 +203,10 @@ async function init(loaderOverlay) {
   });
   attachDevPerf(devApp, performanceTools.perfApi);
 
-  const { carEngineAudio, planeEngineAudio } = await appShell.initAudio();
-  attachDevAudio(devApp, carEngineAudio, planeEngineAudio);
+  const { carEngineAudio, planeEngineAudio, wetFootstepAudio } =
+    await appShell.initAudio();
+  cameraDirector.setFootstepAudio(wetFootstepAudio);
+  attachDevAudio(devApp, carEngineAudio, planeEngineAudio, wetFootstepAudio);
 
   appShell.bindIdleListeners();
   appShell.bindOrbitIdleListeners(cameraDirector.controls);

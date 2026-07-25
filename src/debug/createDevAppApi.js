@@ -55,13 +55,19 @@ export function createDevAppApi({ scene, world, camera, controls }) {
   return window.__app;
 }
 
-export function attachDevAudio(appApi, carEngineAudio, planeEngineAudio) {
+export function attachDevAudio(
+  appApi,
+  carEngineAudio,
+  planeEngineAudio,
+  wetFootstepAudio,
+) {
   if (!import.meta.env.DEV || !appApi) {
     return;
   }
 
   appApi.carEngineAudio = carEngineAudio;
   appApi.planeEngineAudio = planeEngineAudio;
+  appApi.wetFootstepAudio = wetFootstepAudio;
 }
 
 export function attachDevPerf(appApi, perfApi) {
