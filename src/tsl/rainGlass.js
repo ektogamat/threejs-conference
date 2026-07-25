@@ -146,7 +146,7 @@ export function createRainGlassUniforms() {
  */
 export function applyRainGlass(sceneColorNode, uniforms) {
   const blurredScene = gaussianBlur(sceneColorNode, uniforms.blurRadius, 2, {
-    resolutionScale: 0.4,
+    resolutionScale: 0.6,
   });
   const tex = convertToTexture(blurredScene);
 
