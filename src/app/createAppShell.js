@@ -15,6 +15,7 @@ import { createVirtualJoystick } from "../ui/walk/createVirtualJoystick.js";
 import { createWalkInputFacade } from "../ui/walk/createWalkInputFacade.js";
 import { createCarEngineAudio } from "../audio/createCarEngineAudio.js";
 import { createPlaneEngineAudio } from "../audio/createPlaneEngineAudio.js";
+import { createWetFootstepAudio } from "../audio/createWetFootstepAudio.js";
 import {
   DEFAULT_LOOK_PRESET,
   LOOK_PRESETS,
@@ -140,6 +141,7 @@ export function createAppShell({
   let audioButton = null;
   let carEngineAudio = null;
   let planeEngineAudio = null;
+  let wetFootstepAudio = null;
 
   if (FEATURES.audio) {
     audioButton = createAudioButton();
@@ -148,7 +150,11 @@ export function createAppShell({
 
   async function initAudio() {
     if (!FEATURES.audio || !world.car) {
-      return { carEngineAudio: null, planeEngineAudio: null };
+      return {
+        carEngineAudio: null,
+        planeEngineAudio: null,
+        wetFootstepAudio: null,
+      };
     }
 
     carEngineAudio = await createCarEngineAudio({
@@ -159,8 +165,11 @@ export function createAppShell({
       listener: carEngineAudio.listener,
       plane: world.primaryPlaneAnchor,
     });
+    wetFootstepAudio = await createWetFootstepAudio({
+      listener: carEngineAudio.listener,
+    });
 
-    return { carEngineAudio, planeEngineAudio };
+    return { carEngineAudio, planeEngineAudio, wetFootstepAudio };
   }
 
   const uiVisibilityCoordinator = FEATURES.chromeUi

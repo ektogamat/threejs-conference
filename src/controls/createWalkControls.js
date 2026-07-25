@@ -783,6 +783,7 @@ export function createWalkControls({
     isPointerLocked: () => pointerLocked,
     hasTouchLooked: () => hasTouchLooked,
     isMoving: () => moving,
+    getHorizontalSpeed: () => currentVelocity.length(),
     setMoveAxes,
     applyLookDelta,
     update,

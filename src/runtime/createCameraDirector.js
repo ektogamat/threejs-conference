@@ -52,6 +52,7 @@ export function createCameraDirector({
   const cameraModeState = { orbitEnabled: false };
   let focusTween = null;
   let walkControls = null;
+  let footstepAudio = null;
 
   function focusOnPoint(point) {
     focusTween?.kill();
@@ -181,6 +182,10 @@ export function createCameraDirector({
       // active only so the pose matches revealAppUi without a late snap.
       if (getFinishedIntro?.()) {
         walkControls.update(delta);
+        footstepAudio?.update?.(delta, {
+          moving: walkControls.isMoving(),
+          speed: walkControls.getHorizontalSpeed?.() ?? 0,
+        });
       }
       setWalkFocusPoint();
     } else if (controls.enabled) {
@@ -193,11 +198,16 @@ export function createCameraDirector({
     focusTween?.kill();
   }
 
+  function setFootstepAudio(audio) {
+    footstepAudio = audio;
+  }
+
   return {
     controls,
     walkControls,
     focusPoint,
     cameraModeState,
+    setFootstepAudio,
     setCameraMode,
     syncWalkFocusPoint,
     resetCameraPose,
