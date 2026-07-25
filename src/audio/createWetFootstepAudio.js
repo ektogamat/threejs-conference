@@ -1,3 +1,4 @@
+import * as THREE from "three/webgpu";
 import { getAudioVolume, getIsMusicPlaying, subscribe } from "./audioState.js";
 
 // Distinct steps cut from wet_footstep.mp3 (~0.6–0.8s each, pre-attack + echo tail).
@@ -17,36 +18,26 @@ const WALK_STRIDE = 1.7;
 const SPRINT_STRIDE = 3.8;
 const MIN_STEP_INTERVAL = 0.38;
 const FOOTSTEP_VOLUME_SCALE = 0.7;
-
-function waitForAudio(audio) {
-  return new Promise((resolve, reject) => {
-    if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
-      resolve();
-      return;
-    }
-
-    audio.addEventListener("canplaythrough", () => resolve(), { once: true });
-    audio.addEventListener(
-      "error",
-      () => reject(new Error("Failed to load footstep audio")),
-      { once: true },
-    );
-    audio.load();
-  });
-}
+const POOL_SIZE = 3;
 
 /**
- * Wet ground footsteps — distinct clips cycled on each stride.
+ * Wet ground footsteps — buffers loaded once, played from memory on each stride.
  */
-export async function createWetFootstepAudio() {
-  const templates = FOOTSTEP_URLS.map((url) => {
-    const audio = new Audio(url);
-    audio.preload = "auto";
-    return audio;
-  });
+export async function createWetFootstepAudio({ listener }) {
+  if (!listener) {
+    return {
+      update() {},
+      dispose() {},
+    };
+  }
+
+  const loader = new THREE.AudioLoader();
+  let buffers;
 
   try {
-    await Promise.all(templates.map((audio) => waitForAudio(audio)));
+    buffers = await Promise.all(
+      FOOTSTEP_URLS.map((url) => loader.loadAsync(url)),
+    );
   } catch (error) {
     console.warn("[audio] Footsteps disabled:", error);
     return {
@@ -55,6 +46,8 @@ export async function createWetFootstepAudio() {
     };
   }
 
+  const sounds = Array.from({ length: POOL_SIZE }, () => new THREE.Audio(listener));
+  let poolIndex = 0;
   let strideDistance = 0;
   let timeSinceStep = MIN_STEP_INTERVAL;
   let stepIndex = 0;
@@ -69,15 +62,28 @@ export async function createWetFootstepAudio() {
     return WALK_STRIDE + (SPRINT_STRIDE - WALK_STRIDE) * sprintBlend;
   }
 
-  function playStep() {
+  async function playStep() {
     if (!enabled) {
       return;
     }
 
-    const template = templates[stepIndex++ % templates.length];
-    const step = template.cloneNode();
-    step.volume = volume * FOOTSTEP_VOLUME_SCALE;
-    step.play().catch(() => {});
+    const sound = sounds[poolIndex++ % POOL_SIZE];
+    const buffer = buffers[stepIndex++ % buffers.length];
+
+    sound.setBuffer(buffer);
+    sound.setPlaybackRate(1);
+    sound.setVolume(volume * FOOTSTEP_VOLUME_SCALE);
+
+    if (sound.isPlaying) {
+      sound.stop();
+    }
+
+    const context = listener.context;
+    if (context.state !== "running") {
+      await context.resume();
+    }
+
+    sound.play();
     timeSinceStep = 0;
   }
 
@@ -94,7 +100,7 @@ export async function createWetFootstepAudio() {
     const stride = strideForSpeed(speed);
     if (strideDistance >= stride && timeSinceStep >= MIN_STEP_INTERVAL) {
       strideDistance %= stride;
-      playStep();
+      playStep().catch(() => {});
     }
   }
 
@@ -102,9 +108,20 @@ export async function createWetFootstepAudio() {
     enabled = isMusicPlaying;
     volume = audioVolume;
 
+    for (const sound of sounds) {
+      if (sound.buffer) {
+        sound.setVolume(volume * FOOTSTEP_VOLUME_SCALE);
+      }
+    }
+
     if (!enabled) {
       strideDistance = 0;
       timeSinceStep = MIN_STEP_INTERVAL;
+      for (const sound of sounds) {
+        if (sound.isPlaying) {
+          sound.stop();
+        }
+      }
     }
   });
 
@@ -112,11 +129,15 @@ export async function createWetFootstepAudio() {
     update,
     dispose() {
       unsubscribe();
-      for (const template of templates) {
-        template.src = "";
+      for (const sound of sounds) {
+        if (sound.isPlaying) {
+          sound.stop();
+        }
+        sound.disconnect();
       }
       strideDistance = 0;
       timeSinceStep = MIN_STEP_INTERVAL;
+      poolIndex = 0;
       stepIndex = 0;
     },
   };

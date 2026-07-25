@@ -149,18 +149,12 @@ export function createAppShell({
   }
 
   async function initAudio() {
-    if (!FEATURES.audio) {
+    if (!FEATURES.audio || !world.car) {
       return {
         carEngineAudio: null,
         planeEngineAudio: null,
         wetFootstepAudio: null,
       };
-    }
-
-    wetFootstepAudio = await createWetFootstepAudio();
-
-    if (!world.car) {
-      return { carEngineAudio: null, planeEngineAudio: null, wetFootstepAudio };
     }
 
     carEngineAudio = await createCarEngineAudio({
@@ -170,6 +164,9 @@ export function createAppShell({
     planeEngineAudio = await createPlaneEngineAudio({
       listener: carEngineAudio.listener,
       plane: world.primaryPlaneAnchor,
+    });
+    wetFootstepAudio = await createWetFootstepAudio({
+      listener: carEngineAudio.listener,
     });
 
     return { carEngineAudio, planeEngineAudio, wetFootstepAudio };
