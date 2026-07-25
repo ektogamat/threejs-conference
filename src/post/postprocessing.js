@@ -10,12 +10,17 @@ import {
   uniform,
   vec3,
   screenUV,
+  sample,
+  normalView,
+  packNormalToRGB,
+  unpackRGBToNormal,
 } from "three/tsl";
 import { AdditiveBlending, UnsignedByteType } from "three";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { smaa } from "three/addons/tsl/display/SMAANode.js";
+import { ao } from "three/addons/tsl/display/GTAONode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
@@ -25,13 +30,17 @@ import { FEATURES } from "../world/features.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
 
-export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
+export function createPostProcessing(renderer, scene, camera, { rain, smoke } = {}) {
   const post = new RenderPipeline(renderer);
   const rainLayer = rain?.layer ?? null;
+  const smokeLayer = smoke?.layer ?? null;
 
   const beautyCamera = camera.clone();
   if (rainLayer !== null) {
     beautyCamera.layers.disable(rainLayer);
+  }
+  if (smokeLayer !== null) {
+    beautyCamera.layers.disable(smokeLayer);
   }
 
   const rainCamera =
@@ -44,10 +53,23 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
         })()
       : null;
 
+  const smokeCamera =
+    smokeLayer !== null
+      ? (() => {
+          const nextCamera = camera.clone();
+          nextCamera.layers.disable(0);
+          nextCamera.layers.enable(smokeLayer);
+          return nextCamera;
+        })()
+      : null;
+
   function syncCameras(sourceCamera) {
     beautyCamera.copy(sourceCamera, false);
     if (rainLayer !== null) {
       beautyCamera.layers.disable(rainLayer);
+    }
+    if (smokeLayer !== null) {
+      beautyCamera.layers.disable(smokeLayer);
     }
     beautyCamera.updateMatrixWorld(true);
 
@@ -57,6 +79,13 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
       rainCamera.layers.enable(rainLayer);
       rainCamera.updateMatrixWorld(true);
     }
+
+    if (smokeCamera) {
+      smokeCamera.copy(sourceCamera, false);
+      smokeCamera.layers.disable(0);
+      smokeCamera.layers.enable(smokeLayer);
+      smokeCamera.updateMatrixWorld(true);
+    }
   }
 
   syncCameras(camera);
@@ -65,15 +94,33 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   const mrtNode = mrt({
     output,
     emissive: vec4(emissive, output.a),
+    // Packed view normals for GTAO (UnsignedByte bandwidth).
+    normal: packNormalToRGB(normalView),
   });
   mrtNode.setBlendMode("emissive", new BlendMode(NormalBlending));
   scenePass.setMRT(mrtNode);
 
   const scenePassColor = scenePass.getTextureNode("output");
   const scenePassEmissive = scenePass.getTextureNode("emissive");
+  const scenePassDepth = scenePass.getTextureNode("depth");
+  const scenePassNormal = sample((uv) =>
+    unpackRGBToNormal(scenePass.getTextureNode("normal").sample(uv)),
+  );
 
   scenePass.getTexture("emissive").type = UnsignedByteType;
   scenePass.getTexture("output").type = UnsignedByteType;
+  scenePass.getTexture("normal").type = UnsignedByteType;
+
+  const aoPass = ao(scenePassDepth, scenePassNormal, beautyCamera);
+  aoPass.resolutionScale = performanceProfile.aoResolutionScale;
+  aoPass.samples.value = performanceProfile.aoSamples;
+  aoPass.radius.value = performanceProfile.aoRadius;
+  aoPass.scale.value = performanceProfile.aoScale;
+  aoPass.thickness.value = performanceProfile.aoThickness;
+  aoPass.distanceExponent.value = performanceProfile.aoDistanceExponent;
+  aoPass.distanceFallOff.value = performanceProfile.aoDistanceFallOff;
+  // Temporal filtering needs TRAA; we use SMAA, so keep noise lower via half-res + samples.
+  aoPass.useTemporalFiltering = false;
 
   const refractionParams = {
     enabled: false,
@@ -85,6 +132,8 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   let rainPass = null;
   let rainPassColor = null;
   let rainPassOffset = null;
+  let smokePass = null;
+  let smokePassColor = null;
 
   if (rainCamera) {
     rainPass = pass(scene, rainCamera);
@@ -105,18 +154,15 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     }
   }
 
+  if (smokeCamera) {
+    // Separate pass so transparent sprites never pollute GTAO depth/normals.
+    smokePass = pass(scene, smokeCamera);
+    smokePassColor = smokePass.getTextureNode("output");
+  }
+
   const distortionOffset = rainPassOffset
     ? rainPassOffset.rg.mul(refractionStrength).mul(refractionEnabled)
     : null;
-  const warpedBeauty = distortionOffset
-    ? scenePassColor.sample(screenUV.add(distortionOffset))
-    : scenePassColor;
-  const rainStreaks = rainPassColor
-    ? rainPassColor.rgb.mul(rainPassColor.a)
-    : null;
-  const beautyWithRainFull = rainStreaks
-    ? warpedBeauty.add(rainStreaks)
-    : warpedBeauty;
 
   const bloomPass = bloom(scenePassEmissive, 2.5, 0.45);
   bloomPass.setResolutionScale(performanceProfile.bloomResolutionScale);
@@ -155,7 +201,9 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   let bloomActive = performanceProfile.bloom;
   let dofActive = performanceProfile.dof;
   let lensflareActive = performanceProfile.lensflare;
+  let aoActive = performanceProfile.ao;
   let rainPassActive = rain?.params?.enabled ?? Boolean(rainPassColor);
+  let smokePassActive = Boolean(smokePassColor);
   const dofEnabled = uniform(dofActive ? 1 : 0);
 
   let steadyOutput = null;
@@ -196,11 +244,32 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   }
 
   function buildBeautyInput() {
-    if (rainPassActive && beautyWithRainFull) {
-      return beautyWithRainFull;
+    const useRainDistortion = rainPassActive && distortionOffset;
+    const sampleUv = useRainDistortion
+      ? screenUV.add(distortionOffset)
+      : null;
+
+    let beauty = sampleUv
+      ? scenePassColor.sample(sampleUv)
+      : scenePassColor;
+
+    if (aoActive) {
+      const aoValue = sampleUv
+        ? aoPass.getTextureNode().sample(sampleUv).r
+        : aoPass.getTextureNode().r;
+      // Post-multiply GTAO onto opaque beauty only (smoke/rain composite after).
+      beauty = beauty.mul(vec4(vec3(aoValue), 1));
     }
 
-    return scenePassColor;
+    if (smokePassActive && smokePassColor) {
+      beauty = beauty.add(smokePassColor.rgb.mul(smokePassColor.a));
+    }
+
+    if (rainPassActive && rainPassColor) {
+      beauty = beauty.add(rainPassColor.rgb.mul(rainPassColor.a));
+    }
+
+    return beauty;
   }
 
   function rebuildSteadyOutput() {
@@ -318,6 +387,19 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     post.needsUpdate = true;
   }
 
+  function setAoEnabled(enabled) {
+    aoActive = Boolean(enabled);
+    rebuildSteadyOutput();
+  }
+
+  function setAoResolutionScale(scale) {
+    aoPass.resolutionScale = scale;
+  }
+
+  function setAoSamples(samples) {
+    aoPass.samples.value = samples;
+  }
+
   function setRefractionEnabled(enabled) {
     refractionParams.enabled = Boolean(enabled);
     refractionEnabled.value = refractionParams.enabled ? 1 : 0;
@@ -353,14 +435,17 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
     const height = Math.max(1, renderer.domElement.height);
     scenePass.setSize(width, height);
     rainPass?.setSize(width, height);
+    smokePass?.setSize(width, height);
   }
 
   return {
     post,
     beautyCamera,
     rainCamera,
+    smokeCamera,
     syncCameras,
     bloomPass,
+    aoPass,
     lensflare: {
       pass: flareBlurred,
       strength: lensflareStrength,
@@ -406,6 +491,9 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
       setLensflareResolutionScale,
       setLensflareBlurRadius,
       setSmaaEnabled,
+      setAoEnabled,
+      setAoResolutionScale,
+      setAoSamples,
     },
   };
 }

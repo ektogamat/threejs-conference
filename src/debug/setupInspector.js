@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { vec4 } from "three/tsl";
+import { vec3, vec4 } from "three/tsl";
 import { performanceProfile } from "../platform/performanceProfile.js";
 import {
   isDevEnvironment,
@@ -24,6 +24,7 @@ export function setupInspector(
     scenePassColor,
     scenePassEmissive,
     bloomPass,
+    aoPass,
     lensflare,
     look,
     applyLookPreset,
@@ -79,6 +80,7 @@ export function setupInspector(
     Bloom: 3,
     Composed: 4,
     Lensflare: 5,
+    AO: 6,
   };
 
   const gui = renderer.inspector.createParameters("Post-processing");
@@ -339,6 +341,47 @@ export function setupInspector(
     );
 
     bindPerfToggle("smaa", "smaa", pipelinePerf.setSmaaEnabled);
+
+    bindPerfToggle("ao", "ao (gtao)", pipelinePerf.setAoEnabled);
+    bindPerfSlider(
+      "aoResolutionScale",
+      "ao resolution",
+      0.25,
+      1,
+      0.05,
+      pipelinePerf.setAoResolutionScale,
+    );
+    bindPerfSlider(
+      "aoSamples",
+      "ao samples",
+      4,
+      32,
+      1,
+      pipelinePerf.setAoSamples,
+    );
+  }
+
+  if (aoPass) {
+    const aoFolder = addClosedFolder(gui, "AO (GTAO)");
+    bindParamControl(
+      aoFolder
+        .add({ enabled: Boolean(performanceProfile.ao) }, "enabled")
+        .name("enabled"),
+      (value) => {
+        performanceProfile.ao = Boolean(value);
+        pipelinePerf?.setAoEnabled?.(value);
+      },
+    );
+    addParam(aoFolder, aoPass.samples, "value", 4, 32, 1).name("samples");
+    addParam(aoFolder, aoPass.radius, "value", 0.1, 4).name("radius");
+    addParam(aoFolder, aoPass.scale, "value", 0.01, 2).name("scale");
+    addParam(aoFolder, aoPass.thickness, "value", 0.01, 4).name("thickness");
+    addParam(aoFolder, aoPass.distanceExponent, "value", 1, 2).name(
+      "distance exponent",
+    );
+    addParam(aoFolder, aoPass.distanceFallOff, "value", 0.01, 1).name(
+      "distance falloff",
+    );
   }
 
   if (lensflare) {
@@ -895,6 +938,8 @@ export function setupInspector(
       post.outputNode = pipeline.composedOutput;
     } else if (value === 5 && lensflare?.pass) {
       post.outputNode = vec4(lensflare.pass.rgb, 1);
+    } else if (value === 6 && aoPass) {
+      post.outputNode = vec4(vec3(aoPass.getTextureNode().r), 1);
     } else {
       restoreCombinedOutput?.();
       return;

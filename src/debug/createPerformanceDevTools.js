@@ -81,6 +81,9 @@ export function createPerformanceDevTools({
     setSmaa(enabled) {
       return setProfileFlag("smaa", Boolean(enabled));
     },
+    setAo(enabled) {
+      return setProfileFlag("ao", Boolean(enabled));
+    },
     setCarSurfaceRain(enabled) {
       return setProfileFlag("carSurfaceRain", Boolean(enabled));
     },
@@ -92,10 +95,11 @@ export function createPerformanceDevTools({
       console.info(
         [
           "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
-          "  groundReflection, bloom, dof, lensflare, smaa, carSurfaceRain, adaptiveDpr",
+          "  groundReflection, bloom, dof, lensflare, smaa, ao, carSurfaceRain, adaptiveDpr",
           "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
           "  carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
+          "  aoResolutionScale (0.5), aoSamples (12), aoRadius (0.27), aoScale (1.98)",
           "  lensflareBlurRadius (4)",
           "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
           "  planeEnabled (true), billboardsEnabled (true)",

@@ -13,6 +13,14 @@ import { performanceProfile } from "../../platform/performanceProfile.js";
 
 const SMOKE_TEXTURE_PATH = "/textures/smoke.png";
 
+/** Dedicated render layer so GTAO / beauty depth ignore transparent sprites. */
+export const SMOKE_LAYER = 3;
+
+function setSmokeLayer(object) {
+  object.layers.disable(0);
+  object.layers.enable(SMOKE_LAYER);
+}
+
 function loadTexture(path) {
   return new Promise((resolve, reject) => {
     new THREE.TextureLoader().load(path, resolve, undefined, reject);
@@ -66,6 +74,7 @@ function createSmokeEmitter({
   material.positionNode = offsetRange.mul(lifeTime);
   material.scaleNode = scaleRange.mul(lifeTime.max(0.25));
   material.depthWrite = false;
+  material.depthTest = false;
   material.transparent = true;
   material.toneMapped = false;
 
@@ -73,6 +82,7 @@ function createSmokeEmitter({
   sprite.scale.setScalar(worldScale);
   sprite.count = count;
   setSmokeBounds(sprite, offsetMin, offsetMax, worldScale);
+  setSmokeLayer(sprite);
   sprite.renderOrder = 5;
 
   return { mesh: sprite, material, speedUniform, opacityUniform };
@@ -235,6 +245,7 @@ export async function createSmoke({ scene, car }) {
   return {
     emitters,
     params,
+    layer: SMOKE_LAYER,
     syncExhaustPosition,
     syncAmbientPosition,
     setExhaustOpacity,

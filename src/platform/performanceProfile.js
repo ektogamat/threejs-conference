@@ -28,6 +28,16 @@ export const performanceProfile = {
   lensflareResolutionScale: 0.5,
   smaa: true,
 
+  // GTAO — half-res by default; toggle via inspector / __app.perf for FPS A/B.
+  ao: true,
+  aoResolutionScale: 0.5,
+  aoSamples: 12,
+  aoRadius: 0.27,
+  aoScale: 1.98,
+  aoThickness: 1,
+  aoDistanceExponent: 1,
+  aoDistanceFallOff: 1,
+
   lensflareBlurRadius: 4,
 
   smokeEnabled: true,
@@ -56,6 +66,7 @@ export function applyDevicePerformanceDefaults() {
 
   performanceProfile.lensflare = false;
   performanceProfile.billboardsEnabled = false;
+  performanceProfile.ao = false;
 
   if (isAppleMobile() || isSafari()) {
     performanceProfile.maxPixelRatio = 1;
@@ -77,7 +88,7 @@ export function applyPerformanceProfileToPipeline(pipeline) {
     return;
   }
 
-  const { perf } = pipeline;
+  const { perf, aoPass } = pipeline;
   perf.setBloomEnabled(performanceProfile.bloom);
   perf.setBloomResolutionScale(performanceProfile.bloomResolutionScale);
   perf.setDofEnabled(performanceProfile.dof);
@@ -85,4 +96,15 @@ export function applyPerformanceProfileToPipeline(pipeline) {
   perf.setLensflareResolutionScale(performanceProfile.lensflareResolutionScale);
   perf.setLensflareBlurRadius(performanceProfile.lensflareBlurRadius);
   perf.setSmaaEnabled(performanceProfile.smaa);
+  perf.setAoEnabled?.(performanceProfile.ao);
+  perf.setAoResolutionScale?.(performanceProfile.aoResolutionScale);
+  perf.setAoSamples?.(performanceProfile.aoSamples);
+
+  if (aoPass) {
+    aoPass.radius.value = performanceProfile.aoRadius;
+    aoPass.scale.value = performanceProfile.aoScale;
+    aoPass.thickness.value = performanceProfile.aoThickness;
+    aoPass.distanceExponent.value = performanceProfile.aoDistanceExponent;
+    aoPass.distanceFallOff.value = performanceProfile.aoDistanceFallOff;
+  }
 }
