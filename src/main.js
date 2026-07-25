@@ -17,7 +17,6 @@ import {
   createShadowUpdater,
   resizeRenderer,
 } from "./bootstrap/createRenderer.js";
-import { attachRendererInspector } from "./debug/inspectorControls.js";
 import { createCameraDirector } from "./runtime/createCameraDirector.js";
 import { createRenderLoop } from "./runtime/createRenderLoop.js";
 import {
@@ -36,7 +35,11 @@ import {
   onMobileLayoutChange,
 } from "./platform/deviceLayout.js";
 import { createAdaptiveDprController } from "./platform/adaptiveDpr.js";
-import { performanceProfile } from "./platform/performanceProfile.js";
+import {
+  performanceProfile,
+  applyDevicePerformanceDefaults,
+  shouldCompileBeforeRenderLoop,
+} from "./platform/performanceProfile.js";
 import { getStoredLookPreset, isDevelopmentModeEnabled } from "./platform/userPreferences.js";
 import {
   DEFAULT_LOOK_PRESET,
@@ -51,6 +54,8 @@ init(loader).catch((error) => {
 });
 
 async function init(loaderOverlay) {
+  // Must run before createRenderer so the initial setPixelRatio sees iOS caps.
+  applyDevicePerformanceDefaults();
   syncLayoutClass();
 
   loaderOverlay.setProgress(0.03);
@@ -63,7 +68,7 @@ async function init(loaderOverlay) {
   loaderOverlay.setProgress(0.1);
   loaderOverlay.setStatus("Preparing renderer...");
 
-  const { renderer, inspector: inspectorInstance } = await createRenderer();
+  const { renderer } = await createRenderer();
 
   loaderOverlay.setProgress(0.2);
   loaderOverlay.setStatus("Initializing WebGPU...");
@@ -136,10 +141,15 @@ async function init(loaderOverlay) {
   });
   adaptiveDpr.onResize();
 
+  // Adaptive DPR must not react to intro / rain-glass FPS — that hitch was
+  // permanently locking capable Androids into the low-DPR path before ENTER.
+  const adaptiveSampleGate = { allow: false };
+
   const performanceTools = createPerformanceDevTools({
     pipeline,
     ground: world.ground,
     adaptiveDpr,
+    getAllowAdaptiveSample: () => adaptiveSampleGate.allow,
   });
 
   const walkModeBridge = { onChange: null };
@@ -170,7 +180,6 @@ async function init(loaderOverlay) {
     syncEnvironmentIntensity: lighting.syncEnvironmentIntensity,
     envMapBaseIntensity,
     requestShadowMapUpdate,
-    inspectorInstance,
     adaptiveDpr,
   });
 
@@ -206,7 +215,10 @@ async function init(loaderOverlay) {
     pipeline,
     renderer,
     loaderOverlay,
-    revealAppUi: () => appShell.revealAppUi(),
+    revealAppUi: () => {
+      appShell.revealAppUi();
+      adaptiveSampleGate.allow = true;
+    },
     world,
   });
 
@@ -235,9 +247,6 @@ async function init(loaderOverlay) {
     post,
   });
 
-  renderLoop.startLoop();
-
-  // Rain / smoke / planes compile in parallel with the intro (canvas starts hidden).
   const deferredCompile = compileDeferredStartup({
     renderer,
     scene,
@@ -245,6 +254,12 @@ async function init(loaderOverlay) {
   }).catch((error) => {
     console.warn("[warmup] Deferred shader compile failed:", error);
   });
+
+  if (shouldCompileBeforeRenderLoop()) {
+    await deferredCompile;
+  }
+
+  renderLoop.startLoop();
 
   window.addEventListener("resize", () => {
     syncLayoutClass();
@@ -259,11 +274,12 @@ async function init(loaderOverlay) {
   });
 
   await introFlow.run();
-  await deferredCompile;
 
-  // Inspector must attach only after off-loop compile/warmup — compileAsync and
-  // startup warmPostFrames render outside setAnimationLoop and trigger warnings.
-  attachRendererInspector(renderer, inspectorInstance);
+  if (!shouldCompileBeforeRenderLoop()) {
+    await deferredCompile;
+  }
+
+  // Inspector attaches only via Development Mode (never on load).
   inspectorSession.bootstrapInspector(appShell.settingsPanel);
 
   if (isDevelopmentModeEnabled()) {

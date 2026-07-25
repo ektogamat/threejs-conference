@@ -4,7 +4,7 @@ import { applyRendererPixelRatio } from "../bootstrap/createRenderer.js";
 /**
  * Adaptive DPR — starts at `performanceProfile.maxPixelRatio` (capped by the
  * device's own pixel ratio). If sustained FPS falls below `targetFps`, the
- * pixel ratio drops to `droppedDPR` (1) once and stays there for the rest of
+ * pixel ratio drops to `droppedDPR` once and stays there for the rest of
  * the session; it never tries to climb back up automatically (only a page
  * reload resets it).
  */

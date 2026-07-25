@@ -4,7 +4,12 @@ import {
   getStaticPixelRatio,
 } from "../platform/performanceProfile.js";
 
-export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null }) {
+export function createPerformanceDevTools({
+  pipeline,
+  ground,
+  adaptiveDpr = null,
+  getAllowAdaptiveSample = null,
+}) {
   let fps = 0;
   let frameCount = 0;
   let lastSampleTime = performance.now();
@@ -17,7 +22,11 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
       fps = frameCount;
       perfStats.fps = frameCount;
       perfStats.dpr = adaptiveDpr?.getDPR?.() ?? rendererDprFallback();
-      adaptiveDpr?.onFpsSample?.(fps);
+      // Skip adaptive downgrade during intro / warmup — rain-glass FPS is not
+      // representative of steady-state and was forcing a permanent low DPR.
+      if (getAllowAdaptiveSample?.() ?? true) {
+        adaptiveDpr?.onFpsSample?.(fps);
+      }
       frameCount = 0;
       lastSampleTime = now;
     }
@@ -89,7 +98,7 @@ export function createPerformanceDevTools({ pipeline, ground, adaptiveDpr = null
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  lensflareBlurRadius (4)",
           "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
-          "  planeEnabled (true)",
+          "  planeEnabled (true), billboardsEnabled (true)",
           "  __app.perf.getFps() / getAdaptiveDpr()",
           "  Inspector: Settings → Development Mode → Post-processing → Performance",
         ].join("\n"),

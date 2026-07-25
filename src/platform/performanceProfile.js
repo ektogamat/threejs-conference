@@ -2,6 +2,12 @@
  * Runtime performance toggles. Defaults favor optimized settings; flip individual
  * flags in dev via `window.__app.perf` to A/B test FPS impact.
  */
+import {
+  isAppleMobile,
+  isMobileDevice,
+  isSafari,
+} from "./deviceLayout.js";
+
 export const performanceProfile = {
   adaptiveDpr: true,
   maxPixelRatio: 1.5,
@@ -28,7 +34,40 @@ export const performanceProfile = {
   ambientCount: 40,
 
   planeEnabled: true,
+
+  billboardsEnabled: true,
 };
+
+/**
+ * Device-specific budgets. Call once at boot, before createRenderer().
+ * - All phones/tablets: DoF + lensflare off (too expensive / unstable on mobile GPUs).
+ * - Apple mobile / Safari: cap DPR, disable adaptive resize, SMAA, ground reflection,
+ *   and rain dual-MRT (resize + concurrent compile + extra passes freeze Safari WebGPU).
+ */
+export function applyDevicePerformanceDefaults() {
+  if (!isMobileDevice()) {
+    if (isSafari()) {
+      performanceProfile.groundReflection = false;
+      performanceProfile.adaptiveDpr = false;
+    }
+    return;
+  }
+
+  performanceProfile.dof = false;
+  performanceProfile.lensflare = false;
+  performanceProfile.billboardsEnabled = false;
+
+  if (isAppleMobile() || isSafari()) {
+    performanceProfile.maxPixelRatio = 1;
+    performanceProfile.groundReflection = false;
+    performanceProfile.adaptiveDpr = false;
+    performanceProfile.smaa = false;
+  }
+}
+
+export function shouldCompileBeforeRenderLoop() {
+  return isSafari();
+}
 
 export function getStaticPixelRatio() {
   return Math.min(window.devicePixelRatio, performanceProfile.maxPixelRatio);
