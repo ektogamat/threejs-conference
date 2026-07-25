@@ -22,7 +22,9 @@ import {
 } from "../post/look/cyberpunkLook.js";
 import {
   phosphorCircleHalf,
+  phosphorCloudFog,
   phosphorCloudRain,
+  phosphorFilmStrip,
   phosphorMoonStars,
   phosphorSunHorizon,
 } from "../ui/core/phosphorIcons.js";
@@ -52,6 +54,16 @@ const LOOK_OPTIONS = [
     id: "tealDusk",
     label: LOOK_PRESETS.tealDusk.label,
     icon: phosphorSunHorizon,
+  },
+  {
+    id: "silentHill",
+    label: LOOK_PRESETS.silentHill.label,
+    icon: phosphorCloudFog,
+  },
+  {
+    id: "sinCity",
+    label: LOOK_PRESETS.sinCity.label,
+    icon: phosphorFilmStrip,
   },
 ];
 
