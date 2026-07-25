@@ -7,9 +7,9 @@ import {
 } from "../../audio/audioState.js";
 
 const DEFAULT_URLS = [
-  "/light-rain-109591.mp3",
-  "/night-ambience-17064.mp3",
-  "/thunderstorm-14708.mp3",
+  "/light-rain.mp3",
+  "/night-ambience.mp3",
+  "/thunderstorm.mp3",
 ];
 
 const WAVE_SVG = `

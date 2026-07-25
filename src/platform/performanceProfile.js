@@ -22,7 +22,8 @@ export const performanceProfile = {
 
   bloom: true,
   bloomResolutionScale: 0.5,
-  dof: true,
+  // Off by default on all devices — enable only via Development Mode inspector.
+  dof: false,
   lensflare: true,
   lensflareResolutionScale: 0.5,
   smaa: true,
@@ -40,7 +41,8 @@ export const performanceProfile = {
 
 /**
  * Device-specific budgets. Call once at boot, before createRenderer().
- * - All phones/tablets: DoF + lensflare off (too expensive / unstable on mobile GPUs).
+ * - DoF stays off everywhere (see performanceProfile.dof); enable via inspector.
+ * - All phones/tablets: lensflare + billboards off (too expensive / unstable on mobile GPUs).
  * - Apple mobile / Safari: cap DPR, disable adaptive resize and SMAA
  *   (resize + concurrent compile + extra passes freeze Safari WebGPU).
  */
@@ -52,7 +54,6 @@ export function applyDevicePerformanceDefaults() {
     return;
   }
 
-  performanceProfile.dof = false;
   performanceProfile.lensflare = false;
   performanceProfile.billboardsEnabled = false;
 

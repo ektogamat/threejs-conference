@@ -13,11 +13,15 @@ import { FEATURES } from "./features.js";
 import { performanceProfile } from "../platform/performanceProfile.js";
 import * as THREE from "three/webgpu";
 
-function buildColliders({ city, carCollider }) {
+function buildColliders({ city, boundsCollider, carCollider }) {
   const colliders = [];
 
   if (city) {
     colliders.push(city);
+  }
+
+  if (boundsCollider) {
+    colliders.push(boundsCollider);
   }
 
   if (carCollider) {
@@ -80,7 +84,10 @@ export async function createWorld({
 
   loadTasks.push(loadEnvironmentMap());
 
-  const [city, billboards, quadra, envTexture] = await Promise.all(loadTasks);
+  const [cityResult, billboards, quadra, envTexture] =
+    await Promise.all(loadTasks);
+  const city = cityResult?.city ?? null;
+  const boundsCollider = cityResult?.boundsCollider ?? null;
   const quadraCar = quadra?.car ?? null;
   const quadraCollider = quadra?.collider ?? null;
   const carSurfaceRain = quadra?.surfaceRain ?? null;
@@ -90,6 +97,10 @@ export async function createWorld({
 
   if (city) {
     addModel(scene, city);
+  }
+
+  if (boundsCollider) {
+    addModel(scene, boundsCollider);
   }
 
   if (billboards) {
@@ -137,7 +148,11 @@ export async function createWorld({
     });
   }
 
-  const colliders = buildColliders({ city, carCollider: quadraCollider });
+  const colliders = buildColliders({
+    city,
+    boundsCollider,
+    carCollider: quadraCollider,
+  });
   const focusTargets = buildFocusTargets({
     city,
     car: quadraCar,
@@ -147,6 +162,7 @@ export async function createWorld({
 
   return {
     city,
+    boundsCollider,
     billboards,
     car: quadraCar,
     carCollider: quadraCollider,

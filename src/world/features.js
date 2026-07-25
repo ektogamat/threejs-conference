@@ -26,7 +26,8 @@ export const FEATURES = {
   chromeUi: true,
   walkUi: true,
   audio: true,
-  inspector: import.meta.env.DEV,
+  // Available in production too; setupInspector hides advanced panels outside DEV.
+  inspector: true,
 };
 
 export const STRIP_ORDER = [

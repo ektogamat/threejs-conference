@@ -1,7 +1,10 @@
 import * as THREE from "three/webgpu";
 import { vec4 } from "three/tsl";
 import { performanceProfile } from "../platform/performanceProfile.js";
-import { setStoredLookPreset } from "../platform/userPreferences.js";
+import {
+  isDevEnvironment,
+  setStoredLookPreset,
+} from "../platform/userPreferences.js";
 
 export function setupInspector(
   renderer,
@@ -29,6 +32,10 @@ export function setupInspector(
     dof,
     perf: pipelinePerf,
   } = pipeline;
+
+  // Production Development Mode: Look, output view, Environment Map, Bloom,
+  // Lensflare, DOF, Ground, Rain. Everything else is local-DEV only.
+  const showDevOnlyPanels = isDevEnvironment();
 
   function notifyParamInteraction() {
     sun?.onParamInteractionStart?.();
@@ -239,7 +246,7 @@ export function setupInspector(
   addParam(bloomFolder, bloomPass.strength, "value", 0, 5).name("strength");
   addParam(bloomFolder, bloomPass.radius, "value", 0, 1).name("radius");
 
-  if (pipelinePerf) {
+  if (showDevOnlyPanels && pipelinePerf) {
     const perfFolder = addClosedFolder(gui, "Performance");
 
     function bindPerfToggle(key, label, applyFn) {
@@ -358,7 +365,10 @@ export function setupInspector(
     const dofFolder = addClosedFolder(gui, "DOF");
     bindParamControl(
       dofFolder.add({ enabled: Boolean(dof.enabled.value) }, "enabled").name("enabled"),
-      (value) => pipelinePerf?.setDofEnabled?.(value),
+      (value) => {
+        performanceProfile.dof = Boolean(value);
+        pipelinePerf?.setDofEnabled?.(value);
+      },
     );
     addParam(dofFolder, dof.minDistance, "value", 0, 50).name("min distance");
     addParam(dofFolder, dof.maxDistance, "value", 0, 100).name("max distance");
@@ -366,7 +376,7 @@ export function setupInspector(
     addParam(dofFolder, dof.blurSpread, "value", 1, 7, 1).name("blur spread");
   }
 
-  if (sun?.sunState && sun?.refreshSun) {
+  if (showDevOnlyPanels && sun?.sunState && sun?.refreshSun) {
     const sunFolder = addClosedFolder(gui, "Sun");
     const refreshSun = () => {
       sun.refreshSun?.();
@@ -473,7 +483,7 @@ export function setupInspector(
     ).name("ripple normal");
   }
 
-  if (cityMaterials?.billboard?.uniforms) {
+  if (showDevOnlyPanels && cityMaterials?.billboard?.uniforms) {
     const billboardFolder = addClosedFolder(gui, "Billboard");
     const { vignetteInner, vignetteOuter, vignetteMin, emissiveIntensity } =
       cityMaterials.billboard.uniforms;
@@ -553,7 +563,7 @@ export function setupInspector(
     }
   }
 
-  if (smoke?.params) {
+  if (showDevOnlyPanels && smoke?.params) {
     const smokeFolder = addClosedFolder(gui, "Smoke");
 
     bindParamControl(
@@ -625,7 +635,7 @@ export function setupInspector(
       .name("log config to console");
   }
 
-  if (planes?.params) {
+  if (showDevOnlyPanels && planes?.params) {
     const planesFolder = addClosedFolder(gui, "Planes");
 
     bindParamControl(
@@ -699,7 +709,7 @@ export function setupInspector(
       .name("log config to console");
   }
 
-  if (sky?.params) {
+  if (showDevOnlyPanels && sky?.params) {
     const skyFolder = addClosedFolder(gui, "Sky");
 
     bindParamControl(
@@ -788,7 +798,7 @@ export function setupInspector(
       .name("log config to console");
   }
 
-  if (cameraControls?.params) {
+  if (showDevOnlyPanels && cameraControls?.params) {
     const cameraFolder = addClosedFolder(gui, "Camera");
 
     if (cameraControls.cameraModeState && cameraControls.setCameraMode) {

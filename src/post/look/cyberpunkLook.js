@@ -129,12 +129,12 @@ export const LOOK_PRESETS = {
   },
   neonNoir: {
     label: "Neon Noir",
-    bloom: { strength: 2.5, radius: 0.3 },
+    bloom: { strength: 0.85, radius: 0.55 },
     bloomWide: { strength: 2.2, radius: 0.85 },
     lensflare: {
-      strength: 0.3,
-      threshold: 0.09,
-      ghostSpacing: 0.27,
+      strength: 0.35,
+      threshold: 0.9,
+      ghostSpacing: 0.22,
       ghostAttenuation: 50,
     },
     uniforms: presetUniforms({
