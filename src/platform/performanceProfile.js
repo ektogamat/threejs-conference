@@ -41,13 +41,12 @@ export const performanceProfile = {
 /**
  * Device-specific budgets. Call once at boot, before createRenderer().
  * - All phones/tablets: DoF + lensflare off (too expensive / unstable on mobile GPUs).
- * - Apple mobile / Safari: cap DPR, disable adaptive resize, SMAA, ground reflection,
- *   and rain dual-MRT (resize + concurrent compile + extra passes freeze Safari WebGPU).
+ * - Apple mobile / Safari: cap DPR, disable adaptive resize and SMAA
+ *   (resize + concurrent compile + extra passes freeze Safari WebGPU).
  */
 export function applyDevicePerformanceDefaults() {
   if (!isMobileDevice()) {
     if (isSafari()) {
-      performanceProfile.groundReflection = false;
       performanceProfile.adaptiveDpr = false;
     }
     return;
@@ -59,7 +58,6 @@ export function applyDevicePerformanceDefaults() {
 
   if (isAppleMobile() || isSafari()) {
     performanceProfile.maxPixelRatio = 1;
-    performanceProfile.groundReflection = false;
     performanceProfile.adaptiveDpr = false;
     performanceProfile.smaa = false;
   }

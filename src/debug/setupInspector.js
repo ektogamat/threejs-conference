@@ -416,14 +416,6 @@ export function setupInspector(
     ).name("roughness scale");
     addParam(
       groundFolder,
-      ground.uniforms.reflectionBlur,
-      "value",
-      0,
-      2,
-      0.01,
-    ).name("reflection blur");
-    addParam(
-      groundFolder,
       ground.uniforms.reflectionStrength,
       "value",
       0,

@@ -6,7 +6,6 @@ import {
   rangeFogFactor,
   screenUV,
   texture,
-  textureBicubic,
   uniform,
   uv,
   vec4,
@@ -34,7 +33,7 @@ const _q = new THREE.Vector4();
  * Wet reflective ground. Manual planar reflection (separate renderer.render)
  * avoids WebGPU TextureBinding|RenderAttachment from TSL reflector() inside
  * PassNode. Composes like webgpu_reflection (albedo + emissive reflection)
- * with roughness blur and normal UV warp from webgpu_reflection_roughness.
+ * with normal UV warp from webgpu_reflection_roughness.
  */
 export function createGround(scene, {
   size = 400,
@@ -43,7 +42,6 @@ export function createGround(scene, {
   fogNear = 0,
   fogFar = 51,
   roughnessScale = 0.55,
-  reflectionBlur = 1.52,
   reflectionStrength = 0.08,
   normalWarp = 0.035,
   rippleAmount = 1,
@@ -80,7 +78,6 @@ export function createGround(scene, {
 
   const uUvRepeat = uniform(uvRepeat);
   const uRoughnessScale = uniform(roughnessScale);
-  const uReflectionBlur = uniform(reflectionBlur);
   const uReflectionStrength = uniform(reflectionStrength);
   const uReflectionEnabled = uniform(1);
   const uNormalWarp = uniform(normalWarp);
@@ -130,13 +127,9 @@ export function createGround(scene, {
     return vec4(albedo.rgb, opacity);
   })();
   material.emissiveNode = Fn(() => {
-    const dirtyReflection = textureBicubic(
-      reflectionTex,
-      roughness.mul(uReflectionBlur),
-    );
     const wetness = roughness.oneMinus();
     const opacity = rangeFogFactor(uFogNear, uFogFar).oneMinus();
-    return dirtyReflection.rgb
+    return reflectionTex.rgb
       .mul(wetness)
       .mul(uReflectionStrength)
       .mul(uReflectionEnabled)
@@ -296,7 +289,6 @@ export function createGround(scene, {
     uniforms: {
       uvRepeat: uUvRepeat,
       roughnessScale: uRoughnessScale,
-      reflectionBlur: uReflectionBlur,
       reflectionStrength: uReflectionStrength,
       reflectionEnabled: uReflectionEnabled,
       normalWarp: uNormalWarp,
