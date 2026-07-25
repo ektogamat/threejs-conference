@@ -1,7 +1,9 @@
 import * as THREE from "three/webgpu";
-import { Inspector } from "three/addons/inspector/Inspector.js";
 import { getStaticPixelRatio } from "../platform/performanceProfile.js";
-import { clearInspectorLayout } from "../debug/inspectorControls.js";
+import {
+  clearInspectorLayout,
+  disableRendererTimestamps,
+} from "../debug/inspectorControls.js";
 
 async function getWebGPULimits() {
   if (!navigator.gpu) {
@@ -46,14 +48,13 @@ export async function createRenderer() {
 
   clearInspectorLayout();
 
-  const inspector = new Inspector();
-
   renderer.domElement.style.opacity = "0";
   renderer.domElement.style.zIndex = "14";
   renderer.domElement.style.transition = "opacity 220ms ease";
   document.body.appendChild(renderer.domElement);
 
   await renderer.init();
+  disableRendererTimestamps(renderer);
 
   if (import.meta.env.DEV) {
     const backend = renderer.backend.isWebGLBackend
@@ -62,7 +63,7 @@ export async function createRenderer() {
     console.info(`[renderer] ${backend}`);
   }
 
-  return { renderer, inspector };
+  return { renderer, inspector: null };
 }
 
 export function createShadowUpdater({ renderer, getSunLight }) {

@@ -10,6 +10,7 @@ import { createSmoke } from "./effects/createSmoke.js";
 import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
 import { createCloudSky } from "../clouds/createCloudSky.js";
 import { FEATURES } from "./features.js";
+import { performanceProfile } from "../platform/performanceProfile.js";
 import * as THREE from "three/webgpu";
 
 function buildColliders({ city, carCollider }) {
@@ -60,7 +61,11 @@ export async function createWorld({
 
   if (FEATURES.city) {
     loadTasks.push(loadCityModel(renderer));
-    loadTasks.push(loadBillboards(renderer));
+    loadTasks.push(
+      performanceProfile.billboardsEnabled
+        ? loadBillboards(renderer)
+        : Promise.resolve(null),
+    );
   } else {
     loadTasks.push(Promise.resolve(null));
     loadTasks.push(Promise.resolve(null));

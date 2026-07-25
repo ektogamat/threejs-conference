@@ -133,7 +133,10 @@ export function createWalkControls({
     }
 
     if (isCoarsePointerDevice()) {
-      return true;
+      const joystickActive =
+        externalMoveAxes.lengthSq() >
+        MOVE_AXIS_DEADZONE * MOVE_AXIS_DEADZONE;
+      return hasTouchLooked || joystickActive || moving;
     }
 
     return pointerLocked;

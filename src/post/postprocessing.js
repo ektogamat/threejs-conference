@@ -20,6 +20,7 @@ import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
 import { performanceProfile } from "../platform/performanceProfile.js";
+import { isSafari } from "../platform/deviceLayout.js";
 import { FEATURES } from "../world/features.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
@@ -87,16 +88,21 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
 
   if (rainCamera) {
     rainPass = pass(scene, rainCamera);
-    const rainMrt = mrt({
-      output,
-      // Signed UV offsets from the dedicated refract sprites (emissiveNode).
-      // Additive keeps overlapping streaks from canceling mid-gray packing.
-      offset: vec4(emissive.r, emissive.g, 0, 1),
-    });
-    rainMrt.setBlendMode("offset", new BlendMode(AdditiveBlending));
-    rainPass.setMRT(rainMrt);
-    rainPassColor = rainPass.getTextureNode("output");
-    rainPassOffset = rainPass.getTextureNode("offset");
+    if (isSafari()) {
+      // Dual-MRT rain refraction offsets are unstable on Safari WebGPU.
+      rainPassColor = rainPass.getTextureNode("output");
+    } else {
+      const rainMrt = mrt({
+        output,
+        // Signed UV offsets from the dedicated refract sprites (emissiveNode).
+        // Additive keeps overlapping streaks from canceling mid-gray packing.
+        offset: vec4(emissive.r, emissive.g, 0, 1),
+      });
+      rainMrt.setBlendMode("offset", new BlendMode(AdditiveBlending));
+      rainPass.setMRT(rainMrt);
+      rainPassColor = rainPass.getTextureNode("output");
+      rainPassOffset = rainPass.getTextureNode("offset");
+    }
   }
 
   const distortionOffset = rainPassOffset
@@ -200,7 +206,7 @@ export function createPostProcessing(renderer, scene, camera, { rain } = {}) {
   function rebuildSteadyOutput() {
     let beauty = buildBeautyInput();
 
-    if (dofActive) {
+    if (dofActive && !isSafari()) {
       const blurredBeauty = boxBlurSeparable(beauty, {
         size: blurSize,
         separation: blurSpread,
