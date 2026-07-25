@@ -56,6 +56,7 @@ export async function createWorld({
   requestShadowMapUpdate,
 }) {
   loaderOverlay.setProgress(0.35);
+  loaderOverlay.setStatus("STREAMING MESHES");
 
   const loadTasks = [];
 
@@ -85,6 +86,7 @@ export async function createWorld({
   const carSurfaceRain = quadra?.surfaceRain ?? null;
 
   loaderOverlay.setProgress(0.7);
+  loaderOverlay.setStatus("WIRING WORLD");
 
   if (city) {
     addModel(scene, city);

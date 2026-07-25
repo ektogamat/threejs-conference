@@ -52,6 +52,13 @@ function ensureStyles() {
       mask-size: 100% 100%;
     }
 
+    .app-loader__stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.35rem;
+    }
+
     .app-loader__stage {
       position: relative;
       width: ${STAGE_SIZE}px;
@@ -95,6 +102,36 @@ function ensureStyles() {
       pointer-events: none;
       user-select: none;
     }
+
+    .app-loader__status {
+      margin: 0;
+      min-height: 1em;
+      font-family: "Orbitron", sans-serif;
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: rgba(232, 234, 237, 0.55);
+      pointer-events: none;
+      user-select: none;
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+
+    .app-loader__status.is-visible {
+      opacity: 1;
+      animation: app-loader-status-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes app-loader-status-pulse {
+      0%,
+      100% {
+        opacity: 0.45;
+      }
+      50% {
+        opacity: 0.9;
+      }
+    }
   `;
 
   document.head.appendChild(style);
@@ -113,22 +150,45 @@ export function createLoaderOverlay() {
   root.setAttribute("aria-busy", "true");
   root.setAttribute("aria-label", "Loading");
   root.innerHTML = `
-    <div class="app-loader__stage">
-      <svg class="app-loader__ring" viewBox="0 0 ${STAGE_SIZE} ${STAGE_SIZE}" aria-hidden="true">
-        <circle class="app-loader__ring-bg" cx="${STAGE_SIZE / 2}" cy="${STAGE_SIZE / 2}" r="${CIRCLE_RADIUS}"></circle>
-        <circle class="app-loader__ring-fill" cx="${STAGE_SIZE / 2}" cy="${STAGE_SIZE / 2}" r="${CIRCLE_RADIUS}"></circle>
-      </svg>
-      <p class="app-loader__percent" aria-hidden="true">0</p>
+    <div class="app-loader__stack">
+      <div class="app-loader__stage">
+        <svg class="app-loader__ring" viewBox="0 0 ${STAGE_SIZE} ${STAGE_SIZE}" aria-hidden="true">
+          <circle class="app-loader__ring-bg" cx="${STAGE_SIZE / 2}" cy="${STAGE_SIZE / 2}" r="${CIRCLE_RADIUS}"></circle>
+          <circle class="app-loader__ring-fill" cx="${STAGE_SIZE / 2}" cy="${STAGE_SIZE / 2}" r="${CIRCLE_RADIUS}"></circle>
+        </svg>
+        <p class="app-loader__percent" aria-hidden="true">0</p>
+      </div>
+      <p class="app-loader__status" aria-hidden="true"></p>
     </div>
   `;
 
-  const stage = root.querySelector(".app-loader__stage");
+  const stack = root.querySelector(".app-loader__stack");
   const ringFill = root.querySelector(".app-loader__ring-fill");
   const percentEl = root.querySelector(".app-loader__percent");
+  const statusEl = root.querySelector(".app-loader__status");
   let hidden = false;
   let finishPromise = null;
+  let currentProgress = 0;
+  let currentStatus = "";
 
   document.body.appendChild(root);
+
+  function syncAriaLabel() {
+    if (currentStatus) {
+      root.setAttribute(
+        "aria-label",
+        currentProgress >= 1
+          ? currentStatus
+          : `Loading ${Math.round(currentProgress * 100)}%. ${currentStatus}`,
+      );
+      return;
+    }
+
+    root.setAttribute(
+      "aria-label",
+      `Loading ${Math.round(currentProgress * 100)}%`,
+    );
+  }
 
   function setProgress(progress) {
     if (!ringFill || hidden) {
@@ -136,18 +196,28 @@ export function createLoaderOverlay() {
     }
 
     const value = clampProgress(progress);
+    currentProgress = value;
     const dashOffset = CIRCLE_CIRCUMFERENCE * (1 - value);
     ringFill.style.strokeDashoffset = `${dashOffset}`;
     percentEl.textContent = `${Math.round(value * 100)}`;
-    root.setAttribute("aria-label", `Loading ${Math.round(value * 100)}%`);
+    syncAriaLabel();
   }
 
-  function setStatus() {
-    // Intentionally no-op — loader is visual-only.
+  function setStatus(message = "") {
+    if (!statusEl || hidden) {
+      return;
+    }
+
+    const next = typeof message === "string" ? message.trim() : "";
+    currentStatus = next;
+    statusEl.textContent = next;
+    statusEl.classList.toggle("is-visible", next.length > 0);
+    syncAriaLabel();
   }
 
   function fail() {
     setProgress(1);
+    setStatus("LINK FAILED");
     root.setAttribute("aria-label", "Failed to load");
   }
 
@@ -177,7 +247,7 @@ export function createLoaderOverlay() {
 
       timeline
         .to(
-          stage,
+          stack,
           {
             opacity: 0,
             duration: 0.12,

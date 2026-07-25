@@ -59,19 +59,19 @@ async function init(loaderOverlay) {
   syncLayoutClass();
 
   loaderOverlay.setProgress(0.03);
-  loaderOverlay.setStatus("Creating scene...");
+  loaderOverlay.setStatus("BOOTING SCENE");
 
   const camera = createCamera();
   const sceneResult = createScene();
   const { scene, sunLight } = sceneResult;
 
   loaderOverlay.setProgress(0.1);
-  loaderOverlay.setStatus("Preparing renderer...");
+  loaderOverlay.setStatus("SPINNING UP RENDERER");
 
   const { renderer } = await createRenderer();
 
   loaderOverlay.setProgress(0.2);
-  loaderOverlay.setStatus("Initializing WebGPU...");
+  loaderOverlay.setStatus("LINKING WEBGPU");
 
   const { requestShadowMapUpdate } = createShadowUpdater({
     renderer,
@@ -107,7 +107,7 @@ async function init(loaderOverlay) {
   );
 
   loaderOverlay.setProgress(0.85);
-  loaderOverlay.setStatus("Configuring post-processing...");
+  loaderOverlay.setStatus("WIRING POST FX");
 
   const pipeline = createPostProcessing(renderer, scene, camera, {
     rain: world.rain,

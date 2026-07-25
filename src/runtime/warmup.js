@@ -1,6 +1,7 @@
 /**
  * Startup shader warmup split into:
- * - Critical path (blocks loader at ~93%): city / car / ground / sky via beauty camera
+ * - Critical path (blocks loader at 100% + "assembling" status): city / car / ground /
+ *   sky via beauty camera. Progress hits 100 early so the long compile does not look stuck.
  * - Deferred (runs after the loop starts, during intro): rain, smoke, planes
  *
  * Same idea as three.js webgpu_compile_async — pay compile cost off the first visible
@@ -77,7 +78,7 @@ export async function finalizeStartupLighting({
   post,
 }) {
   loaderOverlay.setProgress(0.88);
-  loaderOverlay.setStatus("Preparing lighting...");
+  loaderOverlay.setStatus("SYNCING LIGHTS");
 
   syncLighting();
   requestShadowMapUpdate?.("startup-lighting");
@@ -85,8 +86,9 @@ export async function finalizeStartupLighting({
   const deferredObjects = collectDeferredObjects(world);
   const beautyCamera = pipeline.beautyCamera ?? camera;
 
-  loaderOverlay.setProgress(0.93);
-  loaderOverlay.setStatus("Compiling shaders...");
+  // Assets are in — show 100% and a phase label while shaders compile (can take seconds).
+  loaderOverlay.setProgress(1);
+  loaderOverlay.setStatus("ASSEMBLING SECTOR");
   world.ground?.syncReflectionSize?.(renderer);
 
   // Hide rain / smoke / planes so beauty compile only builds core pipelines.
@@ -94,8 +96,6 @@ export async function finalizeStartupLighting({
   try {
     await renderer.compileAsync(scene, beautyCamera);
 
-    loaderOverlay.setProgress(0.96);
-    loaderOverlay.setStatus("Warming up...");
     // One post frame compiles the RenderPipeline graph; reflection + rain wait for deferred.
     await warmPostFrames({
       world,
