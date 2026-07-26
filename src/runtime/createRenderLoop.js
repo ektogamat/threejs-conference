@@ -46,10 +46,6 @@ export function createRenderLoop({
       world.carSurfaceRain.update(delta);
     }
 
-    if (performanceTools?.shouldUpdateGroundReflection()) {
-      world.ground?.updateReflection?.(renderer, camera);
-    }
-
     pipeline.syncCameras?.(camera);
     pipeline.dof.updateFocusPoint(cameraDirector.focusPoint, camera);
     getRainGlassIntro?.()?.update();

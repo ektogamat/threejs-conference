@@ -106,14 +106,14 @@ export async function createSmoke({ scene, car }) {
   const ambientParticleCount = performanceProfile.ambientCount;
 
   const params = {
-    exhaustOpacity: 0.4,
+    exhaustOpacity: 0,
     exhaustScale: 4,
     exhaustSpeed: 0.5,
     exhaust: [
       { x: 0.47, y: 0.52, z: -2.45 },
       { x: -0.51, y: 0.55, z: -2.42 },
     ],
-    ambientOpacity: 0.4,
+    ambientOpacity: 0,
     ambientSpeed: 0.065,
     ambient: [
       { x: -138.5, y: -5.0, z: 36.2, scale: 9.5 },

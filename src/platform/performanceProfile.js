@@ -1,6 +1,8 @@
 /**
  * Runtime performance toggles. Defaults favor optimized settings; flip individual
  * flags in dev via `window.__app.perf` to A/B test FPS impact.
+ *
+ * This branch is SSR-focused: adaptive DPR off, max DPR 1, smoke off, SSR maxed.
  */
 import {
   isAppleMobile,
@@ -9,22 +11,18 @@ import {
 } from "./deviceLayout.js";
 
 export const performanceProfile = {
-  adaptiveDpr: true,
-  maxPixelRatio: 1.5,
+  adaptiveDpr: false,
+  maxPixelRatio: 1,
 
   carSurfaceRain: true,
   carSurfaceRainFadeStart: 20,
   carSurfaceRainFadeEnd: 32,
 
-  groundReflection: true,
-  groundResolutionScale: 0.5,
-  groundReflectionFrameSkip: 1,
-
   bloom: true,
-  bloomResolutionScale: 0.5,
+  bloomResolutionScale: 1,
   // Off by default on all devices — enable only via Development Mode inspector.
   dof: false,
-  lensflare: true,
+  lensflare: false,
   lensflareResolutionScale: 0.5,
   smaa: true,
 
@@ -38,9 +36,34 @@ export const performanceProfile = {
   aoDistanceExponent: 1,
   aoDistanceFallOff: 1,
 
+  // SSR — sole reflection path (no planar ground RT). Tuned for this test branch.
+  ssr: true,
+  ssrResolutionScale: 1,
+  ssrQuality: 1,
+  ssrIntensity: 1.74,
+  ssrMaxDistance: 11.6,
+  ssrThickness: 2.63,
+  ssrEmissiveBoost: 0,
+  ssrEnvironmentIntensity: 0.05,
+  ssrMaxLuminance: 35,
+  ssrMirrorBias: 1,
+  ssrScreenEdgeFade: 0.13,
+  ssrScreenEdgeFadeBlack: true,
+  ssrStepExponent: 1,
+  ssrDenoiseLumaPhi: 1.03,
+  ssrDenoiseDepthPhi: 11.72,
+  ssrDenoiseNormalPhi: 0.35,
+  ssrDenoiseRadius: 0.71,
+  ssrDenoiseStrength: 0.95,
+  ssrDenoiseAdapt: 1,
+  ssrDenoiseAlphaPhi: 15,
+  ssrTemporalMaxFrames: 20,
+  ssrTemporalClampIntensity: 0,
+  ssrTemporalFlickerSuppression: 1,
+
   lensflareBlurRadius: 4,
 
-  smokeEnabled: true,
+  smokeEnabled: false,
   exhaustCount: 50,
   ambientCount: 40,
 
@@ -67,9 +90,10 @@ export function applyDevicePerformanceDefaults() {
   performanceProfile.lensflare = false;
   performanceProfile.billboardsEnabled = false;
   performanceProfile.ao = false;
+  performanceProfile.ssr = false;
 
   if (isAppleMobile() || isSafari()) {
-    performanceProfile.maxPixelRatio = 1.25;
+    performanceProfile.maxPixelRatio = 1;
     performanceProfile.adaptiveDpr = false;
     performanceProfile.smaa = true;
   }
@@ -99,6 +123,8 @@ export function applyPerformanceProfileToPipeline(pipeline) {
   perf.setAoEnabled?.(performanceProfile.ao);
   perf.setAoResolutionScale?.(performanceProfile.aoResolutionScale);
   perf.setAoSamples?.(performanceProfile.aoSamples);
+  perf.setSsrEnabled?.(performanceProfile.ssr);
+  perf.applySsrParams?.();
 
   if (aoPass) {
     aoPass.radius.value = performanceProfile.aoRadius;

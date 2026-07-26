@@ -1,4 +1,9 @@
-import { RenderPipeline, BlendMode, NormalBlending } from "three/webgpu";
+import {
+  RenderPipeline,
+  BlendMode,
+  NormalBlending,
+  PhysicalLightingModel,
+} from "three/webgpu";
 import {
   pass,
   mrt,
@@ -9,18 +14,26 @@ import {
   smoothstep,
   uniform,
   vec3,
+  vec2,
   screenUV,
   sample,
   normalView,
   packNormalToRGB,
   unpackRGBToNormal,
+  diffuseColor,
+  materialMetalness,
+  materialRoughness,
+  velocity,
 } from "three/tsl";
-import { AdditiveBlending, UnsignedByteType } from "three";
+import { AdditiveBlending, HalfFloatType, UnsignedByteType } from "three";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { smaa } from "three/addons/tsl/display/SMAANode.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
+import { ssr } from "three/addons/tsl/display/SSRNode.js";
+import { temporalReproject } from "three/addons/tsl/display/TemporalReprojectNode.js";
+import { recurrentDenoise } from "three/addons/tsl/display/RecurrentDenoiseNode.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
@@ -30,7 +43,40 @@ import { FEATURES } from "../world/features.js";
 
 const DEFAULT_REFRACTION_STRENGTH = 0.45;
 
-export function createPostProcessing(renderer, scene, camera, { rain, smoke } = {}) {
+let originalIndirectSpecular = null;
+
+function suppressIndirectSpecular() {
+  if (originalIndirectSpecular) {
+    return;
+  }
+
+  originalIndirectSpecular = PhysicalLightingModel.prototype.indirectSpecular;
+  PhysicalLightingModel.prototype.indirectSpecular = function indirectSpecular(builder) {
+    builder.context.radiance = vec3(0);
+
+    if (this.clearcoatRadiance) {
+      this.clearcoatRadiance.assign(vec3(0));
+    }
+
+    originalIndirectSpecular.call(this, builder);
+  };
+}
+
+function restoreIndirectSpecular() {
+  if (!originalIndirectSpecular) {
+    return;
+  }
+
+  PhysicalLightingModel.prototype.indirectSpecular = originalIndirectSpecular;
+  originalIndirectSpecular = null;
+}
+
+export function createPostProcessing(
+  renderer,
+  scene,
+  camera,
+  { rain, smoke, hdrTexture = null } = {},
+) {
   const post = new RenderPipeline(renderer);
   const rainLayer = rain?.layer ?? null;
   const smokeLayer = smoke?.layer ?? null;
@@ -108,15 +154,121 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   const mrtNode = mrt({
     output,
     emissive: vec4(emissive, output.a),
+    diffuseColor: vec4(diffuseColor.rgb, materialMetalness),
+    normal: vec4(packNormalToRGB(normalView).rgb, materialRoughness),
+    velocity,
   });
   mrtNode.setBlendMode("emissive", new BlendMode(NormalBlending));
   scenePass.setMRT(mrtNode);
 
   const scenePassColor = scenePass.getTextureNode("output");
   const scenePassEmissive = scenePass.getTextureNode("emissive");
+  const scenePassDepth = scenePass.getTextureNode("depth");
+  const scenePassNormalTex = scenePass.getTextureNode("normal");
+  const scenePassVelocity = scenePass.getTextureNode("velocity");
+  const scenePassDiffuseColor = scenePass.getTextureNode("diffuseColor");
 
+  const scenePassNormal = sample((uv) =>
+    unpackRGBToNormal(scenePassNormalTex.sample(uv).rgb),
+  );
+
+  const scenePassMetalRough = sample((uv) =>
+    vec2(
+      scenePassDiffuseColor.sample(uv).a,
+      scenePassNormalTex.sample(uv).a,
+    ),
+  );
+
+  scenePass.getTexture("output").type = HalfFloatType;
   scenePass.getTexture("emissive").type = UnsignedByteType;
-  scenePass.getTexture("output").type = UnsignedByteType;
+  // Keep beauty as HalfFloat so SSR can sample dark non-emissive surfaces;
+  // UnsignedByte crushes night-scene midtones and leaves only neon in reflections.
+  scenePass.getTexture("diffuseColor").type = UnsignedByteType;
+  scenePass.getTexture("normal").type = UnsignedByteType;
+
+  let ssrNode = null;
+  let temporalReprojectNode = null;
+  let denoiseNode = null;
+  const ssrEmissiveBoost = uniform(performanceProfile.ssrEmissiveBoost);
+
+  if (hdrTexture) {
+    // Sample beauty only. Lit output already contains emissive contribution;
+    // adding emissive MRT again made reflections look neon-only.
+    const ssrColorInput = scenePassColor;
+
+    ssrNode = ssr(ssrColorInput, scenePassDepth, scenePassNormal, {
+      stochastic: true,
+      diffuseNode: scenePassDiffuseColor,
+      metalnessNode: scenePassDiffuseColor.a,
+      roughnessNode: scenePassNormalTex.a,
+      environmentNode: hdrTexture,
+      camera: sceneCamera,
+    });
+    ssrNode.resolutionScale = performanceProfile.ssrResolutionScale;
+    ssrNode.quality.value = performanceProfile.ssrQuality;
+    ssrNode.maxDistance.value = performanceProfile.ssrMaxDistance;
+    ssrNode.intensity.value = performanceProfile.ssrIntensity;
+    ssrNode.thickness.value = performanceProfile.ssrThickness;
+    ssrNode.mirrorBias.value = performanceProfile.ssrMirrorBias;
+    ssrNode.environmentIntensity.value = performanceProfile.ssrEnvironmentIntensity;
+    ssrNode.maxLuminance.value = performanceProfile.ssrMaxLuminance;
+    ssrNode.screenEdgeFade.value = performanceProfile.ssrScreenEdgeFade;
+    ssrNode.screenEdgeFadeBlack = performanceProfile.ssrScreenEdgeFadeBlack;
+    ssrNode.stepExponent = performanceProfile.ssrStepExponent;
+    ssrNode.setEnvMap(hdrTexture);
+
+    temporalReprojectNode = temporalReproject(
+      ssrNode,
+      scenePassDepth,
+      scenePassNormalTex,
+      scenePassVelocity,
+      sceneCamera,
+      {
+        mode: "specular",
+        accumulate: false,
+        hitPointReprojection: true,
+      },
+    );
+    temporalReprojectNode.maxFrames.value = performanceProfile.ssrTemporalMaxFrames;
+    temporalReprojectNode.clampIntensity.value =
+      performanceProfile.ssrTemporalClampIntensity;
+    temporalReprojectNode.flickerSuppression.value =
+      performanceProfile.ssrTemporalFlickerSuppression;
+
+    denoiseNode = recurrentDenoise(temporalReprojectNode, sceneCamera, {
+      depth: scenePassDepth,
+      normal: scenePassNormalTex,
+      raw: ssrNode,
+      metalRoughness: scenePassMetalRough,
+      mode: "specular",
+      accumulate: true,
+    });
+    denoiseNode.alphaSource = "raylength";
+    denoiseNode.lumaPhi.value = performanceProfile.ssrDenoiseLumaPhi;
+    denoiseNode.depthPhi.value = performanceProfile.ssrDenoiseDepthPhi;
+    denoiseNode.normalPhi.value = performanceProfile.ssrDenoiseNormalPhi;
+    denoiseNode.radius.value = performanceProfile.ssrDenoiseRadius;
+    denoiseNode.strength.value = performanceProfile.ssrDenoiseStrength;
+    denoiseNode.adapt.value = performanceProfile.ssrDenoiseAdapt;
+    denoiseNode.alphaPhi.value = performanceProfile.ssrDenoiseAlphaPhi;
+
+    ssrNode.setHistory(denoiseNode, scenePassVelocity);
+    temporalReprojectNode.setHistoryTexture(denoiseNode);
+
+    if (import.meta.env.DEV) {
+      console.info("[ssr] pipeline ready", {
+        ssrActive: performanceProfile.ssr,
+        hdrSize: hdrTexture?.image?.width
+          ? `${hdrTexture.image.width}x${hdrTexture.image.height}`
+          : null,
+        hdrHasData: Boolean(hdrTexture?.image?.data),
+        quality: performanceProfile.ssrQuality,
+        maxDistance: performanceProfile.ssrMaxDistance,
+      });
+    }
+  } else if (import.meta.env.DEV) {
+    console.warn("[ssr] disabled — no HDR equirect (world.envTexture missing)");
+  }
 
   const aoPass = ao(aoPrePassDepth, aoPrePassNormal, aoCamera);
   aoPass.resolutionScale = performanceProfile.aoResolutionScale;
@@ -201,8 +353,13 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   let dofActive = performanceProfile.dof;
   let lensflareActive = performanceProfile.lensflare;
   let aoActive = performanceProfile.ao;
+  let ssrActive = performanceProfile.ssr && Boolean(denoiseNode);
   let rainPassActive = rain?.params?.enabled ?? Boolean(rainPassColor);
   const dofEnabled = uniform(dofActive ? 1 : 0);
+
+  if (ssrActive) {
+    suppressIndirectSpecular();
+  }
 
   let steadyOutput = null;
   let steadyOutputWithSmaa = null;
@@ -250,6 +407,11 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
     let beauty = sampleUv
       ? scenePassColor.sample(sampleUv)
       : scenePassColor;
+
+    // Match official SSR example: add denoised reflections on beauty rgb before AO/fog.
+    if (ssrActive && denoiseNode) {
+      beauty = vec4(beauty.rgb.add(denoiseNode.rgb), beauty.a);
+    }
 
     if (aoActive) {
       const aoValue = sampleUv
@@ -396,6 +558,153 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
     aoPass.samples.value = samples;
   }
 
+  function applySsrParams() {
+    if (!ssrNode) {
+      return;
+    }
+
+    ssrNode.resolutionScale = performanceProfile.ssrResolutionScale;
+    ssrNode.quality.value = performanceProfile.ssrQuality;
+    ssrNode.maxDistance.value = performanceProfile.ssrMaxDistance;
+    ssrNode.intensity.value = performanceProfile.ssrIntensity;
+    ssrNode.thickness.value = performanceProfile.ssrThickness;
+    ssrNode.mirrorBias.value = performanceProfile.ssrMirrorBias;
+    ssrNode.environmentIntensity.value = performanceProfile.ssrEnvironmentIntensity;
+    ssrNode.maxLuminance.value = performanceProfile.ssrMaxLuminance;
+    ssrNode.screenEdgeFade.value = performanceProfile.ssrScreenEdgeFade;
+    ssrEmissiveBoost.value = performanceProfile.ssrEmissiveBoost;
+    ssrEmissiveBoost.needsUpdate = true;
+
+    if (ssrNode.screenEdgeFadeBlack !== performanceProfile.ssrScreenEdgeFadeBlack) {
+      ssrNode.screenEdgeFadeBlack = performanceProfile.ssrScreenEdgeFadeBlack;
+    }
+
+    if (ssrNode.stepExponent !== performanceProfile.ssrStepExponent) {
+      ssrNode.stepExponent = performanceProfile.ssrStepExponent;
+    }
+
+    if (temporalReprojectNode) {
+      temporalReprojectNode.maxFrames.value = performanceProfile.ssrTemporalMaxFrames;
+      temporalReprojectNode.clampIntensity.value =
+        performanceProfile.ssrTemporalClampIntensity;
+      temporalReprojectNode.flickerSuppression.value =
+        performanceProfile.ssrTemporalFlickerSuppression;
+    }
+
+    if (denoiseNode) {
+      denoiseNode.lumaPhi.value = performanceProfile.ssrDenoiseLumaPhi;
+      denoiseNode.depthPhi.value = performanceProfile.ssrDenoiseDepthPhi;
+      denoiseNode.normalPhi.value = performanceProfile.ssrDenoiseNormalPhi;
+      denoiseNode.radius.value = performanceProfile.ssrDenoiseRadius;
+      denoiseNode.strength.value = performanceProfile.ssrDenoiseStrength;
+      denoiseNode.adapt.value = performanceProfile.ssrDenoiseAdapt;
+      denoiseNode.alphaPhi.value = performanceProfile.ssrDenoiseAlphaPhi;
+    }
+  }
+
+  function setSsrEnabled(enabled) {
+    if (!denoiseNode) {
+      return;
+    }
+
+    const nextActive = Boolean(enabled);
+    performanceProfile.ssr = nextActive;
+    if (nextActive === ssrActive) {
+      return;
+    }
+
+    ssrActive = nextActive;
+    if (ssrActive) {
+      suppressIndirectSpecular();
+    } else {
+      restoreIndirectSpecular();
+    }
+    rebuildSteadyOutput();
+  }
+
+  function setSsrResolutionScale(scale) {
+    performanceProfile.ssrResolutionScale = scale;
+    if (ssrNode) {
+      ssrNode.resolutionScale = scale;
+    }
+  }
+
+  function setSsrQuality(quality) {
+    performanceProfile.ssrQuality = quality;
+    if (ssrNode) {
+      ssrNode.quality.value = quality;
+    }
+  }
+
+  function setSsrIntensity(intensity) {
+    performanceProfile.ssrIntensity = intensity;
+    if (ssrNode) {
+      ssrNode.intensity.value = intensity;
+    }
+  }
+
+  function setSsrMaxDistance(distance) {
+    performanceProfile.ssrMaxDistance = distance;
+    if (ssrNode) {
+      ssrNode.maxDistance.value = distance;
+    }
+  }
+
+  function setSsrThickness(thickness) {
+    performanceProfile.ssrThickness = thickness;
+    if (ssrNode) {
+      ssrNode.thickness.value = thickness;
+    }
+  }
+
+  function setSsrEmissiveBoost(boost) {
+    performanceProfile.ssrEmissiveBoost = boost;
+    ssrEmissiveBoost.value = boost;
+    ssrEmissiveBoost.needsUpdate = true;
+  }
+
+  function setSsrEnvironmentIntensity(intensity) {
+    performanceProfile.ssrEnvironmentIntensity = intensity;
+    if (ssrNode) {
+      ssrNode.environmentIntensity.value = intensity;
+    }
+  }
+
+  function setSsrMaxLuminance(luminance) {
+    performanceProfile.ssrMaxLuminance = luminance;
+    if (ssrNode) {
+      ssrNode.maxLuminance.value = luminance;
+    }
+  }
+
+  function setSsrMirrorBias(bias) {
+    performanceProfile.ssrMirrorBias = bias;
+    if (ssrNode) {
+      ssrNode.mirrorBias.value = bias;
+    }
+  }
+
+  function setSsrScreenEdgeFade(fade) {
+    performanceProfile.ssrScreenEdgeFade = fade;
+    if (ssrNode) {
+      ssrNode.screenEdgeFade.value = fade;
+    }
+  }
+
+  function setSsrScreenEdgeFadeBlack(enabled) {
+    performanceProfile.ssrScreenEdgeFadeBlack = Boolean(enabled);
+    if (ssrNode) {
+      ssrNode.screenEdgeFadeBlack = performanceProfile.ssrScreenEdgeFadeBlack;
+    }
+  }
+
+  function setSsrStepExponent(exponent) {
+    performanceProfile.ssrStepExponent = exponent;
+    if (ssrNode) {
+      ssrNode.stepExponent = exponent;
+    }
+  }
+
   function setRefractionEnabled(enabled) {
     refractionParams.enabled = Boolean(enabled);
     refractionEnabled.value = refractionParams.enabled ? 1 : 0;
@@ -443,6 +752,10 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
     syncCameras,
     bloomPass,
     aoPass,
+    ssrNode,
+    denoiseNode,
+    temporalReprojectNode,
+    ssrEmissiveBoost,
     lensflare: {
       pass: flareBlurred,
       strength: lensflareStrength,
@@ -491,6 +804,20 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
       setAoEnabled,
       setAoResolutionScale,
       setAoSamples,
+      setSsrEnabled,
+      setSsrResolutionScale,
+      setSsrQuality,
+      setSsrIntensity,
+      setSsrMaxDistance,
+      setSsrThickness,
+      setSsrEmissiveBoost,
+      setSsrEnvironmentIntensity,
+      setSsrMaxLuminance,
+      setSsrMirrorBias,
+      setSsrScreenEdgeFade,
+      setSsrScreenEdgeFadeBlack,
+      setSsrStepExponent,
+      applySsrParams,
     },
   };
 }

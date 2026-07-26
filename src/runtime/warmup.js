@@ -36,15 +36,7 @@ function setObjectsVisible(objects, visible) {
   }
 }
 
-async function warmPostFrames({
-  world,
-  pipeline,
-  post,
-  renderer,
-  camera,
-  frames,
-  includeReflection,
-}) {
+async function warmPostFrames({ world, pipeline, post, camera, frames }) {
   for (let i = 0; i < frames; i += 1) {
     world.rain?.update(1 / 60, camera);
     world.ground?.update?.(1 / 60);
@@ -57,9 +49,6 @@ async function warmPostFrames({
     });
     if (carRainActive) {
       world.carSurfaceRain.update(1 / 60);
-    }
-    if (includeReflection) {
-      world.ground?.updateReflection?.(renderer, camera);
     }
     pipeline.syncCameras?.(camera);
     post.render();
@@ -86,42 +75,31 @@ export async function finalizeStartupLighting({
   const deferredObjects = collectDeferredObjects(world);
   const beautyCamera = pipeline.beautyCamera ?? camera;
 
-  // Assets are in — show 100% and a phase label while shaders compile (can take seconds).
   loaderOverlay.setProgress(1);
   loaderOverlay.setStatus("ASSEMBLING SECTOR");
-  world.ground?.syncReflectionSize?.(renderer);
 
-  // Hide rain / smoke / planes so beauty compile only builds core pipelines.
   setObjectsVisible(deferredObjects, false);
   try {
     await renderer.compileAsync(scene, beautyCamera);
 
-    // One post frame compiles the RenderPipeline graph; reflection + rain wait for deferred.
     await warmPostFrames({
       world,
       pipeline,
       post,
-      renderer,
       camera,
       frames: 1,
-      includeReflection: false,
     });
   } finally {
     setObjectsVisible(deferredObjects, true);
   }
 }
 
-export async function compileDeferredStartup({
-  renderer,
-  scene,
-  pipeline,
-}) {
+export async function compileDeferredStartup({ renderer, scene, pipeline }) {
   const beautyCamera = pipeline.beautyCamera;
   if (!beautyCamera) {
     return;
   }
 
-  // Smoke / planes were skipped on the critical path — compile them now.
   await renderer.compileAsync(scene, beautyCamera);
 
   if (pipeline.rainCamera) {

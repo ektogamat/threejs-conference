@@ -22,8 +22,6 @@ export function createPerformanceDevTools({
       fps = frameCount;
       perfStats.fps = frameCount;
       perfStats.dpr = adaptiveDpr?.getDPR?.() ?? rendererDprFallback();
-      // Skip adaptive downgrade during intro / warmup — rain-glass FPS is not
-      // representative of steady-state and was forcing a permanent low DPR.
       if (getAllowAdaptiveSample?.() ?? true) {
         adaptiveDpr?.onFpsSample?.(fps);
       }
@@ -38,7 +36,6 @@ export function createPerformanceDevTools({
 
   function syncPipelineFromProfile() {
     applyPerformanceProfileToPipeline(pipeline);
-    ground?.setReflectionEnabled?.(performanceProfile.groundReflection);
   }
 
   function setProfileFlag(key, value) {
@@ -66,9 +63,6 @@ export function createPerformanceDevTools({
     getFps: () => fps,
     sampleFps,
     set: setProfileFlag,
-    setGroundReflection(enabled) {
-      return setProfileFlag("groundReflection", Boolean(enabled));
-    },
     setBloom(enabled) {
       return setProfileFlag("bloom", Boolean(enabled));
     },
@@ -84,6 +78,9 @@ export function createPerformanceDevTools({
     setAo(enabled) {
       return setProfileFlag("ao", Boolean(enabled));
     },
+    setSsr(enabled) {
+      return setProfileFlag("ssr", Boolean(enabled));
+    },
     setCarSurfaceRain(enabled) {
       return setProfileFlag("carSurfaceRain", Boolean(enabled));
     },
@@ -94,14 +91,16 @@ export function createPerformanceDevTools({
     printHelp() {
       console.info(
         [
-          "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
-          "  groundReflection, bloom, dof, lensflare, smaa, ao, carSurfaceRain, adaptiveDpr",
-          "  maxPixelRatio (1.5), groundResolutionScale (0.25), groundReflectionFrameSkip (2)",
-          "  carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
+          "[perf] Toggle flags: __app.perf.set('bloom', false)",
+          "  bloom, dof, lensflare, smaa, ao, ssr, carSurfaceRain, adaptiveDpr",
+          "  maxPixelRatio (1.5), carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  aoResolutionScale (0.5), aoSamples (6), aoRadius (0.4), aoScale (1.7)",
+          "  ssrResolutionScale (1), ssrQuality (0.5), ssrIntensity (2.5)",
+          "  ssrMaxDistance (80), ssrThickness (2), ssrEmissiveBoost (0)",
+          "  ssrEnvironmentIntensity (0.05), ssrMaxLuminance (35), ssrScreenEdgeFadeBlack (true)",
           "  lensflareBlurRadius (4)",
-          "  smokeEnabled (true), exhaustCount (50), ambientCount (40)",
+          "  smokeEnabled (false), exhaustCount (50), ambientCount (40)",
           "  planeEnabled (true), billboardsEnabled (true)",
           "  __app.perf.getFps() / getAdaptiveDpr()",
           "  Inspector: Settings → Development Mode → Post-processing → Performance",
@@ -119,9 +118,6 @@ export function createPerformanceDevTools({
     perfApi,
     perfStats,
     sampleFps,
-    shouldUpdateGroundReflection() {
-      return performanceProfile.groundReflection;
-    },
     shouldUpdateCarSurfaceRain() {
       return performanceProfile.carSurfaceRain;
     },

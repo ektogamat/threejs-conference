@@ -11,7 +11,7 @@
  * 7. sky            → clouds/createCloudSky
  * 8. car            → collider, smoke hub, engine audio
  * 9. advancedPost   → bloom / DoF / CA (future: beauty-only pass)
- * 10. groundReflection → wet mirror RT
+ * 10. ground        → wet asphalt + SSR mirror probe (no planar RT)
  * 11. core          → scene + city + orbit/walk + render loop
  */
 export const FEATURES = {

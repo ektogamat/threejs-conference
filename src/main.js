@@ -112,6 +112,7 @@ async function init(loaderOverlay) {
   const pipeline = createPostProcessing(renderer, scene, camera, {
     rain: world.rain,
     smoke: world.smoke,
+    hdrTexture: world.envTexture,
   });
   const post = pipeline.post;
 

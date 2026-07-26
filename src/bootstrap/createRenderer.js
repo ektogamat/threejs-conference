@@ -60,7 +60,9 @@ export async function createRenderer() {
     const backend = renderer.backend.isWebGLBackend
       ? "WebGL2 (fallback)"
       : "WebGPU";
-    console.info(`[renderer] ${backend}`);
+    console.info(`[renderer] ${backend}`, {
+      compatibilityMode: renderer.backend.compatibilityMode,
+    });
   }
 
   return { renderer, inspector: null };

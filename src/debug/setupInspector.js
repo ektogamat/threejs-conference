@@ -25,6 +25,10 @@ export function setupInspector(
     scenePassEmissive,
     bloomPass,
     aoPass,
+    ssrNode,
+    denoiseNode,
+    temporalReprojectNode,
+    ssrEmissiveBoost,
     lensflare,
     look,
     applyLookPreset,
@@ -81,6 +85,8 @@ export function setupInspector(
     Composed: 4,
     Lensflare: 5,
     AO: 6,
+    "SSR Raw": 7,
+    "Denoised SSR": 8,
   };
 
   const gui = renderer.inspector.createParameters("Post-processing");
@@ -286,26 +292,6 @@ export function setupInspector(
       adaptiveDpr?.setEnabled?.(enabled);
     });
 
-    bindPerfToggle(
-      "groundReflection",
-      "ground reflection",
-      (enabled) => ground?.setReflectionEnabled?.(enabled),
-    );
-    bindPerfSlider(
-      "groundResolutionScale",
-      "ground reflection res",
-      0.15,
-      0.5,
-      0.05,
-    );
-    bindPerfSlider(
-      "groundReflectionFrameSkip",
-      "ground reflection skip",
-      1,
-      4,
-      1,
-    );
-
     bindPerfToggle("carSurfaceRain", "car surface rain");
     bindPerfSlider("carSurfaceRainFadeStart", "car rain fade start", 5, 40, 1);
     bindPerfSlider("carSurfaceRainFadeEnd", "car rain fade end", 10, 60, 1);
@@ -359,6 +345,166 @@ export function setupInspector(
       1,
       pipelinePerf.setAoSamples,
     );
+
+    bindPerfToggle("ssr", "ssr + denoise", pipelinePerf.setSsrEnabled);
+    bindPerfSlider(
+      "ssrResolutionScale",
+      "ssr resolution",
+      0.25,
+      1,
+      0.05,
+      pipelinePerf.setSsrResolutionScale,
+    );
+    bindPerfSlider(
+      "ssrQuality",
+      "ssr quality",
+      0,
+      1,
+      0.05,
+      pipelinePerf.setSsrQuality,
+    );
+  }
+
+  const ssrFolder = addClosedFolder(gui, "SSR");
+
+  bindParamControl(
+    ssrFolder
+      .add({ enabled: Boolean(performanceProfile.ssr) }, "enabled")
+      .name("enabled"),
+    (value) => {
+      performanceProfile.ssr = Boolean(value);
+      pipelinePerf?.setSsrEnabled?.(value);
+    },
+  );
+
+  if (!ssrNode || !denoiseNode) {
+    ssrFolder
+      .add({ status: "SSR nodes unavailable (check HDR env)" }, "status")
+      .disable()
+      .name("status");
+  } else {
+    try {
+      addParam(ssrFolder, ssrNode.quality, "value", 0, 1, 0.05).name("quality");
+    addParam(ssrFolder, ssrNode.maxDistance, "value", 1, 150).name("max distance");
+    addParam(ssrFolder, ssrNode.intensity, "value", 0, 8).name("intensity");
+    addParam(ssrFolder, ssrNode.thickness, "value", 0.01, 5).name("thickness");
+    addParam(ssrFolder, ssrNode.mirrorBias, "value", 0, 1).name("mirror bias");
+    bindParamControl(
+      ssrFolder
+        .add(
+          { emissiveBoost: performanceProfile.ssrEmissiveBoost },
+          "emissiveBoost",
+          0,
+          8,
+          0.1,
+        )
+        .name("emissive boost"),
+      (value) => {
+        performanceProfile.ssrEmissiveBoost = value;
+        pipelinePerf?.setSsrEmissiveBoost?.(value);
+      },
+    );
+    bindParamControl(
+      addParam(ssrFolder, ssrNode.environmentIntensity, "value", 0, 10, 0.05).name(
+        "env intensity",
+      ),
+      (value) => {
+        performanceProfile.ssrEnvironmentIntensity = value;
+      },
+    );
+    addParam(ssrFolder, ssrNode.maxLuminance, "value", 1, 50).name("env max luminance");
+    addParam(ssrFolder, ssrNode.screenEdgeFade, "value", 0, 0.5).name("screen edge fade");
+    bindParamControl(
+      ssrFolder
+        .add(
+          { screenEdgeFadeBlack: performanceProfile.ssrScreenEdgeFadeBlack },
+          "screenEdgeFadeBlack",
+        )
+        .name("edge fade to black"),
+      (value) => {
+        performanceProfile.ssrScreenEdgeFadeBlack = Boolean(value);
+        pipelinePerf?.setSsrScreenEdgeFadeBlack?.(value);
+      },
+    );
+    bindParamControl(
+      ssrFolder
+        .add({ stepExponent: performanceProfile.ssrStepExponent }, "stepExponent", 1, 4, 0.5)
+        .name("step exponent"),
+      (value) => {
+        performanceProfile.ssrStepExponent = value;
+        pipelinePerf?.setSsrStepExponent?.(value);
+      },
+    );
+    bindParamControl(
+      ssrFolder
+        .add(
+          { resolutionScale: performanceProfile.ssrResolutionScale },
+          "resolutionScale",
+          0.25,
+          1,
+          0.05,
+        )
+        .name("resolution scale"),
+      (value) => {
+        performanceProfile.ssrResolutionScale = value;
+        pipelinePerf?.setSsrResolutionScale?.(value);
+      },
+    );
+
+    const ssrDenoiseFolder = addClosedFolder(ssrFolder, "Denoise");
+    addParam(ssrDenoiseFolder, denoiseNode.lumaPhi, "value", 0, 3).name("luma phi");
+    addParam(ssrDenoiseFolder, denoiseNode.depthPhi, "value", 0, 50).name("depth phi");
+    addParam(ssrDenoiseFolder, denoiseNode.normalPhi, "value", 0.01, 1, 0.01).name(
+      "normal phi",
+    );
+    addParam(ssrDenoiseFolder, denoiseNode.radius, "value", 0, 3).name("radius");
+    addParam(ssrDenoiseFolder, denoiseNode.strength, "value", 0.5, 0.95).name("strength");
+    addParam(ssrDenoiseFolder, denoiseNode.adapt, "value", 0, 1).name("adapt");
+    addParam(ssrDenoiseFolder, denoiseNode.alphaPhi, "value", 0, 15).name("ray length phi");
+
+    if (temporalReprojectNode) {
+      const ssrTemporalFolder = addClosedFolder(ssrFolder, "Temporal reproject");
+      addParam(ssrTemporalFolder, temporalReprojectNode.maxFrames, "value", 1, 128, 1).name(
+        "max frames",
+      );
+      addParam(
+        ssrTemporalFolder,
+        temporalReprojectNode.clampIntensity,
+        "value",
+        0,
+        1,
+      ).name("clamp intensity");
+      addParam(
+        ssrTemporalFolder,
+        temporalReprojectNode.flickerSuppression,
+        "value",
+        0,
+        1,
+      ).name("flicker suppression");
+      bindParamControl(
+        ssrTemporalFolder
+          .add(
+            {
+              hitPointReprojection: Boolean(
+                temporalReprojectNode.hitPointReprojection?.value,
+              ),
+            },
+            "hitPointReprojection",
+          )
+          .name("hit point reproject"),
+        (value) => {
+          temporalReprojectNode.hitPointReprojection.value = Boolean(value);
+          temporalReprojectNode.hitPointReprojection.needsUpdate = true;
+        },
+      );
+    }
+    } catch (error) {
+      console.error("[inspector] Failed to build SSR controls:", error);
+      ssrFolder
+        .add({ error: "SSR controls failed — see console" }, "error")
+        .disable()
+        .name("error");
+    }
   }
 
   if (aoPass) {
@@ -469,23 +615,6 @@ export function setupInspector(
     ).name("roughness scale");
     addParam(
       groundFolder,
-      ground.uniforms.reflectionStrength,
-      "value",
-      0,
-      1,
-      0.01,
-    ).name("reflection strength");
-    addParam(groundFolder, ground.uniforms.normalWarp, "value", 0, 0.1, 0.001).name(
-      "normal warp",
-    );
-    addParam(groundFolder, ground.uniforms.fogNear, "value", 0, 200, 1).name(
-      "fade near",
-    );
-    addParam(groundFolder, ground.uniforms.fogFar, "value", 10, 400, 1).name(
-      "fade far",
-    );
-    addParam(
-      groundFolder,
       ground.uniforms.rippleAmount,
       "value",
       0,
@@ -510,20 +639,76 @@ export function setupInspector(
     ).name("ripple speed");
     addParam(
       groundFolder,
-      ground.uniforms.rippleStrength,
-      "value",
-      0,
-      0.25,
-      0.005,
-    ).name("ripple reflection");
-    addParam(
-      groundFolder,
       ground.uniforms.rippleNormalStrength,
       "value",
       0,
       1,
       0.01,
     ).name("ripple normal");
+
+    if (ground.uniforms.dryMetalness) {
+      // Top-level Ground sliders (not nested) — these drive SSR, not env intensity.
+      bindParamControl(
+        addParam(groundFolder, ground.uniforms.dryMetalness, "value", 0, 1, 0.01).name(
+          "dry metalness",
+        ),
+        (value) => ground.setDryMetalness?.(value),
+      );
+      bindParamControl(
+        addParam(groundFolder, ground.uniforms.wetMetalness, "value", 0, 1, 0.01).name(
+          "wet metalness",
+        ),
+        (value) => ground.setWetMetalness?.(value),
+      );
+      bindParamControl(
+        addParam(groundFolder, ground.uniforms.dryRoughnessMin, "value", 0.05, 0.8, 0.01).name(
+          "dry roughness min",
+        ),
+        (value) => ground.setDryRoughnessMin?.(value),
+      );
+      bindParamControl(
+        addParam(groundFolder, ground.uniforms.wetRoughness, "value", 0, 0.2, 0.005).name(
+          "wet roughness",
+        ),
+        (value) => ground.setWetRoughness?.(value),
+      );
+      bindParamControl(
+        addParam(groundFolder, ground.uniforms.wetnessFloor, "value", 0, 1, 0.01).name(
+          "wetness floor",
+        ),
+        (value) => ground.setWetnessFloor?.(value),
+      );
+    }
+
+    if (ground.ssrProbe) {
+      const probeFolder = addClosedFolder(groundFolder, "SSR probe");
+      const probeParams = { visible: ground.ssrProbe.mesh.visible };
+      bindParamControl(
+        probeFolder.add(probeParams, "visible").name("visible"),
+        (value) => ground.ssrProbe.setVisible(value),
+      );
+      addParam(
+        probeFolder,
+        ground.ssrProbe.uniforms.metalness,
+        "value",
+        0,
+        1,
+        0.01,
+      ).name("metalness");
+      addParam(
+        probeFolder,
+        ground.ssrProbe.uniforms.roughness,
+        "value",
+        0,
+        1,
+        0.001,
+      ).name("roughness");
+      const probeSize = { size: ground.ssrProbe.mesh.geometry.parameters.width };
+      bindParamControl(
+        probeFolder.add(probeSize, "size", 4, 80, 1).name("size"),
+        (value) => ground.ssrProbe.setSize(value),
+      );
+    }
   }
 
   if (showDevOnlyPanels && cityMaterials?.billboard?.uniforms) {
@@ -940,6 +1125,10 @@ export function setupInspector(
       post.outputNode = vec4(lensflare.pass.rgb, 1);
     } else if (value === 6 && aoPass) {
       post.outputNode = vec4(vec3(aoPass.getTextureNode().r), 1);
+    } else if (value === 7 && ssrNode) {
+      post.outputNode = vec4(ssrNode.rgb, 1);
+    } else if (value === 8 && denoiseNode) {
+      post.outputNode = vec4(denoiseNode.rgb, 1);
     } else {
       restoreCombinedOutput?.();
       return;
