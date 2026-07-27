@@ -48,6 +48,7 @@ export function createRenderLoop({
 
     pipeline.syncCameras?.(camera);
     pipeline.dof.updateFocusPoint(cameraDirector.focusPoint, camera);
+    pipeline.updateSsrMotionBudget?.();
     getRainGlassIntro?.()?.update();
     post.render();
     performanceTools?.sampleFps();
