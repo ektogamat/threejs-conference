@@ -356,13 +356,47 @@ export function setupInspector(
       pipelinePerf.setSsrResolutionScale,
     );
     bindPerfSlider(
-      "ssrQuality",
-      "ssr quality",
+      "ssrRestQuality",
+      "ssr rest quality",
       0,
       1,
       0.05,
-      pipelinePerf.setSsrQuality,
+      (value) => {
+        performanceProfile.ssrRestQuality = value;
+        pipelinePerf?.applySsrParams?.();
+      },
     );
+    bindPerfSlider(
+      "ssrMotionQuality",
+      "ssr motion quality",
+      0,
+      1,
+      0.05,
+      (value) => {
+        performanceProfile.ssrMotionQuality = value;
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindPerfToggle("ssrMotionAdaptive", "ssr motion adaptive", (value) => {
+      performanceProfile.ssrMotionAdaptive = Boolean(value);
+      pipelinePerf?.applySsrParams?.();
+    });
+    bindPerfToggle("ssrClassificationEnabled", "ssr classification", (value) => {
+      performanceProfile.ssrClassificationEnabled = Boolean(value);
+      pipelinePerf?.applySsrParams?.();
+    });
+    bindPerfToggle("ssrCheckerboardEnabled", "ssr checkerboard", (value) => {
+      performanceProfile.ssrCheckerboardEnabled = Boolean(value);
+      pipelinePerf?.applySsrParams?.();
+    });
+    bindPerfToggle("ssrRoughnessAdaptive", "ssr rough adaptive", (value) => {
+      performanceProfile.ssrRoughnessAdaptive = Boolean(value);
+      pipelinePerf?.applySsrParams?.();
+    });
+    bindPerfToggle("ssrUseHiZ", "ssr hi-z", (value) => {
+      performanceProfile.ssrUseHiZ = Boolean(value);
+      pipelinePerf?.applySsrParams?.();
+    });
   }
 
   const ssrFolder = addClosedFolder(gui, "SSR");
@@ -448,6 +482,127 @@ export function setupInspector(
       (value) => {
         performanceProfile.ssrResolutionScale = value;
         pipelinePerf?.setSsrResolutionScale?.(value);
+      },
+    );
+
+    const ssrPerfFolder = addClosedFolder(ssrFolder, "Performance");
+    bindParamControl(
+      ssrPerfFolder
+        .add({ motionAdaptive: performanceProfile.ssrMotionAdaptive }, "motionAdaptive")
+        .name("motion adaptive"),
+      (value) => {
+        performanceProfile.ssrMotionAdaptive = Boolean(value);
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add(
+          { restQuality: performanceProfile.ssrRestQuality },
+          "restQuality",
+          0,
+          1,
+          0.05,
+        )
+        .name("rest quality"),
+      (value) => {
+        performanceProfile.ssrRestQuality = value;
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add(
+          { motionQuality: performanceProfile.ssrMotionQuality },
+          "motionQuality",
+          0,
+          1,
+          0.05,
+        )
+        .name("motion quality"),
+      (value) => {
+        performanceProfile.ssrMotionQuality = value;
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add(
+          { lowQualityFrames: performanceProfile.ssrLowQualityFrames },
+          "lowQualityFrames",
+          0,
+          8,
+          1,
+        )
+        .name("low quality frames"),
+      (value) => {
+        performanceProfile.ssrLowQualityFrames = value;
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add({ classification: performanceProfile.ssrClassificationEnabled }, "classification")
+        .name("specular classification"),
+      (value) => {
+        performanceProfile.ssrClassificationEnabled = Boolean(value);
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add({ checkerboard: performanceProfile.ssrCheckerboardEnabled }, "checkerboard")
+        .name("checkerboard"),
+      (value) => {
+        performanceProfile.ssrCheckerboardEnabled = Boolean(value);
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add({ roughAdaptive: performanceProfile.ssrRoughnessAdaptive }, "roughAdaptive")
+        .name("roughness adaptive"),
+      (value) => {
+        performanceProfile.ssrRoughnessAdaptive = Boolean(value);
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add({ useHiZ: performanceProfile.ssrUseHiZ }, "useHiZ")
+        .name("hi-z skip"),
+      (value) => {
+        performanceProfile.ssrUseHiZ = Boolean(value);
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add(
+          { roughnessCutoff: performanceProfile.ssrRoughnessCutoff },
+          "roughnessCutoff",
+          0.2,
+          1,
+          0.01,
+        )
+        .name("roughness cutoff"),
+      (value) => {
+        performanceProfile.ssrRoughnessCutoff = value;
+        pipelinePerf?.applySsrParams?.();
+      },
+    );
+    bindParamControl(
+      ssrPerfFolder
+        .add(
+          { specularWeightFloor: performanceProfile.ssrSpecularWeightFloor },
+          "specularWeightFloor",
+          0,
+          1,
+          0.01,
+        )
+        .name("spec weight floor"),
+      (value) => {
+        performanceProfile.ssrSpecularWeightFloor = value;
+        pipelinePerf?.applySsrParams?.();
       },
     );
 

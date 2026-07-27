@@ -2,7 +2,7 @@
  * Runtime performance toggles. Defaults favor optimized settings; flip individual
  * flags in dev via `window.__app.perf` to A/B test FPS impact.
  *
- * This branch is SSR-focused: adaptive DPR off, max DPR 1, smoke off, SSR maxed.
+ * SSR uses motion-adaptive quality, specular classification, and shared GBuffer AO.
  */
 import {
   isAppleMobile,
@@ -36,10 +36,23 @@ export const performanceProfile = {
   aoDistanceExponent: 1,
   aoDistanceFallOff: 1,
 
-  // SSR — sole reflection path (no planar ground RT). Tuned for this test branch.
+  // SSR — screen-space reflections with Threepipe-style cost architecture.
   ssr: true,
   ssrResolutionScale: 1,
-  ssrQuality: 1,
+  ssrQuality: 0.45,
+  ssrRestQuality: 0.45,
+  ssrMotionQuality: 0.28,
+  ssrMotionAdaptive: true,
+  ssrLowQualityFrames: 3,
+  ssrClassificationEnabled: false,
+  ssrMetalnessFloor: 0.05,
+  ssrRoughnessCutoff: 0.65,
+  ssrGlossinessFloor: 0.08,
+  ssrSpecularWeightFloor: 0.12,
+  ssrCheckerboardEnabled: true,
+  ssrRoughnessAdaptive: true,
+  ssrRoughAdaptiveMinFactor: 0.35,
+  ssrUseHiZ: true,
   ssrIntensity: 1.74,
   ssrMaxDistance: 11.6,
   ssrThickness: 2.63,
@@ -49,7 +62,7 @@ export const performanceProfile = {
   ssrMirrorBias: 1,
   ssrScreenEdgeFade: 0.13,
   ssrScreenEdgeFadeBlack: true,
-  ssrStepExponent: 1,
+  ssrStepExponent: 2,
   ssrDenoiseLumaPhi: 1.03,
   ssrDenoiseDepthPhi: 11.72,
   ssrDenoiseNormalPhi: 0.35,

@@ -31,9 +31,10 @@ import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
 import { smaa } from "three/addons/tsl/display/SMAANode.js";
 import { ao } from "three/addons/tsl/display/GTAONode.js";
-import { ssr } from "three/addons/tsl/display/SSRNode.js";
+import { optimizedSsr } from "./ssr/OptimizedSSRNode.js";
 import { temporalReproject } from "three/addons/tsl/display/TemporalReprojectNode.js";
 import { recurrentDenoise } from "three/addons/tsl/display/RecurrentDenoiseNode.js";
+import { createSsrMotionBudget } from "./ssr/ssrMotionBudget.js";
 import { createCyberpunkLook } from "./look/cyberpunkLook.js";
 import { boxBlurSeparable } from "../tsl/boxBlur.js";
 import { applyRainGlass, createRainGlassUniforms } from "../tsl/rainGlass.js";
@@ -81,14 +82,6 @@ export function createPostProcessing(
   const rainLayer = rain?.layer ?? null;
   const smokeLayer = smoke?.layer ?? null;
 
-  const aoCamera = camera.clone();
-  if (rainLayer !== null) {
-    aoCamera.layers.disable(rainLayer);
-  }
-  if (smokeLayer !== null) {
-    aoCamera.layers.disable(smokeLayer);
-  }
-
   const sceneCamera = camera.clone();
   if (rainLayer !== null) {
     sceneCamera.layers.disable(rainLayer);
@@ -96,6 +89,8 @@ export function createPostProcessing(
   if (smokeLayer !== null) {
     sceneCamera.layers.enable(smokeLayer);
   }
+
+  const aoCamera = sceneCamera;
 
   const rainCamera =
     rainLayer !== null
@@ -108,15 +103,6 @@ export function createPostProcessing(
       : null;
 
   function syncCameras(sourceCamera) {
-    aoCamera.copy(sourceCamera, false);
-    if (rainLayer !== null) {
-      aoCamera.layers.disable(rainLayer);
-    }
-    if (smokeLayer !== null) {
-      aoCamera.layers.disable(smokeLayer);
-    }
-    aoCamera.updateMatrixWorld(true);
-
     sceneCamera.copy(sourceCamera, false);
     if (rainLayer !== null) {
       sceneCamera.layers.disable(rainLayer);
@@ -135,20 +121,6 @@ export function createPostProcessing(
   }
 
   syncCameras(camera);
-
-  const aoPrePass = pass(scene, aoCamera);
-  aoPrePass.transparent = true;
-  aoPrePass.setMRT(
-    mrt({
-      output: packNormalToRGB(normalView),
-    }),
-  );
-  aoPrePass.getTexture("output").type = UnsignedByteType;
-
-  const aoPrePassDepth = aoPrePass.getTextureNode("depth");
-  const aoPrePassNormal = sample((uv) =>
-    unpackRGBToNormal(aoPrePass.getTextureNode("output").sample(uv)),
-  );
 
   const scenePass = pass(scene, sceneCamera);
   const mrtNode = mrt({
@@ -196,7 +168,7 @@ export function createPostProcessing(
     // adding emissive MRT again made reflections look neon-only.
     const ssrColorInput = scenePassColor;
 
-    ssrNode = ssr(ssrColorInput, scenePassDepth, scenePassNormal, {
+    ssrNode = optimizedSsr(ssrColorInput, scenePassDepth, scenePassNormal, {
       stochastic: true,
       diffuseNode: scenePassDiffuseColor,
       metalnessNode: scenePassDiffuseColor.a,
@@ -204,8 +176,24 @@ export function createPostProcessing(
       environmentNode: hdrTexture,
       camera: sceneCamera,
     });
+    ssrNode.setSourceDepthTexture(scenePass.getTexture("depth"));
+    ssrNode.useHiZ = performanceProfile.ssrUseHiZ;
     ssrNode.resolutionScale = performanceProfile.ssrResolutionScale;
-    ssrNode.quality.value = performanceProfile.ssrQuality;
+    ssrNode.quality.value = performanceProfile.ssrRestQuality;
+    ssrNode.classificationEnabled.value = performanceProfile.ssrClassificationEnabled
+      ? 1
+      : 0;
+    ssrNode.metalnessFloor.value = performanceProfile.ssrMetalnessFloor;
+    ssrNode.roughnessCutoff.value = performanceProfile.ssrRoughnessCutoff;
+    ssrNode.glossinessFloor.value = performanceProfile.ssrGlossinessFloor;
+    ssrNode.specularWeightFloor.value = performanceProfile.ssrSpecularWeightFloor;
+    ssrNode.checkerboardEnabled.value = performanceProfile.ssrCheckerboardEnabled
+      ? 1
+      : 0;
+    ssrNode.roughnessAdaptiveEnabled.value = performanceProfile.ssrRoughnessAdaptive
+      ? 1
+      : 0;
+    ssrNode.roughAdaptiveMinFactor.value = performanceProfile.ssrRoughAdaptiveMinFactor;
     ssrNode.maxDistance.value = performanceProfile.ssrMaxDistance;
     ssrNode.intensity.value = performanceProfile.ssrIntensity;
     ssrNode.thickness.value = performanceProfile.ssrThickness;
@@ -262,7 +250,8 @@ export function createPostProcessing(
           ? `${hdrTexture.image.width}x${hdrTexture.image.height}`
           : null,
         hdrHasData: Boolean(hdrTexture?.image?.data),
-        quality: performanceProfile.ssrQuality,
+        restQuality: performanceProfile.ssrRestQuality,
+        motionQuality: performanceProfile.ssrMotionQuality,
         maxDistance: performanceProfile.ssrMaxDistance,
       });
     }
@@ -270,7 +259,23 @@ export function createPostProcessing(
     console.warn("[ssr] disabled — no HDR equirect (world.envTexture missing)");
   }
 
-  const aoPass = ao(aoPrePassDepth, aoPrePassNormal, aoCamera);
+  const ssrMotionBudget =
+    ssrNode &&
+    createSsrMotionBudget({
+      performanceProfile,
+      getCamera: () => camera,
+      applyQuality: (quality) => {
+        if (ssrNode) {
+          ssrNode.quality.value = quality;
+        }
+      },
+    });
+
+  function updateSsrMotionBudget() {
+    ssrMotionBudget?.update();
+  }
+
+  const aoPass = ao(scenePassDepth, scenePassNormal, aoCamera);
   aoPass.resolutionScale = performanceProfile.aoResolutionScale;
   aoPass.samples.value = performanceProfile.aoSamples;
   aoPass.radius.value = performanceProfile.aoRadius;
@@ -417,7 +422,7 @@ export function createPostProcessing(
       const aoValue = sampleUv
         ? aoPass.getTextureNode().sample(sampleUv).r
         : aoPass.getTextureNode().r;
-      // Post-multiply GTAO onto beauty (smoke is in scenePass; excluded from aoPrePass).
+      // Post-multiply GTAO onto beauty (shared scenePass GBuffer; rain excluded via sceneCamera layers).
       beauty = beauty.mul(vec4(vec3(aoValue), 1));
     }
 
@@ -563,8 +568,8 @@ export function createPostProcessing(
       return;
     }
 
+    ssrNode.useHiZ = performanceProfile.ssrUseHiZ;
     ssrNode.resolutionScale = performanceProfile.ssrResolutionScale;
-    ssrNode.quality.value = performanceProfile.ssrQuality;
     ssrNode.maxDistance.value = performanceProfile.ssrMaxDistance;
     ssrNode.intensity.value = performanceProfile.ssrIntensity;
     ssrNode.thickness.value = performanceProfile.ssrThickness;
@@ -574,6 +579,29 @@ export function createPostProcessing(
     ssrNode.screenEdgeFade.value = performanceProfile.ssrScreenEdgeFade;
     ssrEmissiveBoost.value = performanceProfile.ssrEmissiveBoost;
     ssrEmissiveBoost.needsUpdate = true;
+    ssrNode.classificationEnabled.value = performanceProfile.ssrClassificationEnabled
+      ? 1
+      : 0;
+    ssrNode.classificationEnabled.needsUpdate = true;
+    ssrNode.metalnessFloor.value = performanceProfile.ssrMetalnessFloor;
+    ssrNode.roughnessCutoff.value = performanceProfile.ssrRoughnessCutoff;
+    ssrNode.glossinessFloor.value = performanceProfile.ssrGlossinessFloor;
+    ssrNode.specularWeightFloor.value = performanceProfile.ssrSpecularWeightFloor;
+    ssrNode.checkerboardEnabled.value = performanceProfile.ssrCheckerboardEnabled
+      ? 1
+      : 0;
+    ssrNode.checkerboardEnabled.needsUpdate = true;
+    ssrNode.roughnessAdaptiveEnabled.value = performanceProfile.ssrRoughnessAdaptive
+      ? 1
+      : 0;
+    ssrNode.roughnessAdaptiveEnabled.needsUpdate = true;
+    ssrNode.roughAdaptiveMinFactor.value = performanceProfile.ssrRoughAdaptiveMinFactor;
+
+    if (performanceProfile.ssrMotionAdaptive) {
+      ssrMotionBudget?.update();
+    } else {
+      ssrNode.quality.value = performanceProfile.ssrQuality;
+    }
 
     if (ssrNode.screenEdgeFadeBlack !== performanceProfile.ssrScreenEdgeFadeBlack) {
       ssrNode.screenEdgeFadeBlack = performanceProfile.ssrScreenEdgeFadeBlack;
@@ -631,8 +659,13 @@ export function createPostProcessing(
 
   function setSsrQuality(quality) {
     performanceProfile.ssrQuality = quality;
+    performanceProfile.ssrRestQuality = quality;
     if (ssrNode) {
-      ssrNode.quality.value = quality;
+      if (performanceProfile.ssrMotionAdaptive) {
+        ssrMotionBudget?.forceRestQuality();
+      } else {
+        ssrNode.quality.value = quality;
+      }
     }
   }
 
@@ -738,7 +771,6 @@ export function createPostProcessing(
   function resizePostProcessing() {
     const width = Math.max(1, renderer.domElement.width);
     const height = Math.max(1, renderer.domElement.height);
-    aoPrePass.setSize(width, height);
     scenePass.setSize(width, height);
     rainPass?.setSize(width, height);
   }
@@ -767,6 +799,8 @@ export function createPostProcessing(
     applyLookPreset,
     restoreCombinedOutput,
     resizePostProcessing,
+    updateSsrMotionBudget,
+    ssrMotionBudget,
     scenePassColor,
     scenePassEmissive,
     get composedOutput() {
