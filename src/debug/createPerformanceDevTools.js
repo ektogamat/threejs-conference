@@ -36,6 +36,7 @@ export function createPerformanceDevTools({
 
   function syncPipelineFromProfile() {
     applyPerformanceProfileToPipeline(pipeline);
+    ground?.setReflectionEnabled?.(performanceProfile.groundReflection);
   }
 
   function setProfileFlag(key, value) {
@@ -50,6 +51,9 @@ export function createPerformanceDevTools({
       adaptiveDpr.setEnabled(Boolean(value));
     } else if (key === "maxPixelRatio" && adaptiveDpr) {
       adaptiveDpr.onResize();
+    } else if (key === "groundReflection") {
+      ground?.setReflectionEnabled?.(Boolean(value));
+      syncPipelineFromProfile();
     } else {
       syncPipelineFromProfile();
     }
@@ -63,6 +67,9 @@ export function createPerformanceDevTools({
     getFps: () => fps,
     sampleFps,
     set: setProfileFlag,
+    setGroundReflection(enabled) {
+      return setProfileFlag("groundReflection", Boolean(enabled));
+    },
     setBloom(enabled) {
       return setProfileFlag("bloom", Boolean(enabled));
     },
@@ -91,12 +98,12 @@ export function createPerformanceDevTools({
     printHelp() {
       console.info(
         [
-          "[perf] Toggle flags: __app.perf.set('bloom', false)",
-          "  bloom, dof, lensflare, smaa, ao, ssr, carSurfaceRain, adaptiveDpr",
-          "  maxPixelRatio (1.5), carSurfaceRainFadeStart (20), carSurfaceRainFadeEnd (32)",
+          "[perf] Toggle flags: __app.perf.set('groundReflection', false)",
+          "  groundReflection, bloom, dof, lensflare, smaa, ao, ssr, carSurfaceRain, adaptiveDpr",
+          "  maxPixelRatio (1), groundResolutionScale (0.5), groundReflectionFrameSkip (1)",
           "  bloomResolutionScale (0.5), lensflareResolutionScale (0.5)",
           "  aoResolutionScale (0.5), aoSamples (6), aoRadius (0.4), aoScale (1.7)",
-          "  ssrResolutionScale (1), ssrRestQuality (0.45), ssrMotionQuality (0.28)",
+          "  ssrResolutionScale (0.5), ssrRestQuality (0.3), ssrMotionQuality (0.2)",
           "  ssrMotionAdaptive, ssrClassificationEnabled, ssrCheckerboardEnabled",
           "  ssrRoughnessAdaptive, ssrUseHiZ, ssrLowQualityFrames (3)",
           "  ssrMaxDistance (80), ssrThickness (2), ssrEmissiveBoost (0)",
@@ -120,6 +127,9 @@ export function createPerformanceDevTools({
     perfApi,
     perfStats,
     sampleFps,
+    shouldUpdateGroundReflection() {
+      return performanceProfile.groundReflection;
+    },
     shouldUpdateCarSurfaceRain() {
       return performanceProfile.carSurfaceRain;
     },

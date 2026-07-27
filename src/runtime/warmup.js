@@ -36,7 +36,15 @@ function setObjectsVisible(objects, visible) {
   }
 }
 
-async function warmPostFrames({ world, pipeline, post, camera, frames }) {
+async function warmPostFrames({
+  world,
+  pipeline,
+  post,
+  renderer,
+  camera,
+  frames,
+  includeReflection = false,
+}) {
   for (let i = 0; i < frames; i += 1) {
     world.rain?.update(1 / 60, camera);
     world.ground?.update?.(1 / 60);
@@ -49,6 +57,9 @@ async function warmPostFrames({ world, pipeline, post, camera, frames }) {
     });
     if (carRainActive) {
       world.carSurfaceRain.update(1 / 60);
+    }
+    if (includeReflection) {
+      world.ground?.updateReflection?.(renderer, camera);
     }
     pipeline.syncCameras?.(camera);
     post.render();
@@ -77,6 +88,7 @@ export async function finalizeStartupLighting({
 
   loaderOverlay.setProgress(1);
   loaderOverlay.setStatus("ASSEMBLING SECTOR");
+  world.ground?.syncReflectionSize?.(renderer);
 
   setObjectsVisible(deferredObjects, false);
   try {
@@ -86,8 +98,10 @@ export async function finalizeStartupLighting({
       world,
       pipeline,
       post,
+      renderer,
       camera,
       frames: 1,
+      includeReflection: false,
     });
   } finally {
     setObjectsVisible(deferredObjects, true);

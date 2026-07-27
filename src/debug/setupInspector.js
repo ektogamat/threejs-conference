@@ -292,6 +292,26 @@ export function setupInspector(
       adaptiveDpr?.setEnabled?.(enabled);
     });
 
+    bindPerfToggle(
+      "groundReflection",
+      "ground reflection",
+      (enabled) => ground?.setReflectionEnabled?.(enabled),
+    );
+    bindPerfSlider(
+      "groundResolutionScale",
+      "ground reflection res",
+      0.15,
+      0.5,
+      0.05,
+    );
+    bindPerfSlider(
+      "groundReflectionFrameSkip",
+      "ground reflection skip",
+      1,
+      4,
+      1,
+    );
+
     bindPerfToggle("carSurfaceRain", "car surface rain");
     bindPerfSlider("carSurfaceRainFadeStart", "car rain fade start", 5, 40, 1);
     bindPerfSlider("carSurfaceRainFadeEnd", "car rain fade end", 10, 60, 1);
@@ -770,6 +790,23 @@ export function setupInspector(
     ).name("roughness scale");
     addParam(
       groundFolder,
+      ground.uniforms.reflectionStrength,
+      "value",
+      0,
+      1,
+      0.01,
+    ).name("reflection strength");
+    addParam(groundFolder, ground.uniforms.normalWarp, "value", 0, 0.1, 0.001).name(
+      "normal warp",
+    );
+    addParam(groundFolder, ground.uniforms.fogNear, "value", 0, 200, 1).name(
+      "fade near",
+    );
+    addParam(groundFolder, ground.uniforms.fogFar, "value", 10, 400, 1).name(
+      "fade far",
+    );
+    addParam(
+      groundFolder,
       ground.uniforms.rippleAmount,
       "value",
       0,
@@ -794,76 +831,20 @@ export function setupInspector(
     ).name("ripple speed");
     addParam(
       groundFolder,
+      ground.uniforms.rippleStrength,
+      "value",
+      0,
+      0.25,
+      0.005,
+    ).name("ripple reflection");
+    addParam(
+      groundFolder,
       ground.uniforms.rippleNormalStrength,
       "value",
       0,
       1,
       0.01,
     ).name("ripple normal");
-
-    if (ground.uniforms.dryMetalness) {
-      // Top-level Ground sliders (not nested) — these drive SSR, not env intensity.
-      bindParamControl(
-        addParam(groundFolder, ground.uniforms.dryMetalness, "value", 0, 1, 0.01).name(
-          "dry metalness",
-        ),
-        (value) => ground.setDryMetalness?.(value),
-      );
-      bindParamControl(
-        addParam(groundFolder, ground.uniforms.wetMetalness, "value", 0, 1, 0.01).name(
-          "wet metalness",
-        ),
-        (value) => ground.setWetMetalness?.(value),
-      );
-      bindParamControl(
-        addParam(groundFolder, ground.uniforms.dryRoughnessMin, "value", 0.05, 0.8, 0.01).name(
-          "dry roughness min",
-        ),
-        (value) => ground.setDryRoughnessMin?.(value),
-      );
-      bindParamControl(
-        addParam(groundFolder, ground.uniforms.wetRoughness, "value", 0, 0.2, 0.005).name(
-          "wet roughness",
-        ),
-        (value) => ground.setWetRoughness?.(value),
-      );
-      bindParamControl(
-        addParam(groundFolder, ground.uniforms.wetnessFloor, "value", 0, 1, 0.01).name(
-          "wetness floor",
-        ),
-        (value) => ground.setWetnessFloor?.(value),
-      );
-    }
-
-    if (ground.ssrProbe) {
-      const probeFolder = addClosedFolder(groundFolder, "SSR probe");
-      const probeParams = { visible: ground.ssrProbe.mesh.visible };
-      bindParamControl(
-        probeFolder.add(probeParams, "visible").name("visible"),
-        (value) => ground.ssrProbe.setVisible(value),
-      );
-      addParam(
-        probeFolder,
-        ground.ssrProbe.uniforms.metalness,
-        "value",
-        0,
-        1,
-        0.01,
-      ).name("metalness");
-      addParam(
-        probeFolder,
-        ground.ssrProbe.uniforms.roughness,
-        "value",
-        0,
-        1,
-        0.001,
-      ).name("roughness");
-      const probeSize = { size: ground.ssrProbe.mesh.geometry.parameters.width };
-      bindParamControl(
-        probeFolder.add(probeSize, "size", 4, 80, 1).name("size"),
-        (value) => ground.ssrProbe.setSize(value),
-      );
-    }
   }
 
   if (showDevOnlyPanels && cityMaterials?.billboard?.uniforms) {

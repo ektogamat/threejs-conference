@@ -18,11 +18,15 @@ export const performanceProfile = {
   carSurfaceRainFadeStart: 20,
   carSurfaceRainFadeEnd: 32,
 
+  groundReflection: true,
+  groundResolutionScale: 0.5,
+  groundReflectionFrameSkip: 1,
+
   bloom: true,
   bloomResolutionScale: 1,
   // Off by default on all devices — enable only via Development Mode inspector.
   dof: false,
-  lensflare: false,
+  lensflare: true,
   lensflareResolutionScale: 0.5,
   smaa: true,
 
@@ -40,8 +44,8 @@ export const performanceProfile = {
   ssr: true,
   ssrResolutionScale: 1,
   ssrQuality: 0.45,
-  ssrRestQuality: 0.45,
-  ssrMotionQuality: 0.28,
+  ssrRestQuality: 0.3,
+  ssrMotionQuality: 0.2,
   ssrMotionAdaptive: true,
   ssrLowQualityFrames: 3,
   ssrClassificationEnabled: false,

@@ -8,42 +8,42 @@ import { createLoaderOverlay } from "./app/createLoaderOverlay.js";
 import { createAppShell } from "./app/createAppShell.js";
 import { createIntroFlow } from "./app/createIntroFlow.js";
 import {
-  createCamera,
-  createCameraLayoutSync,
-  cameraParams,
+    createCamera,
+    createCameraLayoutSync,
+    cameraParams,
 } from "./bootstrap/createCamera.js";
 import {
-  createRenderer,
-  createShadowUpdater,
-  resizeRenderer,
+    createRenderer,
+    createShadowUpdater,
+    resizeRenderer,
 } from "./bootstrap/createRenderer.js";
 import { createCameraDirector } from "./runtime/createCameraDirector.js";
 import { createRenderLoop } from "./runtime/createRenderLoop.js";
 import {
-  compileDeferredStartup,
-  finalizeStartupLighting,
+    compileDeferredStartup,
+    finalizeStartupLighting,
 } from "./runtime/warmup.js";
 import { createPerformanceDevTools } from "./debug/createPerformanceDevTools.js";
 import { createInspectorSession } from "./debug/createInspectorSession.js";
 import {
-  createDevAppApi,
-  attachDevAudio,
-  attachDevPerf,
+    createDevAppApi,
+    attachDevAudio,
+    attachDevPerf,
 } from "./debug/createDevAppApi.js";
 import {
-  syncLayoutClass,
-  onMobileLayoutChange,
+    syncLayoutClass,
+    onMobileLayoutChange,
 } from "./platform/deviceLayout.js";
 import { createAdaptiveDprController } from "./platform/adaptiveDpr.js";
 import {
-  performanceProfile,
-  applyDevicePerformanceDefaults,
-  shouldCompileBeforeRenderLoop,
+    performanceProfile,
+    applyDevicePerformanceDefaults,
+    shouldCompileBeforeRenderLoop,
 } from "./platform/performanceProfile.js";
 import { getStoredLookPreset, isDevelopmentModeEnabled } from "./platform/userPreferences.js";
 import {
-  DEFAULT_LOOK_PRESET,
-  LOOK_PRESETS,
+    DEFAULT_LOOK_PRESET,
+    LOOK_PRESETS,
 } from "./post/look/cyberpunkLook.js";
 
 const loader = createLoaderOverlay();
