@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:tour": "vite --config vite.config.tour.js",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vercel --prod"
