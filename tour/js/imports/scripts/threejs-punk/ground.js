@@ -83,8 +83,7 @@ let ground, albedoMap, roughnessMap, normalMapTex, reflection;
 const uTime = uniform( 0 );
 const uRippleScale = uniform( 4.83 );
 const uRippleSpeed = uniform( 3 );
-const uRippleStrength = uniform( 0.00 );
-const uRippleNormalStrength = uniform( 0.2 );
+const uRippleStrength = uniform( 0.3 );
 
 async function init() {
 
@@ -96,17 +95,14 @@ async function init() {
 	albedoMap.wrapS = THREE.RepeatWrapping;
 	albedoMap.wrapT = THREE.RepeatWrapping;
 	albedoMap.colorSpace = THREE.SRGBColorSpace;
-	albedoMap.repeat.set( 15, 15 );
 
 	roughnessMap = textureLoader.load( '/textures/wet-puddles-roughness.jpg' );
 	roughnessMap.wrapS = THREE.RepeatWrapping;
 	roughnessMap.wrapT = THREE.RepeatWrapping;
-	roughnessMap.repeat.set( 15, 15 );
 
 	normalMapTex = textureLoader.load( '/textures/wet-puddles-normal.jpg' );
 	normalMapTex.wrapS = THREE.RepeatWrapping;
 	normalMapTex.wrapT = THREE.RepeatWrapping;
-	normalMapTex.repeat.set( 15, 15 );
 
 	const material = new THREE.MeshStandardNodeMaterial( {
 		map: albedoMap,
@@ -123,8 +119,7 @@ async function init() {
 	// Rain ripples driven by positionWorld.xz (factory pattern from createRainRipples)
 	const getRipples = createRainRipples( { uTime, uRippleSpeed } );
 	const rippleSample = getRipples( positionWorld.xz.mul( uRippleScale ) );
-	const rippleReflectionOffset = rippleSample.xy.mul( uRippleStrength );
-	const rippleNormalOffset = rippleSample.xy.mul( uRippleNormalStrength );
+	const rippleNormalOffset = rippleSample.xy.mul( uRippleStrength );
 
 	// Perturb the normal map with rain ripple displacement
 	const perturbedNormal = vec4( normalSample.xy.add( rippleNormalOffset ), normalSample.zw );
@@ -144,10 +139,10 @@ async function init() {
 
 		// Warp reflection UV using the perturbed view-space normal for realistic surface ripples/bumps
 		const normalOffset = normalView.sub( normalViewGeometry ).xy.mul( 0.035 );
-		const reflectionUV = screenUV.flipX().add( normalOffset ).add( rippleReflectionOffset );
+		const reflectionUV = screenUV.flipX().add( normalOffset );
 
 		// blur reflection using hashBlur() with custom UV (exponential curve for smoother transition)
-		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.1 ) );
+		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.3 ) );
 
 		// wetness determines reflection intensity (sharp non-linear drop-off for dry areas)
 		const wetness = roughness.oneMinus().pow( 4.0 );
