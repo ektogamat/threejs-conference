@@ -1,243 +1,384 @@
 import * as THREE from 'three';
-import { Fn, texture, uv, uint, instancedArray, positionWorld, billboarding, hash, vec2, vec4, instanceIndex, float, vec3 } from 'three/tsl';
+import { Fn, texture, nodeObject, uv, uint, instancedArray, positionWorld, cameraPosition, hash, vec2, vec4, instanceIndex, float, vec3, positionGeometry, time, fract, If, deltaTime, floor, int, mix, color, uniform, positionLocal, modelWorldMatrix, cameraViewMatrix, cameraProjectionMatrix, defined } from 'three/tsl';
+import { collisionHeight } from './collisionHeight.js';
 
-class CollisionArea {
-
-	constructor( width, height, depth ) {
-
-		this.width = width;
-		this.height = height;
-		this.depth = depth;
-		this.position = new THREE.Vector3();
-		this.camera = null;
-		this.renderTarget = null;
-		this.material = null;
-
-	}
-
-	update() {
-
-		const halfW = this.width / 2;
-		const halfH = this.height / 2;
-
-		if ( ! this.camera ) {
-
-			this.camera = new THREE.OrthographicCamera( - halfW, halfW, halfH, - halfH, 0.1, this.depth );
-
-		} else {
-
-			this.camera.left = - halfW;
-			this.camera.right = halfW;
-			this.camera.top = halfH;
-			this.camera.bottom = - halfH;
-			this.camera.far = this.depth;
-			this.camera.updateProjectionMatrix();
-
-		}
-
-		this.camera.position.set( this.position.x, this.position.y, this.position.z );
-		this.camera.lookAt( this.position.x, 0, this.position.z );
-		this.camera.updateMatrixWorld( true );
-
-		// Create RenderTarget and override material on first update
-		if ( ! this.renderTarget ) {
-
-			this.renderTarget = new THREE.RenderTarget( 1024, 1024 );
-			this.renderTarget.texture.type = THREE.HalfFloatType;
-			this.renderTarget.texture.magFilter = THREE.NearestFilter;
-			this.renderTarget.texture.minFilter = THREE.NearestFilter;
-			this.renderTarget.texture.generateMipmaps = false;
-
-			// outputNode bypasses tone mapping entirely in WebGPU
-			this.material = new THREE.MeshBasicNodeMaterial();
-			this.material.outputNode = vec4( positionWorld, 1 );
-
-		}
-
-	}
-
-	// Maps a random [0,1] UV pair into a world XZ position within the collision area
-	getPosition( uvNode ) {
-
-		const w = float( this.width );
-		const h = float( this.height );
-		const cx = float( this.position.x );
-		const cz = float( this.position.z );
-
-		// rand [0,1] -> world range [center - half, center + half]
-		const worldX = uvNode.x.mul( w ).add( cx.sub( w.div( 2 ) ) );
-		const worldZ = uvNode.y.mul( h ).add( cz.sub( h.div( 2 ) ) );
-
-		return vec3( worldX, float( 0 ), worldZ );
-
-	}
-
-	// Maps a world XZ position into [0,1] UV coordinates matching the collision camera
-	getUV( worldPos ) {
-
-		const halfW = float( this.width / 2 );
-		const halfH = float( this.height / 2 );
-		const cx = float( this.position.x );
-		const cz = float( this.position.z );
-
-		// world -> [0, 1]: (pos - center + halfSize) / size
-		const u = worldPos.x.sub( cx ).add( halfW ).div( float( this.width ) );
-		const v = worldPos.z.sub( cz ).add( halfH ).div( float( this.height ) );
-
-		return vec2( u, v );
-
-	}
-
-	dispose() {
-
-		if ( this.renderTarget ) {
-
-			this.renderTarget.dispose();
-
-		}
-
-		if ( this.material ) {
-
-			this.material.dispose();
-
-		}
-
-	}
-
-}
+const uCameraPos = uniform( new THREE.Vector3() );
+const uCameraDir = uniform( new THREE.Vector3() );
 
 const maxParticleCount = 5000;
 const instanceCount = maxParticleCount;
+const SPLASH_FRAMES = 5;
+const SPLASH_SPEED = 4;
 
-let rainParticles, debugPlane;
-let computeParticles, collisionArea;
+let rainParticles, splashParticles;
+let computeParticles, computeSplash;
 
 async function init() {
 
-	// Instantiate and configure CollisionArea around the street focus (x = -128, z = 33)
-	collisionArea = new CollisionArea( 100, 100, 80 );
-	collisionArea.position.set( - 128, 50, 33 );
-	collisionArea.update();
+	console.log( 'rain init' );
+
+	// Rain spawn area (smaller than collision area for concentrated rain)
+	const rainArea = { width: 60, height: 60 };
+	const rainHalfW = rainArea.width / 2;
+	const rainHalfH = rainArea.height / 2;
 
 	// Particle storage buffers
 	const positionBuffer = instancedArray( maxParticleCount, 'vec3' );
 	const velocityBuffer = instancedArray( maxParticleCount, 'vec3' );
+	const splashPositionBuffer = instancedArray( maxParticleCount, 'vec3' );
+	const splashCycleBuffer = instancedArray( maxParticleCount, 'uint' );
 
 	const randUint = () => uint( Math.random() * 0xFFFFFF );
 
-	// Single compute shader to position particles on the floor
-	const computeUpdate = Fn( () => {
+	// --- Compute Init: spawn particles relative to camera position ---
+	const computeInit = Fn( () => {
 
 		const position = positionBuffer.element( instanceIndex );
 		const velocity = velocityBuffer.element( instanceIndex );
 
 		const randX = hash( instanceIndex );
+		const randY = hash( instanceIndex.add( randUint() ) );
 		const randZ = hash( instanceIndex.add( randUint() ) );
 
-		// Spawn area using the collision area mapping
-		const spawnPosition = collisionArea.getPosition( vec2( randX, randZ ) );
-		position.x = spawnPosition.x;
-		position.z = spawnPosition.z;
+		const centerPos = uCameraPos.add( uCameraDir.mul( float( 15 ) ) );
+
+		// Random XZ within rain spawn area relative to shifted centerPos
+		position.x = randX.mul( float( rainArea.width ) ).sub( float( rainHalfW ) ).add( centerPos.x );
+		position.z = randZ.mul( float( rainArea.height ) ).sub( float( rainHalfH ) ).add( centerPos.z );
+
+		// Random Y height: spread particles across the fall range
+		position.y = randY.mul( 25 );
+
+		// Initial fall velocity (slightly varied per particle)
+		velocity.y = randX.mul( - 0.04 ).add( - 0.2 );
+
+	} )().compute( maxParticleCount );
+
+	// --- Compute Update: fall, collide, wrap infinitely around camera ---
+	const computeUpdate = Fn( () => {
+
+		const position = positionBuffer.element( instanceIndex );
+		const velocity = velocityBuffer.element( instanceIndex );
+
+		// Apply velocity (falling)
+		position.addAssign( velocity );
+
+		const centerPos = uCameraPos.add( uCameraDir.mul( float( 15 ) ) );
+
+		// Wrap rain horizontally around centerPos (infinite rain logic)
+		const dx = position.x.sub( centerPos.x );
+		const dz = position.z.sub( centerPos.z );
+
+		// Wrap dx to [-rainHalfW, rainHalfW]
+		const wrappedDx = fract( dx.add( float( rainHalfW ) ).div( float( rainArea.width ) ) )
+			.mul( float( rainArea.width ) ).sub( float( rainHalfW ) );
+		position.x = centerPos.x.add( wrappedDx );
+
+		// Wrap dz to [-rainHalfH, rainHalfH]
+		const wrappedDz = fract( dz.add( float( rainHalfH ) ).div( float( rainArea.height ) ) )
+			.mul( float( rainArea.height ) ).sub( float( rainHalfH ) );
+		position.z = centerPos.z.add( wrappedDz );
 
 		// Map XZ position to [0,1] texture UV matching the collision camera
-		const coords = collisionArea.getUV( position );
+		const coords = collisionHeight.getUV( position );
 
 		// Sample positionWorld from the collision map
-		// .y (green channel) contains the world Y height
-		const collisionData = texture( collisionArea.renderTarget.texture, coords );
+		const collisionData = texture( collisionHeight.renderTarget.texture, coords );
 		const floorHeight = collisionData.y;
 
-		position.y = floorHeight;
+		const surfaceOffset = float( 0.05 );
+		const floorPosition = floorHeight.add( surfaceOffset );
 
-		velocity.y = float( 0 );
-		velocity.x = float( 0 );
-		velocity.z = float( 0 );
+		// Collision: when particle falls below floor, respawn at the top
+		If( position.y.lessThan( floorPosition ), () => {
+
+			// Generate a dynamic seed for the respawning particle
+			const seed = float( instanceIndex ).add( time.mul( 1000 ) );
+
+			// Respawn at random height above to distribute them vertically (prevents clumping/waves)
+			position.y = hash( seed.add( 77.7 ) ).mul( 15 ).add( 20 );
+
+			// New random XZ within rain spawn area relative to centerPos
+			position.x = hash( seed.add( 11.1 ) ).mul( float( rainArea.width ) ).sub( float( rainHalfW ) ).add( centerPos.x );
+			position.z = hash( seed.add( 44.4 ) ).mul( float( rainArea.height ) ).sub( float( rainHalfH ) ).add( centerPos.z );
+
+			// Vary fall velocity on respawn as well
+			velocity.y = hash( seed.add( 99.9 ) ).mul( - 0.04 ).add( - 0.2 );
+
+		} );
 
 	} );
 
 	computeParticles = computeUpdate().compute( maxParticleCount );
 
-	// Run compute once to position particles on the floor
+	// Init particles and run first compute
+	renderer.compute( computeInit );
 	renderer.compute( computeParticles );
 
-	// Rain particles material
-	const rainMaterial = new THREE.MeshBasicNodeMaterial();
-	rainMaterial.colorNode = uv().distance( vec2( .5, 0 ) ).oneMinus().mul( 3 ).exp().mul( .15 );
-	rainMaterial.vertexNode = billboarding( { position: positionBuffer.toAttribute() } );
-	rainMaterial.opacity = .45;
-	rainMaterial.side = THREE.DoubleSide;
-	rainMaterial.forceSinglePass = true;
+	// --- Compute Splash: place splashes at random floor positions centered on camera ---
+	const computeSplashUpdate = Fn( () => {
+
+		const splashPos = splashPositionBuffer.element( instanceIndex );
+		const lastCycle = splashCycleBuffer.element( instanceIndex );
+
+		const centerPos = uCameraPos.add( uCameraDir.mul( float( 15 ) ) );
+
+		// Per-particle phase (same as material shader)
+		const phase = hash( instanceIndex ).mul( 6.28 );
+
+		// Cycle index increments each time the animation loops (floor of continuous cycle)
+		const cycleIndex = floor( time.mul( SPLASH_SPEED ).add( phase ) ).toUint();
+
+		// Detect if cycle reset/changed
+		If( cycleIndex.notEqual( lastCycle ), () => {
+
+			lastCycle.assign( cycleIndex );
+
+			// Use cycle index * large prime as seed for truly different position each cycle
+			const seed = instanceIndex.add( cycleIndex.mul( uint( 196613 ) ) );
+			const randX = hash( seed );
+			const randZ = hash( seed.add( uint( 77777 ) ) );
+
+			// Random XZ within rain area relative to camera
+			const offsetX = randX.mul( float( rainArea.width ) ).sub( float( rainHalfW ) );
+			const offsetZ = randZ.mul( float( rainArea.height ) ).sub( float( rainHalfH ) );
+
+			splashPos.x = centerPos.x.add( offsetX );
+			splashPos.z = centerPos.z.add( offsetZ );
+
+			// Sample floor Y height
+			const coords = collisionHeight.getUV( splashPos );
+			const floorY = texture( collisionHeight.renderTarget.texture, coords ).y;
+			splashPos.y = floorY.add( 0.06 );
+
+		} );
+
+		// Wrap splashPos horizontally around centerPos every frame (infinite splash logic)
+		const dx = splashPos.x.sub( centerPos.x );
+		const dz = splashPos.z.sub( centerPos.z );
+
+		const wrappedDx = fract( dx.add( float( rainHalfW ) ).div( float( rainArea.width ) ) )
+			.mul( float( rainArea.width ) ).sub( float( rainHalfW ) );
+		const newX = centerPos.x.add( wrappedDx );
+
+		const wrappedDz = fract( dz.add( float( rainHalfH ) ).div( float( rainArea.height ) ) )
+			.mul( float( rainArea.height ) ).sub( float( rainHalfH ) );
+		const newZ = centerPos.z.add( wrappedDz );
+
+		// If it wrapped to a new position, recalculate the ground height
+		If( newX.notEqual( splashPos.x ).or( newZ.notEqual( splashPos.z ) ), () => {
+
+			splashPos.x = newX;
+			splashPos.z = newZ;
+
+			const coords = collisionHeight.getUV( splashPos );
+			const floorY = texture( collisionHeight.renderTarget.texture, coords ).y;
+			splashPos.y = floorY.add( 0.06 );
+
+		} );
+
+	} );
+
+	computeSplash = computeSplashUpdate().compute( maxParticleCount );
+
+	// Rain particles material — cylindrical billboarding (horizontal only, vertical stays world-up)
+	const rainMaterial = new THREE.NodeMaterial();
+
+	// Refactored billboarding function inside rain.js using positionGeometry instead of positionLocal
+	const billboarding = /*@__PURE__*/ Fn( ( { position = null, horizontal = true, vertical = false, lookAtCamera = false } ) => {
+
+		let worldMatrix;
+
+		if ( position !== null ) {
+
+			position = nodeObject( position );
+
+			worldMatrix = modelWorldMatrix.toVar();
+			worldMatrix[ 3 ][ 0 ] = position.x;
+			worldMatrix[ 3 ][ 1 ] = position.y;
+			worldMatrix[ 3 ][ 2 ] = position.z;
+
+		} else {
+
+			worldMatrix = modelWorldMatrix;
+
+		}
+
+		const modelViewMatrix = cameraViewMatrix.mul( worldMatrix );
+
+		const positionVertex = position !== null ? positionGeometry : positionLocal;
+
+		const scaleX = modelWorldMatrix[ 0 ].length();
+		const scaleY = modelWorldMatrix[ 1 ].length();
+		const scaleZ = modelWorldMatrix[ 2 ].length();
+
+		let right, up, forward;
+
+		if ( defined( lookAtCamera ) ) {
+
+			const worldPosition = worldMatrix[ 3 ].xyz;
+			const look = cameraPosition.sub( worldPosition );
+			const lookXZ = vec3( look.x, 0, look.z ).normalize();
+
+			const right_w = vec3( lookXZ.z, 0, lookXZ.x.negate() );
+
+			right = cameraViewMatrix.mul( vec4( right_w, 0 ) ).xyz.mul( scaleX );
+			up = cameraViewMatrix[ 1 ].xyz.mul( scaleY );
+			forward = cameraViewMatrix.mul( vec4( lookXZ, 0 ) ).xyz.mul( scaleZ );
+
+		} else {
+
+			if ( defined( horizontal ) ) right = vec3( scaleX, 0, 0 );
+			if ( defined( vertical ) ) up = vec3( 0, scaleY, 0 );
+
+			forward = vec3( 0, 0, 1 );
+
+		}
+
+		if ( right ) {
+
+			modelViewMatrix[ 0 ][ 0 ] = right.x;
+			modelViewMatrix[ 0 ][ 1 ] = right.y;
+			modelViewMatrix[ 0 ][ 2 ] = right.z;
+
+		}
+
+		if ( up ) {
+
+			modelViewMatrix[ 1 ][ 0 ] = up.x;
+			modelViewMatrix[ 1 ][ 1 ] = up.y;
+			modelViewMatrix[ 1 ][ 2 ] = up.z;
+
+		}
+
+		if ( forward ) {
+
+			modelViewMatrix[ 2 ][ 0 ] = forward.x;
+			modelViewMatrix[ 2 ][ 1 ] = forward.y;
+			modelViewMatrix[ 2 ][ 2 ] = forward.z;
+
+		}
+
+		return cameraProjectionMatrix.mul( modelViewMatrix ).mul( positionVertex );
+
+
+	} );
+
+
+	// Streak shader: bright center line with soft vertical fade at top/bottom
+	const rainUV = uv();
+	const centerLine = rainUV.x.sub( 0.5 ).abs().mul( 2 ).oneMinus().pow( 2 ); // bright center
+	const verticalFade = rainUV.y.smoothstep( 0, 0.08 ).mul( rainUV.y.oneMinus().smoothstep( 0, 0.15 ) ); // soft ends
+	const streak = centerLine.mul( verticalFade );
+
+	const rainDistance = positionWorld.sub( cameraPosition ).length();
+	const rainColorFactor = rainDistance.div( 30 ).clamp( 0, 1 );
+	rainMaterial.colorNode = mix( color( 0xdcf4ff ), color( 0xff00ff ), rainColorFactor );
+	rainMaterial.opacityNode = streak.mul( 0.3 );
+	rainMaterial.positionNode = positionBuffer.toAttribute();
+	rainMaterial.vertexNode = billboarding( { position: positionWorld, localOffset: positionGeometry, horizontal: true, vertical: false } );
 	rainMaterial.depthWrite = false;
 	rainMaterial.depthTest = true;
 	rainMaterial.transparent = true;
 
-	const rainGeometry = new THREE.PlaneGeometry( .05, 1.2 );
-	rainGeometry.translate( 0, 0.6, 0 );
+	const rainGeometry = new THREE.PlaneGeometry( 0.03, 1.0 );
+	rainGeometry.translate( 0, 0.75, 0 ); // pivot at bottom (floor contact point)
 	rainParticles = new THREE.Mesh( rainGeometry, rainMaterial );
 	rainParticles.count = instanceCount;
 	rainParticles.frustumCulled = false;
+	rainParticles.layers.set( 1 );
 	scene.add( rainParticles );
 
-	// Create a debug plane to inspect the heightmap (Green channel = Y height)
-	const debugGeometry = new THREE.PlaneGeometry( 20, 20 );
-	const debugMaterial = new THREE.MeshBasicNodeMaterial();
-	debugMaterial.colorNode = texture( collisionArea.renderTarget.texture ).g.add( 50 ).div( 100 ).toInspector( 'Heightmap' );
-	debugMaterial.side = THREE.DoubleSide;
+	// Enable layer 1 on the main camera so it renders the rain
+	camera.layers.enable( 1 );
 
-	debugPlane = new THREE.Mesh( debugGeometry, debugMaterial );
-	debugPlane.position.set( - 128, 5, 25 );
-	debugPlane.rotation.y = - Math.PI / 2;
-	scene.add( debugPlane );
+	// --- Splash / Splatter layer (spritesheet animation) ---
+
+	// Load splash spritesheet (6 frames horizontal, 1 row)
+	const splashSheet = new THREE.TextureLoader().load( '/textures/water-splash.webp' );
+
+	// Per-particle cyclic time with random phase offset
+	const splashPhase = hash( instanceIndex ).mul( 6.28 );
+	const splashCycleTime = fract( time.mul( SPLASH_SPEED ).add( splashPhase ) ); // 0→1 cycle
+
+	// Continuous frame position (e.g. 2.7 = between frame 2 and 3)
+	const framePos = splashCycleTime.mul( float( SPLASH_FRAMES ) );
+	const frameA = floor( framePos ).toFloat(); // current frame (2)
+	const frameB = frameA.add( 1 ).min( float( SPLASH_FRAMES - 1 ) ); // clamp to last frame, no wrap
+	const frameMix = fract( framePos ); // blend factor (0.7)
+
+	// Sample two adjacent frames and interpolate
+	const splashUV = uv();
+	const uvA = vec2(
+		splashUV.x.div( float( SPLASH_FRAMES ) ).add( frameA.div( float( SPLASH_FRAMES ) ) ),
+		splashUV.y
+	);
+	const uvB = vec2(
+		splashUV.x.div( float( SPLASH_FRAMES ) ).add( frameB.div( float( SPLASH_FRAMES ) ) ),
+		splashUV.y
+	);
+
+	const sampleA = texture( splashSheet, uvA );
+	const sampleB = texture( splashSheet, uvB );
+	const splashSample = mix( sampleA, sampleB, frameMix );
+
+	// Per-instance random scale that grows from start to end size during the animation
+	const SPLASH_START_SCALE = 0.1;
+	const SPLASH_END_SCALE = 2.0;
+	const splashBaseScale = hash( instanceIndex.add( uint( 12345 ) ) ).mul( 0.7 ).add( 0.3 );
+	const splashScale = splashBaseScale.mul( mix( SPLASH_START_SCALE, SPLASH_END_SCALE, splashCycleTime ) );
+
+	const splashMaterial = new THREE.MeshBasicNodeMaterial();
+	splashMaterial.colorNode = color( 0xdcf4ff );
+	// Progressive fade out in the second half of the animation
+	const splashFade = splashCycleTime.oneMinus().smoothstep( 0, 0.5 );
+	splashMaterial.opacityNode = splashSample.r.mul( .2 ).mul( splashFade );
+	splashMaterial.positionNode = positionGeometry.mul( splashScale );
+	splashMaterial.vertexNode = billboarding( { position: splashPositionBuffer.toAttribute(), horizontal: true, vertical: true } );
+	splashMaterial.depthWrite = false;
+	splashMaterial.depthTest = true;
+	splashMaterial.transparent = true;
+	//splashMaterial.blending = THREE.AdditiveBlending;
+
+	const splashGeometry = new THREE.PlaneGeometry( 0.2, 0.2 );
+	splashParticles = new THREE.Mesh( splashGeometry, splashMaterial );
+	splashParticles.count = instanceCount;
+	splashParticles.frustumCulled = false;
+	splashParticles.layers.set( 1 );
+	scene.add( splashParticles );
 
 }
 
+const cameraDir = new THREE.Vector3();
+
 function update() {
 
-	if ( ! renderer || ! scene || ! rainParticles ) return;
+	uCameraPos.value.copy( camera.position );
+	camera.getWorldDirection( cameraDir );
+	cameraDir.y = 0;
+	cameraDir.normalize();
+	uCameraDir.value.copy( cameraDir );
 
-	// Hide rain particles and debug plane from collision map
-	rainParticles.visible = false;
-	if ( debugPlane ) debugPlane.visible = false;
-
-	scene.overrideMaterial = collisionArea.material;
-	renderer.setRenderTarget( collisionArea.renderTarget );
-	renderer.render( scene, collisionArea.camera );
-
-	renderer.setRenderTarget( null );
-	scene.overrideMaterial = null;
-
-	// Make rain and debug plane visible again
-	rainParticles.visible = true;
-	if ( debugPlane ) debugPlane.visible = true;
-
-	// Run compute shader to update particle positions
+	// Run compute shaders to update positions
 	renderer.compute( computeParticles );
+	renderer.compute( computeSplash );
 
 }
 
 function dispose() {
 
-	if ( rainParticles ) {
+	console.log( 'dispose rain' );
 
-		scene.remove( rainParticles );
-		rainParticles.geometry.dispose();
-		rainParticles.material.dispose();
+	scene.remove( rainParticles );
+	rainParticles.geometry.dispose();
+	rainParticles.material.dispose();
 
-	}
+	scene.remove( splashParticles );
+	splashParticles.geometry.dispose();
+	splashParticles.material.dispose();
 
-	if ( debugPlane ) {
 
-		scene.remove( debugPlane );
-		debugPlane.geometry.dispose();
-		debugPlane.material.dispose();
-
-	}
-
-	if ( collisionArea ) {
-
-		collisionArea.dispose();
-
-	}
+	collisionHeight.dispose();
 
 }
 

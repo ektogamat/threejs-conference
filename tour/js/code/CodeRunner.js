@@ -116,6 +116,40 @@ function isStandardModule( moduleName, imports ) {
 
 }
 
+function resolvePath( importerName, importPath ) {
+
+	if ( importPath.startsWith( './' ) || importPath.startsWith( '../' ) ) {
+
+		const importerParts = importerName.split( '/' );
+		importerParts.pop(); // Remove the filename/leaf name
+
+		const importParts = importPath.split( '/' );
+		for ( const part of importParts ) {
+
+			if ( part === '.' ) {
+
+				continue;
+
+			} else if ( part === '..' ) {
+
+				importerParts.pop();
+
+			} else if ( part !== '' ) {
+
+				importerParts.push( part );
+
+			}
+
+		}
+
+		return importerParts.join( '/' );
+
+	}
+
+	return importPath;
+
+}
+
 
 const LIFECYCLE_METHODS = [ 'init', 'refresh', 'update', 'resize', 'dispose' ];
 
@@ -181,10 +215,39 @@ class CodeRunner extends EventDispatcher {
 
 	}
 
+	activateScript( name ) {
+
+		const scriptConfig = this.scripts[ name ];
+		if ( ! scriptConfig ) return;
+
+		if ( scriptConfig.dependencies ) {
+
+			for ( const dep of scriptConfig.dependencies ) {
+
+				this.activateScript( dep );
+
+			}
+
+		}
+
+		if ( ! this.activeScriptNames.includes( name ) ) {
+
+			this.activeScriptNames.push( name );
+
+		}
+
+	}
+
 	async load( name ) {
 
 		const scriptConfig = this.scripts[ name ];
 		if ( ! scriptConfig ) return null;
+
+		if ( ! scriptConfig.dependencies ) {
+
+			scriptConfig.dependencies = [];
+
+		}
 
 		if ( scriptConfig.instance ) return scriptConfig.instance;
 
@@ -223,6 +286,18 @@ class CodeRunner extends EventDispatcher {
 
 					const importRegex = /import\s+{(.+?)}\s+from\s+['"]([^'"]+)['"];?/g;
 					const namespaceImportRegex = /import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g;
+
+					// Strip comments for import analysis (preserve imports and strings)
+					const parserRegex = /(\/\*[\s\S]*?\*\/|\/\/.+)|(import\s*(?:[\w\s,\*\{\}]+\s+from\s+)?['"][^'"]+['"])|(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/gi;
+					const textForImports = text.replace( parserRegex, ( m, comment, imp, str ) => {
+
+						if ( comment ) return '';
+						if ( imp ) return imp;
+						if ( str ) return '""';
+						return m;
+
+					} );
+
 					let importMatch;
 					const declaredVariables = new Set();
 					const declRegex = /(?:let|const|var)\s+([^;=]+)/g;
@@ -270,7 +345,7 @@ class CodeRunner extends EventDispatcher {
 					let cleanText = text;
 					const importPromises = [];
 
-					while ( ( importMatch = importRegex.exec( text ) ) !== null ) {
+					while ( ( importMatch = importRegex.exec( textForImports ) ) !== null ) {
 
 						const symbolListStr = importMatch[ 1 ];
 						const moduleName = importMatch[ 2 ];
@@ -286,15 +361,22 @@ class CodeRunner extends EventDispatcher {
 								const isStandard = isStandardModule( moduleName, this.imports );
 								if ( ! isStandard ) {
 
-									const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-									const baseName = cleanName.replace( /\.js$/, '' );
+									const resolvedPath = resolvePath( name, moduleName );
+									const baseName = resolvedPath.replace( /\.js$/, '' );
 									if ( ! this.scripts[ baseName ] ) {
 
 										this.scripts[ baseName ] = {
 											url: `./js/imports/scripts/${baseName}.js`,
 											instance: null,
-											promise: null
+											promise: null,
+											dependencies: []
 										};
+
+									}
+
+									if ( ! scriptConfig.dependencies.includes( baseName ) ) {
+
+										scriptConfig.dependencies.push( baseName );
 
 									}
 
@@ -347,7 +429,7 @@ class CodeRunner extends EventDispatcher {
 					}
 
 					let namespaceMatch;
-					while ( ( namespaceMatch = namespaceImportRegex.exec( text ) ) !== null ) {
+					while ( ( namespaceMatch = namespaceImportRegex.exec( textForImports ) ) !== null ) {
 
 						const localName = namespaceMatch[ 1 ];
 						const moduleName = namespaceMatch[ 2 ];
@@ -363,15 +445,22 @@ class CodeRunner extends EventDispatcher {
 								const isStandard = isStandardModule( moduleName, this.imports );
 								if ( ! isStandard ) {
 
-									const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-									const baseName = cleanName.replace( /\.js$/, '' );
+									const resolvedPath = resolvePath( name, moduleName );
+									const baseName = resolvedPath.replace( /\.js$/, '' );
 									if ( ! this.scripts[ baseName ] ) {
 
 										this.scripts[ baseName ] = {
 											url: `./js/imports/scripts/${baseName}.js`,
 											instance: null,
-											promise: null
+											promise: null,
+											dependencies: []
 										};
+
+									}
+
+									if ( ! scriptConfig.dependencies.includes( baseName ) ) {
+
+										scriptConfig.dependencies.push( baseName );
 
 									}
 
@@ -410,7 +499,7 @@ class CodeRunner extends EventDispatcher {
 
 					const defaultImportRegex = /import\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"]([^'"]+)['"];?/g;
 					let defaultMatch;
-					while ( ( defaultMatch = defaultImportRegex.exec( text ) ) !== null ) {
+					while ( ( defaultMatch = defaultImportRegex.exec( textForImports ) ) !== null ) {
 
 						const localName = defaultMatch[ 1 ];
 						const moduleName = defaultMatch[ 2 ];
@@ -426,15 +515,22 @@ class CodeRunner extends EventDispatcher {
 								const isStandard = isStandardModule( moduleName, this.imports );
 								if ( ! isStandard ) {
 
-									const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-									const baseName = cleanName.replace( /\.js$/, '' );
+									const resolvedPath = resolvePath( name, moduleName );
+									const baseName = resolvedPath.replace( /\.js$/, '' );
 									if ( ! this.scripts[ baseName ] ) {
 
 										this.scripts[ baseName ] = {
 											url: `./js/imports/scripts/${baseName}.js`,
 											instance: null,
-											promise: null
+											promise: null,
+											dependencies: []
 										};
+
+									}
+
+									if ( ! scriptConfig.dependencies.includes( baseName ) ) {
+
+										scriptConfig.dependencies.push( baseName );
 
 									}
 
@@ -557,6 +653,31 @@ class CodeRunner extends EventDispatcher {
 					const wrapperFn = new Function( ...symbols, `${cleanText}\nreturn { ${returnFields.join( ', ' )} };\n//# sourceURL=${name}.js` );
 
 					scriptConfig.instance = wrapperFn( ...values );
+
+					if ( scriptConfig.instance ) {
+
+						for ( const key of Object.keys( scriptConfig.instance ) ) {
+
+							if ( ! LIFECYCLE_METHODS.includes( key ) ) {
+
+								Object.defineProperty( this.env, key, {
+									get: () => scriptConfig.instance ? scriptConfig.instance[ key ] : undefined,
+									configurable: true,
+									enumerable: true
+								} );
+
+							}
+
+						}
+
+					}
+
+					if ( scriptConfig.instance && scriptConfig.instance.init ) {
+
+						await scriptConfig.instance.init();
+
+					}
+
 					return scriptConfig.instance;
 
 				} finally {
@@ -629,8 +750,8 @@ class CodeRunner extends EventDispatcher {
 					const isStandard = isStandardModule( moduleName, this.imports );
 					if ( ! isStandard ) {
 
-						const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-						const baseName = cleanName.replace( /\.js$/, '' );
+						const resolvedPath = resolvePath( '__main__', moduleName );
+						const baseName = resolvedPath.replace( /\.js$/, '' );
 						const scriptConfig = this.scripts[ baseName ];
 						if ( scriptConfig && scriptConfig.instance ) {
 
@@ -699,8 +820,8 @@ class CodeRunner extends EventDispatcher {
 					const isStandard = isStandardModule( moduleName, this.imports );
 					if ( ! isStandard ) {
 
-						const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-						const baseName = cleanName.replace( /\.js$/, '' );
+						const resolvedPath = resolvePath( '__main__', moduleName );
+						const baseName = resolvedPath.replace( /\.js$/, '' );
 						const scriptConfig = this.scripts[ baseName ];
 						if ( scriptConfig && scriptConfig.instance ) {
 
@@ -755,8 +876,8 @@ class CodeRunner extends EventDispatcher {
 					const isStandard = isStandardModule( moduleName, this.imports );
 					if ( ! isStandard ) {
 
-						const cleanName = moduleName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-						const baseName = cleanName.replace( /\.js$/, '' );
+						const resolvedPath = resolvePath( '__main__', moduleName );
+						const baseName = resolvedPath.replace( /\.js$/, '' );
 						const scriptConfig = this.scripts[ baseName ];
 						if ( scriptConfig && scriptConfig.instance ) {
 
@@ -812,8 +933,8 @@ class CodeRunner extends EventDispatcher {
 				const isStandard = isStandardModule( importedName, this.imports );
 				if ( ! isStandard ) {
 
-					const cleanName = importedName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-					const baseName = cleanName.replace( /\.js$/, '' );
+					const resolvedPath = resolvePath( '__main__', importedName );
+					const baseName = resolvedPath.replace( /\.js$/, '' );
 					if ( ! importedCustomScripts.includes( baseName ) ) {
 
 						importedCustomScripts.push( baseName );
@@ -833,8 +954,8 @@ class CodeRunner extends EventDispatcher {
 				const isStandard = isStandardModule( importedName, this.imports );
 				if ( ! isStandard ) {
 
-					const cleanName = importedName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-					const baseName = cleanName.replace( /\.js$/, '' );
+					const resolvedPath = resolvePath( '__main__', importedName );
+					const baseName = resolvedPath.replace( /\.js$/, '' );
 					if ( ! importedCustomScripts.includes( baseName ) ) {
 
 						importedCustomScripts.push( baseName );
@@ -854,8 +975,8 @@ class CodeRunner extends EventDispatcher {
 				const isStandard = isStandardModule( importedName, this.imports );
 				if ( ! isStandard ) {
 
-					const cleanName = importedName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-					const baseName = cleanName.replace( /\.js$/, '' );
+					const resolvedPath = resolvePath( '__main__', importedName );
+					const baseName = resolvedPath.replace( /\.js$/, '' );
 					if ( ! importedCustomScripts.includes( baseName ) ) {
 
 						importedCustomScripts.push( baseName );
@@ -875,33 +996,13 @@ class CodeRunner extends EventDispatcher {
 				const isStandard = isStandardModule( importedName, this.imports );
 				if ( ! isStandard ) {
 
-					const cleanName = importedName.replace( /^\.\//, '' ).replace( /^\.\..+/, '' );
-					const baseName = cleanName.replace( /\.js$/, '' );
+					const resolvedPath = resolvePath( '__main__', importedName );
+					const baseName = resolvedPath.replace( /\.js$/, '' );
 					if ( ! importedCustomScripts.includes( baseName ) ) {
 
 						importedCustomScripts.push( baseName );
 
 					}
-
-				}
-
-			}
-
-			// Dispose and clear removed scripts
-			const removedCustomScripts = prevActiveCustomScripts.filter( name => ! importedCustomScripts.includes( name ) );
-			for ( const baseName of removedCustomScripts ) {
-
-				const scriptConfig = this.scripts[ baseName ];
-				if ( scriptConfig ) {
-
-					if ( scriptConfig.instance && scriptConfig.instance.dispose ) {
-
-						scriptConfig.instance.dispose();
-
-					}
-
-					scriptConfig.instance = null;
-					scriptConfig.promise = null;
 
 				}
 
@@ -917,57 +1018,15 @@ class CodeRunner extends EventDispatcher {
 					this.scripts[ baseName ] = {
 						url: `./js/imports/scripts/${baseName}.js`,
 						instance: null,
-						promise: null
+						promise: null,
+						dependencies: []
 					};
 
 				}
 
 				try {
 
-					const scriptConfig = this.scripts[ baseName ];
-					const hadInstance = scriptConfig.instance !== null;
-					const instance = await this.load( baseName );
-					if ( instance ) {
-
-						const isNew = ! hadInstance || ! prevActiveCustomScripts.includes( baseName );
-						if ( isNew && instance.init ) {
-
-							await instance.init();
-
-						}
-
-						if ( instance.refresh ) {
-
-							await instance.refresh();
-
-						}
-
-						if ( instance.resize && this.env.renderer ) {
-
-							const width = this.env.renderer.domElement.clientWidth;
-							const height = this.env.renderer.domElement.clientHeight;
-							if ( width > 0 && height > 0 ) {
-
-								instance.resize( width, height );
-
-							}
-
-						}
-
-						for ( const key of Object.keys( instance ) ) {
-
-							if ( ! LIFECYCLE_METHODS.includes( key ) && instance[ key ] !== undefined ) {
-
-								activeModules[ key ] = instance[ key ];
-								this.env[ key ] = instance[ key ];
-
-							}
-
-						}
-
-						this.activeScriptNames.push( baseName );
-
-					}
+					await this.load( baseName );
 
 				} catch ( err ) {
 
@@ -986,6 +1045,93 @@ class CodeRunner extends EventDispatcher {
 					}
 
 					throw err;
+
+				}
+
+			}
+
+			// Activate scripts recursively (building correct activeScriptNames order)
+			for ( const baseName of importedCustomScripts ) {
+
+				this.activateScript( baseName );
+
+			}
+
+			// Dispose and clear removed scripts (using complete activeScriptNames list)
+			const removedCustomScripts = prevActiveCustomScripts.filter( name => ! this.activeScriptNames.includes( name ) );
+			for ( const baseName of removedCustomScripts ) {
+
+				const scriptConfig = this.scripts[ baseName ];
+				if ( scriptConfig ) {
+
+					if ( scriptConfig.instance ) {
+
+						if ( scriptConfig.instance.dispose ) {
+
+							scriptConfig.instance.dispose();
+
+						}
+
+						for ( const key of Object.keys( scriptConfig.instance ) ) {
+
+							if ( ! LIFECYCLE_METHODS.includes( key ) ) {
+
+								delete this.env[ key ];
+
+							}
+
+						}
+
+					}
+
+					scriptConfig.instance = null;
+					scriptConfig.promise = null;
+
+				}
+
+			}
+
+			// Refresh, resize, and expose exports for all active custom scripts
+			for ( const baseName of this.activeScriptNames ) {
+
+				const scriptConfig = this.scripts[ baseName ];
+				const instance = scriptConfig ? scriptConfig.instance : null;
+				if ( instance ) {
+
+					if ( instance.refresh ) {
+
+						await instance.refresh();
+
+					}
+
+					if ( instance.resize && this.env.renderer ) {
+
+						const width = this.env.renderer.domElement.clientWidth;
+						const height = this.env.renderer.domElement.clientHeight;
+						if ( width > 0 && height > 0 ) {
+
+							instance.resize( width, height );
+
+						}
+
+					}
+
+					for ( const key of Object.keys( instance ) ) {
+
+						if ( ! LIFECYCLE_METHODS.includes( key ) && instance[ key ] !== undefined ) {
+
+							activeModules[ key ] = instance[ key ];
+
+							const desc = Object.getOwnPropertyDescriptor( this.env, key );
+							if ( ! desc || ! desc.get ) {
+
+								this.env[ key ] = instance[ key ];
+
+							}
+
+						}
+
+					}
 
 				}
 
@@ -1096,6 +1242,46 @@ class CodeRunner extends EventDispatcher {
 			} );
 
 		}
+
+	}
+
+	dispose() {
+
+		for ( const baseName of Object.keys( this.scripts ) ) {
+
+			const scriptConfig = this.scripts[ baseName ];
+			if ( scriptConfig && scriptConfig.instance ) {
+
+				if ( scriptConfig.instance.dispose ) {
+
+					try {
+
+						scriptConfig.instance.dispose();
+
+					} catch ( e ) {
+
+						console.error( `Error disposing script ${baseName}:`, e );
+
+					}
+
+				}
+
+				for ( const key of Object.keys( scriptConfig.instance ) ) {
+
+					if ( ! LIFECYCLE_METHODS.includes( key ) ) {
+
+						delete this.env[ key ];
+
+					}
+
+				}
+
+			}
+
+		}
+
+		this.scripts = {};
+		this.activeScriptNames = [];
 
 	}
 

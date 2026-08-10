@@ -11,8 +11,10 @@ Run the code to view the scene:
 
 ```tsl
 import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
 import 'threejs-punk/ground';
 import 'threejs-punk/rain';
+import 'threejs-punk/fog';
 ```
 
 > [!TIP]
@@ -70,12 +72,37 @@ scene.add( ground );
 
 <page name="Rain ripples">
 
+Post processing example
+
 ```tsl
 import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
 import 'threejs-punk/ground';
+import 'threejs-punk/rain';
+import 'threejs-punk/fog';
 ```
 
 </page>
+
+</page>
+
+<page name="Post-Processing">
+
+```tsl postprocessing
+import { pass } from 'three/tsl';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
+import 'threejs-punk/ground';
+import 'threejs-punk/rain';
+import 'threejs-punk/fog';
+
+
+const mainPass = pass( scene, camera );
+
+renderPipeline.outputNode = bloom( mainPass ).mul( .2 ).add( mainPass );
+renderPipeline.needsUpdate = true;
+```
 
 </page>
 

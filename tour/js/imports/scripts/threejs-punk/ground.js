@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Fn, Loop, uv, texture, reflector, screenUV, normalView, normalViewGeometry, positionWorld, vec2, vec3, vec4, float, dot, floor, fract, int, length, max, normalize, sin, smoothstep, sqrt, uniform, normalMap } from 'three/tsl';
 import { hashBlur } from 'three/addons/tsl/display/hashBlur.js';
+import { collisionHeight } from './collisionHeight.js';
 
 // --- Rain Ripples TSL (based on src/tsl/rainRipples.js) ---
 
@@ -8,6 +9,21 @@ const MAX_RADIUS = 1;
 const HASHSCALE1 = 0.1031;
 const HASHSCALE3 = vec3( 0.1031, 0.103, 0.0973 );
 const CELL_COUNT = ( MAX_RADIUS * 2 + 1 ) ** 2;
+
+export const blendNormalMaps = /*@__PURE__*/ Fn( ( [ n1, n2 ] ) => {
+
+	// Unpack normal map values from [0, 1] to [-1, 1] range
+	const n1Unpacked = n1.xyz.mul( 2.0 ).sub( 1.0 );
+	const n2Unpacked = n2.xyz.mul( 2.0 ).sub( 1.0 );
+
+	// Perform Whiteout normal blending on the unpacked values
+	const blended = normalize( vec3( n1Unpacked.xy.add( n2Unpacked.xy ), n1Unpacked.z.mul( n2Unpacked.z ) ) );
+
+	// Pack the blended normal back to [0, 1] range and return as vec4
+	return vec4( blended.mul( 0.5 ).add( 0.5 ), 1.0 );
+
+}, { n1: 'vec4', n2: 'vec4', return: 'vec4' } );
+
 
 const hash12 = Fn( ( [ p ] ) => {
 
@@ -83,11 +99,12 @@ let ground, albedoMap, roughnessMap, normalMapTex, reflection;
 const uTime = uniform( 0 );
 const uRippleScale = uniform( 4.83 );
 const uRippleSpeed = uniform( 3 );
-const uRippleStrength = uniform( 0.3 );
+const uRippleStrength = uniform( 0.5 );
 
 async function init() {
 
 	console.log( 'init ground' );
+	console.log( 'testing', collisionHeight );
 
 	const textureLoader = new THREE.TextureLoader();
 
@@ -105,34 +122,49 @@ async function init() {
 	normalMapTex.wrapT = THREE.RepeatWrapping;
 
 	const material = new THREE.MeshStandardNodeMaterial( {
-		map: albedoMap,
-		roughnessMap: roughnessMap,
-		roughness: 0.55,
 		metalness: 0.0
 	} );
 
 	// TSL tiled UV for ground textures
-	const tiledUV = uv().mul( 15 );
-	const roughness = texture( roughnessMap, tiledUV ).r;
-	const normalSample = texture( normalMapTex, tiledUV );
+	const tiledUV = uv().mul( 25 ).add( .13 );
+	const albedo = texture( albedoMap, tiledUV ).mul( texture( albedoMap, tiledUV.mul( 2.5 ) ) );
+	const roughness = texture( roughnessMap, tiledUV ).min( texture( roughnessMap, tiledUV.mul( 2.5 ) ) ).r.pow( .7 ).min( .6 ).saturate();
+	const normalSample = blendNormalMaps( texture( normalMapTex, tiledUV ), texture( normalMapTex, tiledUV.mul( 2.5 ) ) );
+
+	// color
+	material.colorNode = albedo;
 
 	// Rain ripples driven by positionWorld.xz (factory pattern from createRainRipples)
 	const getRipples = createRainRipples( { uTime, uRippleSpeed } );
 	const rippleSample = getRipples( positionWorld.xz.mul( uRippleScale ) );
-	const rippleNormalOffset = rippleSample.xy.mul( uRippleStrength );
+
+	// Mask ripples using collisionHeight: only show where Y is close to ground level (-5.4)
+	const collisionUV = collisionHeight.getUV( positionWorld );
+	const heightVal = texture( collisionHeight.renderTarget.texture, collisionUV ).y;
+	const inBounds = collisionUV.x.greaterThan( 0 ).and( collisionUV.x.lessThan( 1 ) )
+		.and( collisionUV.y.greaterThan( 0 ) ).and( collisionUV.y.lessThan( 1 ) );
+	// If height is less than -5.3, it means the ground is the highest surface (nothing blocking rain)
+	const rippleMask = inBounds.select( heightVal.lessThan( - 5.3 ), float( 0 ) );
+
+	const wetness = roughness.oneMinus().pow( 2.0 );
+	const rippleNormalOffset = rippleSample.xy.mul( uRippleStrength ).mul( rippleMask ).mul( wetness );
 
 	// Perturb the normal map with rain ripple displacement
 	const perturbedNormal = vec4( normalSample.xy.add( rippleNormalOffset ), normalSample.zw );
 	material.normalNode = normalMap( perturbedNormal );
 
 	// Planar Reflector similar to webgpu_reflection_roughness
-	reflection = reflector( { resolutionScale: 1.0, bounces: false, generateMipmaps: false } );
+	reflection = reflector( { resolutionScale: 1.0, bounces: false, generateMipmaps: false } ).toInspector( 'reflector' );
 	reflection.target.rotation.x = - Math.PI / 2;
 	reflection.target.position.y = - 5.4;
 	scene.add( reflection.target );
 
+	// Disable rain and splash layers (layer 1) on the reflector camera so they don't appear in reflections
+	const virtualCamera = reflection.reflector.getVirtualCamera( camera );
+	virtualCamera.layers.disable( 1 );
+
 	// Bind physical configuration: roughness to blur the reflection
-	material.roughnessNode = roughness.mul( 0.95 ).saturate();
+	material.roughnessNode = roughness;
 
 	// Map blurred reflection to emissive based on physical configuration (wetness)
 	material.emissiveNode = Fn( () => {
@@ -142,7 +174,7 @@ async function init() {
 		const reflectionUV = screenUV.flipX().add( normalOffset );
 
 		// blur reflection using hashBlur() with custom UV (exponential curve for smoother transition)
-		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.3 ) );
+		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.25 ) );
 
 		// wetness determines reflection intensity (sharp non-linear drop-off for dry areas)
 		const wetness = roughness.oneMinus().pow( 4.0 );

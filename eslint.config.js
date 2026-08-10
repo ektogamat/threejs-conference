@@ -30,6 +30,9 @@ export default [
 			compat,
 			jsdoc
 		},
+		settings: {
+			ignoreConditionalChecks: true
+		},
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: 'module',

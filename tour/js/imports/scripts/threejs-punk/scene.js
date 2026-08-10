@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { pass, saturation } from 'three/tsl';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, controls, city, collider, car;
+let scene, camera, controls, city, collider, car, defaultPass, renderPipeline;
 
 const UNCOMPRESSED_FORMATS = new Set( [
 	THREE.RGBAFormat,
@@ -58,15 +59,23 @@ async function init() {
 
 	console.log( 'init' );
 
+	//renderer.toneMapping = THREE.AgXToneMapping;
+
 	scene = new THREE.Scene();
 	scene.background = new THREE.Color( 0x0a0818 );
-	scene.fog = new THREE.FogExp2( 0x0a0818, 0.015 );
+	//scene.fog = new THREE.FogExp2( 0x0a0818, 0.015 );
 
 	const width = renderer.domElement.clientWidth;
 	const height = renderer.domElement.clientHeight;
 
 	camera = new THREE.PerspectiveCamera( 55, width / height, 0.1, 1000 );
 	camera.position.set( - 138, 5, 34 );
+
+	defaultPass = pass( scene, camera ).toInspector( 'pass' );
+
+	renderPipeline = new THREE.RenderPipeline( renderer );
+	renderPipeline.outputNode = defaultPass;
+	//renderPipeline.outputNode = saturation( defaultPass, 0 );
 
 	controls = new OrbitControls( camera, renderer.domElement );
 	controls.target.set( - 128, - 4, 33 );
@@ -120,11 +129,18 @@ async function init() {
 
 }
 
+function refresh() {
+
+	renderPipeline.outputNode = defaultPass;
+	renderPipeline.needsUpdate = true;
+
+}
+
 function update() {
 
 	controls.update();
 
-	renderer.render( scene, camera );
+	renderPipeline.render();
 
 }
 
@@ -141,4 +157,4 @@ function dispose() {
 
 }
 
-export { scene, camera, controls, city, collider, car, init, update, resize, dispose };
+export { scene, camera, controls, city, collider, car, defaultPass, renderPipeline };
