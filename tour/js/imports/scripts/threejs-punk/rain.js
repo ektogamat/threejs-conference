@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { Fn, texture, nodeObject, uv, uint, instancedArray, positionWorld, cameraPosition, hash, vec2, vec4, instanceIndex, float, vec3, positionGeometry, time, fract, If, deltaTime, floor, int, mix, color, uniform, positionLocal, modelWorldMatrix, cameraViewMatrix, cameraProjectionMatrix, defined } from 'three/tsl';
+import { Fn, texture, uv, uint, instancedArray, positionWorld, cameraPosition, hash, vec2,
+	instanceIndex, float, positionGeometry, time, fract, If, floor, mix, color, uniform } from 'three/tsl';
 import { collisionHeight } from './collisionHeight.js';
+import { billboarding } from 'three/tsl';
 
 const uCameraPos = uniform( new THREE.Vector3() );
 const uCameraDir = uniform( new THREE.Vector3() );
@@ -184,87 +186,6 @@ async function init() {
 	// Rain particles material — cylindrical billboarding (horizontal only, vertical stays world-up)
 	const rainMaterial = new THREE.NodeMaterial();
 
-	// Refactored billboarding function inside rain.js using positionGeometry instead of positionLocal
-	const billboarding = /*@__PURE__*/ Fn( ( { position = null, horizontal = true, vertical = false, lookAtCamera = false } ) => {
-
-		let worldMatrix;
-
-		if ( position !== null ) {
-
-			position = nodeObject( position );
-
-			worldMatrix = modelWorldMatrix.toVar();
-			worldMatrix[ 3 ][ 0 ] = position.x;
-			worldMatrix[ 3 ][ 1 ] = position.y;
-			worldMatrix[ 3 ][ 2 ] = position.z;
-
-		} else {
-
-			worldMatrix = modelWorldMatrix;
-
-		}
-
-		const modelViewMatrix = cameraViewMatrix.mul( worldMatrix );
-
-		const positionVertex = position !== null ? positionGeometry : positionLocal;
-
-		const scaleX = modelWorldMatrix[ 0 ].length();
-		const scaleY = modelWorldMatrix[ 1 ].length();
-		const scaleZ = modelWorldMatrix[ 2 ].length();
-
-		let right, up, forward;
-
-		if ( defined( lookAtCamera ) ) {
-
-			const worldPosition = worldMatrix[ 3 ].xyz;
-			const look = cameraPosition.sub( worldPosition );
-			const lookXZ = vec3( look.x, 0, look.z ).normalize();
-
-			const right_w = vec3( lookXZ.z, 0, lookXZ.x.negate() );
-
-			right = cameraViewMatrix.mul( vec4( right_w, 0 ) ).xyz.mul( scaleX );
-			up = cameraViewMatrix[ 1 ].xyz.mul( scaleY );
-			forward = cameraViewMatrix.mul( vec4( lookXZ, 0 ) ).xyz.mul( scaleZ );
-
-		} else {
-
-			if ( defined( horizontal ) ) right = vec3( scaleX, 0, 0 );
-			if ( defined( vertical ) ) up = vec3( 0, scaleY, 0 );
-
-			forward = vec3( 0, 0, 1 );
-
-		}
-
-		if ( right ) {
-
-			modelViewMatrix[ 0 ][ 0 ] = right.x;
-			modelViewMatrix[ 0 ][ 1 ] = right.y;
-			modelViewMatrix[ 0 ][ 2 ] = right.z;
-
-		}
-
-		if ( up ) {
-
-			modelViewMatrix[ 1 ][ 0 ] = up.x;
-			modelViewMatrix[ 1 ][ 1 ] = up.y;
-			modelViewMatrix[ 1 ][ 2 ] = up.z;
-
-		}
-
-		if ( forward ) {
-
-			modelViewMatrix[ 2 ][ 0 ] = forward.x;
-			modelViewMatrix[ 2 ][ 1 ] = forward.y;
-			modelViewMatrix[ 2 ][ 2 ] = forward.z;
-
-		}
-
-		return cameraProjectionMatrix.mul( modelViewMatrix ).mul( positionVertex );
-
-
-	} );
-
-
 	// Streak shader: bright center line with soft vertical fade at top/bottom
 	const rainUV = uv();
 	const centerLine = rainUV.x.sub( 0.5 ).abs().mul( 2 ).oneMinus().pow( 2 ); // bright center
@@ -272,11 +193,12 @@ async function init() {
 	const streak = centerLine.mul( verticalFade );
 
 	const rainDistance = positionWorld.sub( cameraPosition ).length();
-	const rainColorFactor = rainDistance.div( 30 ).clamp( 0, 1 );
-	rainMaterial.colorNode = mix( color( 0xdcf4ff ), color( 0xff00ff ), rainColorFactor );
-	rainMaterial.opacityNode = streak.mul( 0.3 );
-	rainMaterial.positionNode = positionBuffer.toAttribute();
-	rainMaterial.vertexNode = billboarding( { position: positionWorld, localOffset: positionGeometry, horizontal: true, vertical: false } );
+	const rainDistanceFactor = rainDistance.div( 60 ).clamp( 0, 1 ).oneMinus();
+
+	rainMaterial.colorNode = color( 0xdcf4ff );
+	rainMaterial.opacityNode = streak.mul( 0.3 ).mul( rainDistanceFactor );
+	rainMaterial.positionNode = positionGeometry.add( positionBuffer.toAttribute() );
+	rainMaterial.vertexNode = billboarding( { horizontal: true, horizontalRotation: true } );
 	rainMaterial.depthWrite = false;
 	rainMaterial.depthTest = true;
 	rainMaterial.transparent = true;
