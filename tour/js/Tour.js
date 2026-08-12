@@ -24,7 +24,7 @@ const RENDERER_PROFILES = {
 	},
 	cyberpunk: {
 		antialias: false,
-		maxPixelRatio: 1
+		maxPixelRatio: 1.5
 	}
 };
 
