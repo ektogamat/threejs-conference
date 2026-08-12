@@ -3,6 +3,7 @@
 <page name="The Cyberpunk Scene">
 
 We import the `threejs-punk/scene` script, which configures:
+
 - **WebGPU Renderer & Scene**: A night sky backdrop and directional neon lighting.
 - **Mesh Loading**: Streams the city mesh (`cyberpunk_compressed.glb`), the player bounds collider (`colider.glb`), and the sports car (`quadra.glb`).
 - **OrbitControls**: Lets you drag to orbit the camera, scroll to zoom, and right-click drag to pan.
@@ -18,6 +19,7 @@ import 'threejs-punk/fog';
 ```
 
 > [!TIP]
+>
 > - Click and drag the left mouse button to rotate around the city street.
 > - Use the scroll wheel to zoom in and out.
 > - Click and drag the right mouse button to pan.
@@ -115,12 +117,18 @@ import 'threejs-punk/fog';
 const mainPass = pass( scene, camera );
 
 // 2. Bloom: strength, radius, threshold (only bright pixels glow)
-const bloomPass = bloom( mainPass, 1.2, 0.4, 0.35 );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
 
 // 3. Add glow on top of the normal image
 renderPipeline.outputNode = mainPass.add( bloomPass );
 renderPipeline.needsUpdate = true;
 ```
+
+### Try this
+
+1. Make the glow much stronger, then much weaker. Which number did you change?
+2. Set `threshold` to `0`. What happens to the street and the rain?
+3. Raise `threshold` until only the neon signs glow.
 
 </page>
 
@@ -145,7 +153,7 @@ import 'threejs-punk/rain';
 import 'threejs-punk/fog';
 
 const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 1.2, 0.4, 0.35 );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
 
 // Flare reads the bloom texture (bright areas only)
 const flarePass = lensflare( bloomPass, {
@@ -157,6 +165,12 @@ const flarePass = lensflare( bloomPass, {
 renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
 renderPipeline.needsUpdate = true;
 ```
+
+### Try this
+
+1. Change `flarePass.mul( 0.6 )` to `0` and to `2`. Watch the ghosts.
+2. Change `ghostSpacing`. Do the ghosts move closer or farther?
+3. Why do we pass `bloomPass` into `lensflare()`, not `mainPass`? (Hint: flare wants only bright pixels.)
 
 </page>
 
@@ -180,7 +194,7 @@ import 'threejs-punk/rain';
 import 'threejs-punk/fog';
 
 const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 1.2, 0.4, 0.35 );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
 const flarePass = lensflare( bloomPass, {
 	threshold: 0.1,
 	ghostSpacing: 0.2,
@@ -193,6 +207,12 @@ const beauty = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
 renderPipeline.outputNode = smaa( beauty );
 renderPipeline.needsUpdate = true;
 ```
+
+### Try this
+
+1. Comment out `smaa()` and look at neon edges. Put it back.
+2. Try `smaa( bloomPass )` only (wrong input). Why does the rest of the image look bad?
+3. Do not add film grain on this page yet. Grain comes in the next step.
 
 </page>
 
@@ -224,7 +244,7 @@ const mainPass = pass( scene, camera );
 const mainColor = mainPass.getTextureNode( 'output' );
 
 // Bloom + lens flare (same as before)
-const bloomPass = bloom( mainPass, 1.2, 0.4, 0.35 );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
 const flarePass = lensflare( bloomPass, {
 	threshold: 0.1,
 	ghostSpacing: 0.2,
@@ -259,6 +279,37 @@ const aa = smaa( graded );
 renderPipeline.outputNode = film( aa, 0.15 );
 renderPipeline.needsUpdate = true;
 ```
+
+### Try this
+
+1. Change the tint toward teal (`0.9, 1.0, 1.1`), then toward magenta.
+2. Raise vignette until the corners are almost black. Then turn it off (`mul( 0 )` on the vignette strength).
+3. Put `film()` **before** `smaa()`. Compare. Put grain back after SMAA.
+4. Extra: use `hue()` or `grayscale()` from `three/tsl` on the graded color before SMAA.
+
+</page>
+
+<page name="Your turn">
+
+You have the full pipeline. Now make it yours.
+
+**Stay in the playground**
+
+Combine all steps and invent a look:
+
+- **Silent Hill** — low saturation, more grain, strong vignette
+- **Neon night** — more bloom, magenta tint, soft flare
+
+**If you finish early**
+
+Open the Three.js examples and try **one** extra display node. Good choices:
+
+- `gaussianBlur` from `three/addons/tsl/display/GaussianBlurNode.js`
+- `sepia` from `three/addons/tsl/display/Sepia.js`
+
+Examples: [threejs.org/examples/?q=post](https://threejs.org/examples/?q=post)
+
+**Rule:** add any new effect **before** `smaa()`. Put film grain **after** `smaa()`.
 
 </page>
 
