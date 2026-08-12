@@ -315,4 +315,144 @@ Examples: [threejs.org/examples/?q=post](https://threejs.org/examples/?q=post)
 
 </page>
 
+<page name="Final Optimization">
+
+Post effects can be expensive because they blur many pixels. Some nodes let you render **inside** the effect at lower resolution. The final image on screen stays full size.
+
+Keep full resolution for the main scene, color grade, and SMAA. Use lower resolution inside bloom, flare, and the ground reflector.
+
+<page name="Bloom resolution">
+
+Bloom runs many blur passes. You can make those passes smaller with `setResolutionScale()`.
+
+- `1.0` — full resolution (sharper glow, slower)
+- `0.5` — half width and height (4x fewer pixels, usually looks fine for glow)
+- `0.25` — very fast, glow may look blocky
+
+```tsl optimizationBloom
+import { pass } from 'three/tsl';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
+import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
+import 'threejs-punk/ground';
+import 'threejs-punk/rain';
+import 'threejs-punk/fog';
+
+const mainPass = pass( scene, camera );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
+
+// Half resolution inside bloom only — main scene stays sharp
+bloomPass.setResolutionScale( 0.5 );
+
+const flarePass = lensflare( bloomPass, {
+	threshold: 0.1,
+	ghostSpacing: 0.2,
+	ghostAttenuationFactor: 35
+} );
+
+renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
+renderPipeline.needsUpdate = true;
+```
+
+### Try this
+
+1. Try `1.0`, then `0.5`, then `0.25`. Which looks best?
+2. The street and buildings should stay sharp. Only the glow changes. Why?
+
+</page>
+
+<page name="Lens flare resolution">
+
+Lens flare also renders into a smaller buffer. Use `downSampleRatio` in the `lensflare()` options.
+
+- `1` — full buffer size (sharper flare, slower)
+- `4` — default, buffer is 1/4 screen size
+- `8` — even smaller and faster, may look softer
+
+```tsl optimizationFlare
+import { pass } from 'three/tsl';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
+import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
+import 'threejs-punk/ground';
+import 'threejs-punk/rain';
+import 'threejs-punk/fog';
+
+const mainPass = pass( scene, camera );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
+bloomPass.setResolutionScale( 0.5 );
+
+const flarePass = lensflare( bloomPass, {
+	threshold: 0.1,
+	ghostSpacing: 0.2,
+	ghostAttenuationFactor: 35,
+	downSampleRatio: 4
+} );
+
+renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
+renderPipeline.needsUpdate = true;
+```
+
+### Try this
+
+1. Set `downSampleRatio` to `1`. Is the flare sharper? Is it worth it?
+2. Set it to `8`. Do you see quality loss?
+3. Keep bloom at `0.5` and flare at `4`. This is a good balance for a night city.
+
+</page>
+
+<page name="Ground reflection">
+
+The wet ground uses `reflector()`. It draws the city **again** every frame into a mirror buffer. At full size (`resolutionScale: 1.0`) this is very expensive.
+
+This example keeps bloom and flare from the previous steps, with their resolution settings. Then we tune the ground on top.
+
+Use `setReflectionScale()` to make the mirror buffer smaller:
+
+- `1.0` — full size (sharpest reflection, slowest)
+- `0.5` — half width and height (4x fewer pixels, puddles still look wet)
+- `0.25` — even faster, reflection may look softer
+
+`hashBlur` softens the reflection for a dirty wet look. It samples many times per pixel. It is **off** by default here — turn it on only if you want that look and can afford the cost.
+
+```tsl optimizationGround
+import { pass } from 'three/tsl';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
+import 'threejs-punk/scene';
+import 'threejs-punk/collisionHeight';
+import 'threejs-punk/ground';
+import 'threejs-punk/rain';
+import 'threejs-punk/fog';
+
+const mainPass = pass( scene, camera );
+const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
+bloomPass.setResolutionScale( 0.5 );
+
+const flarePass = lensflare( bloomPass, {
+	threshold: 0.1,
+	ghostSpacing: 0.2,
+	ghostAttenuationFactor: 35,
+	downSampleRatio: 4
+} );
+
+setReflectionScale( 0.5 );
+setHashBlur( false );
+
+renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
+renderPipeline.needsUpdate = true;
+```
+
+### Try this
+
+1. Try `setReflectionScale( 1.0 )`, then `0.5`, then `0.25`. Which still looks wet?
+2. Set `setHashBlur( true )`. Does the puddle look better? Is the FPS hit worth it?
+3. Good balance for a night city: bloom `0.5`, flare `4`, reflection scale `0.5`, hashBlur off.
+
+</page>
+
+</page>
+
 </page>
