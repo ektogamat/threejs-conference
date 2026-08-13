@@ -5,9 +5,13 @@ import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = dirname( fileURLToPath( import.meta.url ) );
-const devThreeDir = resolve( rootDir, '../three.js' );
+const siblingThreeDir = resolve( rootDir, '../three.js' );
+const packagedThreeDir = resolve( rootDir, 'node_modules/three' );
+const devThreeDir = existsSync( resolve( siblingThreeDir, 'build/three.webgpu.js' ) )
+	? siblingThreeDir
+	: packagedThreeDir;
 const threeExamplesDir = resolve( devThreeDir, 'examples' );
-const threeFilesDir = resolve( devThreeDir, 'files' );
+const threeFilesDir = resolve( rootDir, '../three.js/files' );
 
 const MIME_TYPES = {
 	'.json': 'application/json',
