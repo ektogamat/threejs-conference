@@ -641,7 +641,7 @@ class PlaygroundManager {
 
 	}
 
-	async runPlayground() {
+	runPlayground() {
 
 		if ( ! this.playgroundTabs ) return;
 
@@ -698,11 +698,7 @@ class PlaygroundManager {
 
 		} );
 
-		await this.tour.ensureRendererForCode(
-			this.playgroundTabs.map( ( tab ) => tab.code ).join( '\n' )
-		);
-
-		return this.tour.runner.run( mainTab.code );
+		this.tour.runner.run( mainTab.code );
 
 	}
 

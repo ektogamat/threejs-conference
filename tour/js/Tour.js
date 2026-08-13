@@ -17,23 +17,6 @@ import mermaid from 'mermaid';
 
 const MOBILE_BREAKPOINT = 768;
 
-const RENDERER_PROFILES = {
-	default: {
-		antialias: true,
-		maxPixelRatio: Infinity
-	},
-	cyberpunk: {
-		antialias: false,
-		maxPixelRatio: 1.5
-	}
-};
-
-function codeUsesCyberpunk( code ) {
-
-	return typeof code === 'string' && code.includes( 'threejs-punk' );
-
-}
-
 let twttr;
 
 function getTwitterWidgets() {
@@ -86,7 +69,6 @@ class Tour {
 		this.runner = new CodeRunner();
 
 		this.renderer = null;
-		this.rendererProfile = 'default';
 		this.codeEditor = null;
 		this.debugCodeEditor = null;
 		this.readOnlyEditors = [];
@@ -1032,7 +1014,7 @@ class Tour {
 
 						} else {
 
-							await this.runCode( currentCode );
+							await this.runner.run( currentCode );
 
 						}
 
@@ -1375,7 +1357,7 @@ class Tour {
 
 				}
 
-				this.runCode( pageCode );
+				this.runner.run( pageCode );
 
 			}
 
@@ -1482,7 +1464,7 @@ class Tour {
 						clearTimeout( embedTimeout );
 						embedTimeout = setTimeout( () => {
 
-							this.runCode( currentEmbedCode );
+							this.runner.run( currentEmbedCode );
 
 						}, 500 );
 
@@ -1497,7 +1479,7 @@ class Tour {
 					this.renderer.setSize( previewEl.clientWidth, previewEl.clientHeight );
 
 					// Run the code
-					this.runCode( codeText );
+					this.runner.run( codeText );
 
 					// Observe client size changes to resize the canvas
 					this.resizeObserver.observe( previewEl );
@@ -2236,7 +2218,7 @@ class Tour {
 		if ( this.codeEditor ) {
 
 			this.codeEditor.setValue( originalCode );
-			this.runCode( originalCode );
+			this.runner.run( originalCode );
 
 		}
 
@@ -2284,9 +2266,9 @@ class Tour {
 
 	}
 
-	async runPlayground() {
+	runPlayground() {
 
-		return this.playgroundManager.runPlayground();
+		this.playgroundManager.runPlayground();
 
 	}
 
@@ -2313,16 +2295,10 @@ class Tour {
 
 	}
 
-	async createRenderer( profileName = 'default' ) {
+	async createRenderer() {
 
-		const profile = RENDERER_PROFILES[ profileName ] || RENDERER_PROFILES.default;
-		this.rendererProfile = profileName in RENDERER_PROFILES ? profileName : 'default';
-
-		this.renderer = new THREE.WebGPURenderer( {
-			antialias: profile.antialias,
-			alpha: true
-		} );
-		this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, profile.maxPixelRatio ) );
+		this.renderer = new THREE.WebGPURenderer( { antialias: true, alpha: true } );
+		this.renderer.setPixelRatio( window.devicePixelRatio );
 		this.renderer.setSize( Math.max( this.dom.previewContainer.clientWidth, 1 ), Math.max( this.dom.previewContainer.clientHeight, 1 ) );
 		this.renderer.setAnimationLoop( this.animate );
 		this.renderer.inspector = new Inspector();
@@ -2359,128 +2335,6 @@ class Tour {
 
 	}
 
-	getRendererProfileForCode( code ) {
-
-		if ( codeUsesCyberpunk( code ) ) {
-
-			return 'cyberpunk';
-
-		}
-
-		if ( this.isPlaygroundActive && this.playgroundManager && this.playgroundManager.playgroundTabs ) {
-
-			const playgroundCode = this.playgroundManager.playgroundTabs
-				.map( ( tab ) => tab.code )
-				.join( '\n' );
-
-			if ( codeUsesCyberpunk( playgroundCode ) ) {
-
-				return 'cyberpunk';
-
-			}
-
-		}
-
-		return 'default';
-
-	}
-
-	disposeRunnerInstances() {
-
-		for ( const baseName of Object.keys( this.runner.scripts ) ) {
-
-			const scriptConfig = this.runner.scripts[ baseName ];
-			if ( ! scriptConfig ) continue;
-
-			if ( scriptConfig.instance && scriptConfig.instance.dispose ) {
-
-				try {
-
-					scriptConfig.instance.dispose();
-
-				} catch ( e ) {
-
-					console.error( `Error disposing script ${baseName}:`, e );
-
-				}
-
-			}
-
-			if ( scriptConfig.instance ) {
-
-				for ( const key of Object.keys( scriptConfig.instance ) ) {
-
-					if ( ! [ 'init', 'refresh', 'update', 'resize', 'dispose' ].includes( key ) ) {
-
-						delete this.runner.env[ key ];
-
-					}
-
-				}
-
-			}
-
-			scriptConfig.instance = null;
-			scriptConfig.promise = null;
-
-		}
-
-		this.runner.activeScriptNames = [];
-
-	}
-
-	async recreateRenderer( profileName = 'default' ) {
-
-		const parent = ( this.renderer && this.renderer.domElement && this.renderer.domElement.parentElement )
-			|| this.dom.previewContainer;
-
-		if ( this.renderer ) {
-
-			this.renderer.setAnimationLoop( null );
-			this.disposeRunnerInstances();
-			this.disposeRenderer();
-
-		}
-
-		await this.createRenderer( profileName );
-
-		if ( parent && this.renderer.domElement.parentElement !== parent ) {
-
-			parent.appendChild( this.renderer.domElement );
-
-		}
-
-		if ( parent ) {
-
-			const width = Math.max( parent.clientWidth, 1 );
-			const height = Math.max( parent.clientHeight, 1 );
-			this.renderer.setSize( width, height );
-
-		}
-
-	}
-
-	async ensureRendererForCode( code ) {
-
-		const profileName = this.getRendererProfileForCode( code );
-
-		if ( this.renderer && this.rendererProfile === profileName ) {
-
-			return;
-
-		}
-
-		await this.recreateRenderer( profileName );
-
-	}
-
-	async runCode( code ) {
-
-		await this.ensureRendererForCode( code );
-		return this.runner.run( code );
-
-	}
-
 	disposeRenderer() {
 
 		this.renderer.setAnimationLoop( null );
@@ -2495,8 +2349,13 @@ class Tour {
 
 	async refresh() {
 
-		const currentCode = this.codeEditor ? this.codeEditor.getValue() : '';
-		await this.recreateRenderer( this.getRendererProfileForCode( currentCode ) );
+		this.disposeRenderer();
+
+		this.runner.dispose();
+
+		await this.createRenderer();
+
+		const currentCode = this.codeEditor.getValue();
 
 		if ( this.isPlaygroundActive ) {
 

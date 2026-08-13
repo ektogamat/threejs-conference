@@ -94,47 +94,12 @@ function createRainRipples( { uTime, uRippleSpeed = uniform( 3 ) } ) {
 
 // --- Ground ---
 
-let ground, material, roughness, albedoMap, roughnessMap, normalMapTex, reflection;
+let ground, albedoMap, roughnessMap, normalMapTex, reflection;
 
 const uTime = uniform( 0 );
 const uRippleScale = uniform( 4.83 );
 const uRippleSpeed = uniform( 3 );
 const uRippleStrength = uniform( 0.5 );
-
-function buildEmissiveNode( useHashBlur ) {
-
-	return Fn( () => {
-
-		const normalOffset = normalView.sub( normalViewGeometry ).xy.mul( 0.035 );
-		const reflectionUV = screenUV.flipX().add( normalOffset );
-		const reflected = texture( reflection, reflectionUV );
-		const dirtyReflection = useHashBlur
-			? hashBlur( reflected, roughness.pow( 3.0 ).mul( 0.25 ) )
-			: reflected;
-		const wetness = roughness.oneMinus().pow( 4.0 );
-
-		return dirtyReflection.rgb.mul( wetness ).mul( 0.5 );
-
-	} )();
-
-}
-
-function setReflectionScale( scale ) {
-
-	if ( ! reflection ) return;
-
-	reflection.reflector.resolutionScale = scale;
-
-}
-
-function setHashBlur( enabled ) {
-
-	if ( ! material || ! roughness ) return;
-
-	material.emissiveNode = buildEmissiveNode( Boolean( enabled ) );
-	material.needsUpdate = true;
-
-}
 
 async function init() {
 
@@ -156,14 +121,14 @@ async function init() {
 	normalMapTex.wrapS = THREE.RepeatWrapping;
 	normalMapTex.wrapT = THREE.RepeatWrapping;
 
-	material = new THREE.MeshStandardNodeMaterial( {
+	const material = new THREE.MeshStandardNodeMaterial( {
 		metalness: 0.0
 	} );
 
 	// TSL tiled UV for ground textures
 	const tiledUV = uv().mul( 25 ).add( .13 );
 	const albedo = texture( albedoMap, tiledUV ).mul( texture( albedoMap, tiledUV.mul( 2.5 ) ) );
-	roughness = texture( roughnessMap, tiledUV ).min( texture( roughnessMap, tiledUV.mul( 2.5 ) ) ).r.pow( .7 ).min( .6 ).saturate();
+	const roughness = texture( roughnessMap, tiledUV ).min( texture( roughnessMap, tiledUV.mul( 2.5 ) ) ).r.pow( .7 ).min( .6 ).saturate();
 	const normalSample = blendNormalMaps( texture( normalMapTex, tiledUV ), texture( normalMapTex, tiledUV.mul( 2.5 ) ) );
 
 	// color
@@ -201,7 +166,23 @@ async function init() {
 	// Bind physical configuration: roughness to blur the reflection
 	material.roughnessNode = roughness;
 
-	material.emissiveNode = buildEmissiveNode( true );
+	// Map blurred reflection to emissive based on physical configuration (wetness)
+	material.emissiveNode = Fn( () => {
+
+		// Warp reflection UV using the perturbed view-space normal for realistic surface ripples/bumps
+		const normalOffset = normalView.sub( normalViewGeometry ).xy.mul( 0.035 );
+		const reflectionUV = screenUV.flipX().add( normalOffset );
+
+		// blur reflection using hashBlur() with custom UV (exponential curve for smoother transition)
+		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.25 ) );
+
+		// wetness determines reflection intensity (sharp non-linear drop-off for dry areas)
+		const wetness = roughness.oneMinus().pow( 4.0 );
+
+		// base reflection strength of 0.5
+		return dirtyReflection.rgb.mul( wetness ).mul( 0.5 );
+
+	} )();
 
 	const geometry = new THREE.PlaneGeometry( 400, 400 );
 	ground = new THREE.Mesh( geometry, material );
@@ -250,4 +231,4 @@ function dispose() {
 
 }
 
-export { init, update, dispose, ground, setReflectionScale, setHashBlur };
+export { init, update, dispose, ground };
