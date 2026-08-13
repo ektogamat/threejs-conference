@@ -2297,7 +2297,7 @@ class Tour {
 
 	async createRenderer() {
 
-		this.renderer = new THREE.WebGPURenderer( { antialias: true, alpha: true } );
+		this.renderer = new THREE.WebGPURenderer( { antialias: false, alpha: true } );
 		this.renderer.setPixelRatio( window.devicePixelRatio );
 		this.renderer.setSize( Math.max( this.dom.previewContainer.clientWidth, 1 ), Math.max( this.dom.previewContainer.clientHeight, 1 ) );
 		this.renderer.setAnimationLoop( this.animate );

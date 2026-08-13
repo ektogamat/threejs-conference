@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Fn, Loop, uv, texture, reflector, screenUV, normalView, normalViewGeometry, positionWorld, vec2, vec3, vec4, float, dot, floor, fract, int, length, max, normalize, sin, smoothstep, sqrt, uniform, normalMap } from 'three/tsl';
+import { Fn, Loop, uv, texture, reflector, screenUV, normalView, normalViewGeometry, positionWorld, vec2, vec3, vec4, float, dot, floor, fract, int, length, max, normalize, sin, smoothstep, sqrt, uniform, normalMap, textureBicubic } from 'three/tsl';
 import { hashBlur } from 'three/addons/tsl/display/hashBlur.js';
 import { collisionHeight } from './collisionHeight.js';
 
@@ -154,7 +154,7 @@ async function init() {
 	material.normalNode = normalMap( perturbedNormal );
 
 	// Planar Reflector similar to webgpu_reflection_roughness
-	reflection = reflector( { resolutionScale: 1.0, bounces: false, generateMipmaps: false } ).toInspector( 'reflector' );
+	reflection = reflector( { resolutionScale: 0.5, bounces: false, generateMipmaps: true } ).toInspector( 'reflector' );
 	reflection.target.rotation.x = - Math.PI / 2;
 	reflection.target.position.y = - 5.4;
 	scene.add( reflection.target );
@@ -174,7 +174,8 @@ async function init() {
 		const reflectionUV = screenUV.flipX().add( normalOffset );
 
 		// blur reflection using hashBlur() with custom UV (exponential curve for smoother transition)
-		const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.25 ) );
+		//const dirtyReflection = hashBlur( texture( reflection, reflectionUV ), roughness.pow( 3.0 ).mul( 0.25 ) );
+		const dirtyReflection = textureBicubic( texture( reflection, reflectionUV ), roughness ); // .pow( 3.0 ).mul( 0.25 )
 
 		// wetness determines reflection intensity (sharp non-linear drop-off for dry areas)
 		const wetness = roughness.oneMinus().pow( 4.0 );
