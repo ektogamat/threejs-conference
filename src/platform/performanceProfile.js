@@ -47,6 +47,10 @@ export const performanceProfile = {
   planeEnabled: true,
 
   billboardsEnabled: true,
+
+  collisionRainResolution: 512,
+  collisionRainFrameSkip: 1,
+  collisionRainCount: 5000,
 };
 
 /**
@@ -67,6 +71,9 @@ export function applyDevicePerformanceDefaults() {
   performanceProfile.lensflare = false;
   performanceProfile.billboardsEnabled = false;
   performanceProfile.ao = false;
+  performanceProfile.collisionRainResolution = 256;
+  performanceProfile.collisionRainFrameSkip = 2;
+  performanceProfile.collisionRainCount = 2500;
 
   if (isAppleMobile() || isSafari()) {
     performanceProfile.maxPixelRatio = 1.25;

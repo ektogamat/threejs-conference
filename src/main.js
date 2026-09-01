@@ -81,6 +81,7 @@ async function init(loaderOverlay) {
   const world = await createWorld({
     scene,
     renderer,
+    camera,
     loaderOverlay,
     requestShadowMapUpdate,
   });
@@ -254,6 +255,8 @@ async function init(loaderOverlay) {
     renderer,
     scene,
     pipeline,
+    camera,
+    world,
   }).catch((error) => {
     console.warn("[warmup] Deferred shader compile failed:", error);
   });
