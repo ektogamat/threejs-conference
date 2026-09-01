@@ -9,13 +9,12 @@ import {
   smoothstep,
   uniform,
   vec3,
-  screenUV,
   sample,
   normalView,
   packNormalToRGB,
   unpackRGBToNormal,
 } from "three/tsl";
-import { AdditiveBlending, UnsignedByteType } from "three";
+import { UnsignedByteType } from "three";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 import { lensflare } from "three/addons/tsl/display/LensflareNode.js";
 import { gaussianBlur } from "three/addons/tsl/display/GaussianBlurNode.js";
@@ -28,12 +27,11 @@ import { performanceProfile } from "../platform/performanceProfile.js";
 import { isSafari } from "../platform/deviceLayout.js";
 import { FEATURES } from "../world/features.js";
 
-const DEFAULT_REFRACTION_STRENGTH = 0.45;
-
 export function createPostProcessing(renderer, scene, camera, { rain, smoke } = {}) {
   const post = new RenderPipeline(renderer);
   const rainLayer = rain?.layer ?? null;
   const smokeLayer = smoke?.layer ?? null;
+  const rainUsesDedicatedPass = rain?.useDedicatedPass !== false && rainLayer !== null;
 
   const aoCamera = camera.clone();
   if (rainLayer !== null) {
@@ -45,14 +43,18 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
 
   const sceneCamera = camera.clone();
   if (rainLayer !== null) {
-    sceneCamera.layers.disable(rainLayer);
+    if (rainUsesDedicatedPass) {
+      sceneCamera.layers.disable(rainLayer);
+    } else {
+      sceneCamera.layers.enable(rainLayer);
+    }
   }
   if (smokeLayer !== null) {
     sceneCamera.layers.enable(smokeLayer);
   }
 
   const rainCamera =
-    rainLayer !== null
+    rainUsesDedicatedPass && rainLayer !== null
       ? (() => {
           const nextCamera = camera.clone();
           nextCamera.layers.disable(0);
@@ -73,7 +75,11 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
 
     sceneCamera.copy(sourceCamera, false);
     if (rainLayer !== null) {
-      sceneCamera.layers.disable(rainLayer);
+      if (rainUsesDedicatedPass) {
+        sceneCamera.layers.disable(rainLayer);
+      } else {
+        sceneCamera.layers.enable(rainLayer);
+      }
     }
     if (smokeLayer !== null) {
       sceneCamera.layers.enable(smokeLayer);
@@ -105,6 +111,7 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   );
 
   const scenePass = pass(scene, sceneCamera);
+  scenePass.transparent = true;
   const mrtNode = mrt({
     output,
     emissive: vec4(emissive, output.a),
@@ -129,39 +136,13 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   // Temporal filtering needs TRAA; we use SMAA, so keep noise lower via half-res + samples.
   aoPass.useTemporalFiltering = false;
 
-  const refractionParams = {
-    enabled: false,
-    strength: DEFAULT_REFRACTION_STRENGTH,
-  };
-  const refractionEnabled = uniform(refractionParams.enabled ? 1 : 0);
-  const refractionStrength = uniform(refractionParams.strength);
-
   let rainPass = null;
   let rainPassColor = null;
-  let rainPassOffset = null;
 
   if (rainCamera) {
     rainPass = pass(scene, rainCamera);
-    if (isSafari()) {
-      // Dual-MRT rain refraction offsets are unstable on Safari WebGPU.
-      rainPassColor = rainPass.getTextureNode("output");
-    } else {
-      const rainMrt = mrt({
-        output,
-        // Signed UV offsets from the dedicated refract sprites (emissiveNode).
-        // Additive keeps overlapping streaks from canceling mid-gray packing.
-        offset: vec4(emissive.r, emissive.g, 0, 1),
-      });
-      rainMrt.setBlendMode("offset", new BlendMode(AdditiveBlending));
-      rainPass.setMRT(rainMrt);
-      rainPassColor = rainPass.getTextureNode("output");
-      rainPassOffset = rainPass.getTextureNode("offset");
-    }
+    rainPassColor = rainPass.getTextureNode("output");
   }
-
-  const distortionOffset = rainPassOffset
-    ? rainPassOffset.rg.mul(refractionStrength).mul(refractionEnabled)
-    : null;
 
   const bloomPass = bloom(scenePassEmissive, 2.5, 0.45);
   bloomPass.setResolutionScale(performanceProfile.bloomResolutionScale);
@@ -242,24 +223,15 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
   }
 
   function buildBeautyInput() {
-    const useRainDistortion = rainPassActive && distortionOffset;
-    const sampleUv = useRainDistortion
-      ? screenUV.add(distortionOffset)
-      : null;
-
-    let beauty = sampleUv
-      ? scenePassColor.sample(sampleUv)
-      : scenePassColor;
+    let beauty = scenePassColor;
 
     if (aoActive) {
-      const aoValue = sampleUv
-        ? aoPass.getTextureNode().sample(sampleUv).r
-        : aoPass.getTextureNode().r;
+      const aoValue = aoPass.getTextureNode().r;
       // Post-multiply GTAO onto beauty (smoke is in scenePass; excluded from aoPrePass).
       beauty = beauty.mul(vec4(vec3(aoValue), 1));
     }
 
-    if (rainPassActive && rainPassColor) {
+    if (rainUsesDedicatedPass && rainPassActive && rainPassColor) {
       beauty = beauty.add(rainPassColor.rgb.mul(rainPassColor.a));
     }
 
@@ -396,23 +368,6 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
     aoPass.samples.value = samples;
   }
 
-  function setRefractionEnabled(enabled) {
-    refractionParams.enabled = Boolean(enabled);
-    refractionEnabled.value = refractionParams.enabled ? 1 : 0;
-    refractionEnabled.needsUpdate = true;
-    // Skip drawing the dedicated refract sprites when off — main rain cost
-    // of the effect. Rain pass still runs for visible streaks.
-    rain?.setRefractEnabled?.(refractionParams.enabled);
-  }
-
-  setRefractionEnabled(refractionParams.enabled);
-
-  function setRefractionStrength(strength) {
-    refractionParams.strength = strength;
-    refractionStrength.value = strength;
-    refractionStrength.needsUpdate = true;
-  }
-
   function applyLookPreset(id, options = {}) {
     return look.applyPreset(id, {
       bloomPass,
@@ -464,13 +419,6 @@ export function createPostProcessing(renderer, scene, camera, { rain, smoke } = 
       return introRainGlassRef;
     },
     disposeIntroRainGlass,
-    refraction: {
-      params: refractionParams,
-      enabled: refractionEnabled,
-      strength: refractionStrength,
-      setEnabled: setRefractionEnabled,
-      setStrength: setRefractionStrength,
-    },
     dof: {
       blurSize,
       blurSpread,

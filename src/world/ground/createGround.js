@@ -12,6 +12,7 @@ import {
 } from "three/tsl";
 import { createRainRipples } from "../../tsl/rainRipples.js";
 import { performanceProfile } from "../../platform/performanceProfile.js";
+import { RAIN_LAYER } from "../weather/createCollisionRain.js";
 
 const ALBEDO_PATH = "/textures/wet-puddles-albedo.jpg";
 const ROUGHNESS_PATH = "/textures/wet-puddles-roughness.jpg";
@@ -222,6 +223,7 @@ export function createGround(scene, {
     mirrorCamera.up.set(0, 1, 0).applyMatrix4(_rotationMatrix).reflect(_normal);
     mirrorCamera.lookAt(_target);
     mirrorCamera.updateMatrixWorld(true);
+    mirrorCamera.layers.disable(RAIN_LAYER);
     mirrorCamera.projectionMatrix.copy(camera.projectionMatrix);
 
     _reflectorPlane.setFromNormalAndCoplanarPoint(

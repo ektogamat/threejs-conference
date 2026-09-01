@@ -5,7 +5,8 @@ import { applyBillboardMaterials } from "./billboards/applyBillboardMaterials.js
 import { loadQuadraCar } from "./car/loadCar.js";
 import { loadEnvironmentMap } from "./envMap.js";
 import { createGround } from "./ground/createGround.js";
-import { createRainStreaks } from "./weather/createRainStreaks.js";
+import { createCollisionHeight } from "./weather/createCollisionHeight.js";
+import { createCollisionRain } from "./weather/createCollisionRain.js";
 import { createSmoke } from "./effects/createSmoke.js";
 import { createFlyingPlanes } from "./effects/createFlyingPlanes.js";
 import { createCloudSky } from "../clouds/createCloudSky.js";
@@ -56,6 +57,7 @@ function buildFocusTargets({ city, car, ground, billboards }) {
 export async function createWorld({
   scene,
   renderer,
+  camera = null,
   loaderOverlay,
   requestShadowMapUpdate,
 }) {
@@ -119,11 +121,6 @@ export async function createWorld({
 
   const ground = FEATURES.ground ? createGround(scene) : null;
 
-  let rain = null;
-  if (FEATURES.rain) {
-    rain = await createRainStreaks({ scene });
-  }
-
   let smoke = null;
   if (FEATURES.smoke && quadraCar) {
     smoke = await createSmoke({ scene, car: quadraCar });
@@ -148,6 +145,18 @@ export async function createWorld({
     });
   }
 
+  let collisionHeight = null;
+  let rain = null;
+  if (FEATURES.rain) {
+    collisionHeight = createCollisionHeight({ scene, renderer });
+    rain = await createCollisionRain({
+      scene,
+      renderer,
+      collisionHeight,
+      camera,
+    });
+  }
+
   const colliders = buildColliders({
     city,
     boundsCollider,
@@ -169,6 +178,7 @@ export async function createWorld({
     carSurfaceRain,
     envTexture,
     ground,
+    collisionHeight,
     rain,
     smoke,
     planes,

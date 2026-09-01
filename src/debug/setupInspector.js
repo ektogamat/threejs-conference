@@ -553,7 +553,7 @@ export function setupInspector(
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "count", 200, 2000, 100)
+        .add(rain.params, "count", 500, 5000, 250)
         .name("drop count"),
       (value) => rain.setDropCount(value),
     );
@@ -563,47 +563,58 @@ export function setupInspector(
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "overallSpeed", 5, 80, 1)
-        .name("overall speed"),
-      (value) => rain.setOverallSpeed(value),
-    );
-    bindParamControl(
-      rainFolder
-        .add(rain.params, "radius", 8, 50, 1)
-        .name("volume radius"),
-      (value) => rain.setVolumeRadius(value),
-    );
-    bindParamControl(
-      rainFolder.add(rain.params, "intensity", 0.1, 2, 0.05).name("intensity"),
+        .add(rain.params, "intensity", 0.5, 2.5, 0.05)
+        .name("intensity"),
       (value) => rain.setIntensity(value),
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "thickness", 0.1, 1.5, 0.01)
-        .name("thickness"),
-      (value) => rain.setThickness(value),
+        .add(rain.params, "splashOpacity", 0.02, 1, 0.01)
+        .name("splash opacity"),
+      (value) => rain.setSplashOpacity(value),
     );
     bindParamControl(
       rainFolder
-        .add(rain.params, "refractCount", 0, 2000, 25)
-        .name("refract count"),
-      (value) => rain.setRefractCount(value),
+        .add(rain.params, "splashSpeed", 1, 12, 0.25)
+        .name("splash speed"),
+      (value) => rain.setSplashSpeed(value),
     );
-
-    if (pipeline.refraction?.params) {
-      bindParamControl(
-        rainFolder
-          .add(pipeline.refraction.params, "enabled")
-          .name("refract enabled"),
-        (value) => pipeline.refraction.setEnabled(value),
-      );
-      bindParamControl(
-        rainFolder
-          .add(pipeline.refraction.params, "strength", 0, 0.5, 0.001)
-          .name("refraction strength"),
-        (value) => pipeline.refraction.setStrength(value),
-      );
-    }
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "fallSpeed", 0.1, 1.2, 0.01)
+        .name("fall speed"),
+      (value) => rain.setFallSpeed(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "splashSize", 0.1, 4, 0.05)
+        .name("splash size"),
+      (value) => rain.setSplashSize(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "splashStartScale", 0.02, 1, 0.01)
+        .name("splash start scale"),
+      (value) => rain.setSplashStartScale(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "splashEndScale", 0.5, 5, 0.05)
+        .name("splash end scale"),
+      (value) => rain.setSplashEndScale(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "rainAreaWidth", 20, 100, 1)
+        .name("rain area width"),
+      (value) => rain.setRainAreaWidth(value),
+    );
+    bindParamControl(
+      rainFolder
+        .add(rain.params, "rainAreaHeight", 20, 100, 1)
+        .name("rain area height"),
+      (value) => rain.setRainAreaHeight(value),
+    );
   }
 
   if (showDevOnlyPanels && smoke?.params) {

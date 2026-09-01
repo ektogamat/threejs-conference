@@ -8,6 +8,8 @@
  * hitch — but only block the loader on what must be ready for the first frame.
  */
 
+import { collectCollisionHideObjects } from "../world/weather/collisionHideObjects.js";
+
 function collectDeferredObjects(world) {
   const objects = [];
 
@@ -46,6 +48,10 @@ async function warmPostFrames({
   includeReflection,
 }) {
   for (let i = 0; i < frames; i += 1) {
+    world.collisionHeight?.update({
+      camera,
+      hideObjects: collectCollisionHideObjects(world),
+    });
     world.rain?.update(1 / 60, camera);
     world.ground?.update?.(1 / 60);
     const rainEnabled = world.rain?.params?.enabled ?? false;
@@ -115,13 +121,21 @@ export async function compileDeferredStartup({
   renderer,
   scene,
   pipeline,
+  camera,
+  world,
 }) {
   const beautyCamera = pipeline.beautyCamera;
   if (!beautyCamera) {
     return;
   }
 
-  // Smoke / planes were skipped on the critical path — compile them now.
+  world?.collisionHeight?.update({
+    camera,
+    hideObjects: collectCollisionHideObjects(world),
+  });
+  world?.rain?.update(0, camera);
+
+  // Smoke / planes / rain were skipped on the critical path — compile them now.
   await renderer.compileAsync(scene, beautyCamera);
 
   if (pipeline.rainCamera) {

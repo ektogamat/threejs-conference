@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import { collectCollisionHideObjects } from "../world/weather/collisionHideObjects.js";
 
 export function createRenderLoop({
   camera,
@@ -21,6 +22,10 @@ export function createRenderLoop({
     cameraDirector.update(delta);
     onFrame?.(delta);
 
+    world.collisionHeight?.update({
+      camera,
+      hideObjects: collectCollisionHideObjects(world),
+    });
     world.rain?.update(delta, camera);
 
     const introActive = getIntroActive?.() ?? false;
