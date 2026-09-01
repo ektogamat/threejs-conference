@@ -9,11 +9,7 @@ import {
 } from "./deviceLayout.js";
 
 export const performanceProfile = {
-  // Disabled: this permanently drops render resolution after a transient FPS
-  // dip (e.g. first-load hitch) and never recovers, making visual sharpness
-  // inconsistent between sessions/devices even with identical code. Keep the
-  // pixel ratio static so rain/scene rendering always looks the same.
-  adaptiveDpr: false,
+  adaptiveDpr: true,
   maxPixelRatio: 1.5,
 
   carSurfaceRain: true,
