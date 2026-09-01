@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import { NodeMaterial } from "three/webgpu";
 import {
   Fn,
   If,
@@ -18,21 +19,19 @@ import {
   uint,
   uv,
   vec2,
-  vec3,
 } from "three/tsl";
 import { performanceProfile } from "../../platform/performanceProfile.js";
 
 export const RAIN_LAYER = 2;
 
-const RAIN_TEXTURE_PATH = "/textures/rainDrop.png";
 const SPLASH_TEXTURE_PATH = "/textures/water-splash.webp";
 const MAX_COUNT = 5000;
 const DEFAULT_COUNT = performanceProfile.collisionRainCount ?? 5000;
 const SPLASH_FRAMES = 5;
 const DEFAULT_SPLASH_SPEED = 6;
 const DEFAULT_RAIN_AREA = { width: 60, height: 60 };
-const DEFAULT_OPACITY = 0.75;
-const DEFAULT_RAIN_INTENSITY = 3;
+const DEFAULT_OPACITY = 0.15;
+const DEFAULT_RAIN_INTENSITY = 0.45;
 const DEFAULT_SPLASH_OPACITY = 0.18;
 const DEFAULT_FALL_SPEED = 0.7;
 const DEFAULT_FALL_SPEED_VARIANCE = 0.07;
@@ -40,7 +39,7 @@ const DEFAULT_SPLASH_START_SCALE = 0.1;
 const DEFAULT_SPLASH_END_SCALE = 1.4;
 const DEFAULT_SPLASH_SIZE = 1.0;
 const SPLASH_GEOMETRY_SIZE = 0.13;
-const RAIN_STREAK_WIDTH = 0.12;
+const RAIN_STREAK_WIDTH = 0.04;
 const RAIN_STREAK_HEIGHT = 1.1;
 
 const _cameraDirection = new THREE.Vector3();
@@ -249,46 +248,46 @@ export async function createCollisionRain({
 
   if (camera) {
     syncCameraUniforms(camera);
+    camera.layers.enable(RAIN_LAYER);
   }
 
   renderer.compute(computeInit);
   renderer.compute(computeParticles);
 
-  const [rainTexture, splashSheet] = await Promise.all([
-    loadTexture(RAIN_TEXTURE_PATH),
-    loadTexture(SPLASH_TEXTURE_PATH),
-  ]);
-  rainTexture.colorSpace = THREE.SRGBColorSpace;
+  const splashSheet = await loadTexture(SPLASH_TEXTURE_PATH);
   splashSheet.colorSpace = THREE.SRGBColorSpace;
 
-  const rainStreakScale = vec3(
-    float(RAIN_STREAK_WIDTH),
-    float(RAIN_STREAK_HEIGHT),
-    float(1),
-  );
+  const rainUV = uv();
+  const centerLine = rainUV.x.sub(0.5).abs().mul(2).oneMinus().pow(2);
+  const verticalFade = rainUV.y
+    .smoothstep(0, 0.08)
+    .mul(rainUV.y.oneMinus().smoothstep(0, 0.15));
+  const streak = centerLine.mul(verticalFade);
 
-  const rainMaterial = new THREE.MeshBasicNodeMaterial();
+  const rainMaterial = new NodeMaterial();
   rainMaterial.colorNode = color(0xdcf4ff);
-  rainMaterial.opacityNode = texture(rainTexture, uv())
-    .a.mul(uOpacity)
-    .mul(uIntensity);
-  rainMaterial.positionNode = positionGeometry.mul(rainStreakScale);
+  rainMaterial.opacityNode = streak.mul(uOpacity).mul(uIntensity);
+  rainMaterial.positionNode = positionGeometry;
   rainMaterial.vertexNode = billboarding({
     position: positionBuffer.toAttribute(),
     horizontal: true,
-    vertical: true,
+    horizontalRotation: true,
   });
   rainMaterial.depthWrite = false;
   rainMaterial.depthTest = true;
   rainMaterial.transparent = true;
   rainMaterial.toneMapped = false;
 
-  const rainGeometry = new THREE.PlaneGeometry(1, 1);
-  rainGeometry.translate(0, 0.5, 0);
+  const rainGeometry = new THREE.PlaneGeometry(
+    RAIN_STREAK_WIDTH,
+    RAIN_STREAK_HEIGHT,
+  );
+  rainGeometry.translate(0, RAIN_STREAK_HEIGHT * 0.75, 0);
 
   const rainParticles = new THREE.Mesh(rainGeometry, rainMaterial);
   rainParticles.count = activeCount;
   rainParticles.frustumCulled = false;
+  rainGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
   rainParticles.renderOrder = 12;
   setRainLayer(rainParticles);
   group.add(rainParticles);
@@ -340,6 +339,7 @@ export async function createCollisionRain({
   splashMaterial.depthWrite = false;
   splashMaterial.depthTest = true;
   splashMaterial.transparent = true;
+  splashMaterial.toneMapped = false;
 
   const splashGeometry = new THREE.PlaneGeometry(
     SPLASH_GEOMETRY_SIZE,
@@ -349,9 +349,11 @@ export async function createCollisionRain({
   const splashParticles = new THREE.Mesh(splashGeometry, splashMaterial);
   splashParticles.count = activeCount;
   splashParticles.frustumCulled = false;
+  splashGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
   splashParticles.renderOrder = 11;
   setRainLayer(splashParticles);
   group.add(splashParticles);
+  group.frustumCulled = false;
 
   function syncVisibility() {
     group.visible = params.enabled;
@@ -453,7 +455,6 @@ export async function createCollisionRain({
     scene.remove(group);
     rainGeometry.dispose();
     rainMaterial.dispose();
-    rainTexture.dispose();
     splashGeometry.dispose();
     splashMaterial.dispose();
     splashSheet.dispose();
