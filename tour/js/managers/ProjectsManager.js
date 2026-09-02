@@ -179,10 +179,26 @@ class ProjectsManager {
 	saveCurrentProject( name ) {
 
 		const tabs = this.tour.playgroundManager.playgroundTabs || [ { name: 'main', code: '// Tour of TSL\n' } ];
-		const cleanName = ( name || '' ).trim() || this.getNextProjectName();
-
 		const projects = this.getProjects();
-		const existingIndex = projects.findIndex( p => p.name.toLowerCase() === cleanName.toLowerCase() );
+
+		let existingIndex = - 1;
+		if ( this.currentProjectId ) {
+
+			existingIndex = projects.findIndex( p => p.id === this.currentProjectId );
+
+		}
+
+		const defaultName = ( existingIndex !== - 1 ? projects[ existingIndex ].name : null )
+			|| this.tour.playgroundManager.currentExampleName
+			|| this.getNextProjectName();
+
+		const cleanName = ( name || '' ).trim() || defaultName;
+
+		if ( existingIndex === - 1 ) {
+
+			existingIndex = projects.findIndex( p => p.name.toLowerCase() === cleanName.toLowerCase() );
+
+		}
 
 		const now = Date.now();
 		const projectData = {
@@ -204,6 +220,8 @@ class ProjectsManager {
 		}
 
 		this.setCurrentProjectId( projectData.id );
+		this.tour.playgroundManager.currentExampleName = projectData.name;
+		this.tour.playgroundManager.initialTabsSnapshot = JSON.stringify( tabs );
 		this.saveProjectsList( projects );
 		return projectData;
 
@@ -285,8 +303,10 @@ class ProjectsManager {
 		}
 
 		this.setCurrentProjectId( project.id );
+		this.tour.playgroundManager.currentExampleName = project.name;
 		this.tour.playgroundManager.playgroundTabs = JSON.parse( JSON.stringify( project.tabs ) );
 		this.tour.playgroundManager.activePlaygroundTabName = this.tour.playgroundManager.playgroundTabs[ 0 ].name;
+		this.tour.playgroundManager.initialTabsSnapshot = JSON.stringify( this.tour.playgroundManager.playgroundTabs );
 
 		this.tour.playgroundManager.togglePlayground( true );
 		this.tour.playgroundManager.renderPlaygroundTabs();
@@ -364,6 +384,12 @@ class ProjectsManager {
 					const parsed = JSON.parse( e.target.result );
 					let importedCount = 0;
 
+					if ( ! parsed || typeof parsed !== 'object' ) {
+
+						throw new Error( 'Invalid JSON format. Please ensure it contains valid tabs or projects.' );
+
+					}
+
 					const projects = this.getProjects();
 					const now = Date.now();
 
@@ -371,7 +397,7 @@ class ProjectsManager {
 
 						for ( const proj of parsed.projects ) {
 
-							if ( proj.name && Array.isArray( proj.tabs ) && proj.tabs.length > 0 ) {
+							if ( proj && proj.name && Array.isArray( proj.tabs ) && proj.tabs.length > 0 ) {
 
 								const id = `proj_${now}_${Math.random().toString( 36 ).substring( 2, 7 )}`;
 								projects.unshift( {
@@ -391,7 +417,7 @@ class ProjectsManager {
 
 						for ( const proj of parsed ) {
 
-							if ( Array.isArray( proj.tabs ) && proj.tabs.length > 0 ) {
+							if ( proj && Array.isArray( proj.tabs ) && proj.tabs.length > 0 ) {
 
 								const id = `proj_${now}_${Math.random().toString( 36 ).substring( 2, 7 )}`;
 								projects.unshift( {
@@ -407,7 +433,7 @@ class ProjectsManager {
 
 						}
 
-					} else if ( parsed && ( Array.isArray( parsed.tabs ) || parsed.name || parsed.code ) ) {
+					} else if ( Array.isArray( parsed.tabs ) || parsed.name || parsed.code ) {
 
 						const tabs = Array.isArray( parsed.tabs ) ? parsed.tabs : [ { name: 'main', code: parsed.code || '// Tour of TSL\n' } ];
 						const name = parsed.name || file.name.replace( /\.json$/i, '' ) || 'Imported Project';
@@ -872,7 +898,7 @@ class ProjectsManager {
 
 	}
 
-	confirmCloseCurrentProject( onConfirm, onSaveAndConfirm ) {
+	confirmCloseCurrentProject( onSaveAndConfirm ) {
 
 		this.closeConfirmModal();
 
@@ -885,19 +911,19 @@ class ProjectsManager {
 
 		modal.innerHTML = `
 			<div class="tsl-modal-header">
-				<div class="tsl-modal-title">
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; color: #f59e0b;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-					<span>Open Example in Playground</span>
+				<div class="tsl-modal-title-group">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; color: #f59e0b; flex-shrink: 0;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+					<span class="tsl-modal-title-main">Open Example in Playground</span>
 				</div>
-				<button class="tsl-modal-close-btn" title="Close">&times;</button>
+				<button class="tsl-modal-close-btn" title="Close">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 15px; height: 15px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				</button>
 			</div>
 			<div class="tsl-confirm-body">
-				<p>You already have an open project in Playground. Do you want to close the current project and load this example?</p>
-				<span class="tsl-confirm-subtext">Unsaved changes in the current project will be replaced.</span>
+				<p>You already have an open project in Playground.<br><br>Do you want to save the current project and load this example?</p>
 			</div>
 			<div class="tsl-confirm-actions">
-				<button id="tsl-confirm-replace-btn" class="tsl-btn tsl-btn-danger">Replace & Open</button>
-				<button id="tsl-confirm-save-btn" class="tsl-btn tsl-btn-primary">Save Current & Open</button>
+				<button id="tsl-confirm-save-btn" class="tsl-btn tsl-btn-primary">Save & Open</button>
 				<button id="tsl-confirm-cancel-btn" class="tsl-btn tsl-btn-secondary">Cancel</button>
 			</div>
 		`;
@@ -915,19 +941,11 @@ class ProjectsManager {
 		modal.querySelector( '.tsl-modal-close-btn' ).onclick = close;
 		modal.querySelector( '#tsl-confirm-cancel-btn' ).onclick = close;
 
-		modal.querySelector( '#tsl-confirm-replace-btn' ).onclick = () => {
-
-			close();
-			if ( onConfirm ) onConfirm();
-
-		};
-
 		modal.querySelector( '#tsl-confirm-save-btn' ).onclick = () => {
 
 			this.saveCurrentProject();
 			close();
 			if ( onSaveAndConfirm ) onSaveAndConfirm();
-			else if ( onConfirm ) onConfirm();
 
 		};
 
