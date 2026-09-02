@@ -5,7 +5,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, controls, city, collider, car, defaultPass, renderPipeline;
+let scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline;
 
 const UNCOMPRESSED_FORMATS = new Set( [
 	THREE.RGBAFormat,
@@ -86,15 +86,15 @@ async function init() {
 	controls.maxDistance = 150;
 	controls.update();
 
-	const sunLight = new THREE.DirectionalLight( '#cfefff', 8.0 );
+	sunLight = new THREE.DirectionalLight( '#cfefff', 8.0 );
 	sunLight.position.set( 23, 100, 3 );
 	scene.add( sunLight );
 
-	const fillLight = new THREE.DirectionalLight( '#ffd6c8', 2.0 );
+	fillLight = new THREE.DirectionalLight( '#ffd6c8', 2.0 );
 	fillLight.position.set( - 18, 22, - 12 );
 	scene.add( fillLight );
 
-	const ambientLight = new THREE.AmbientLight( 0xffffff, 0.15 );
+	ambientLight = new THREE.AmbientLight( 0xffffff, 0.15 );
 	scene.add( ambientLight );
 
 	patchKTX2UncompressedTextures();
@@ -114,12 +114,6 @@ async function init() {
 	city.position.y = - 20;
 	scene.add( city );
 
-	const coliderGltf = await loader.loadAsync( '/models/colider.glb' );
-	collider = coliderGltf.scene;
-	collider.position.y = - 20;
-	collider.visible = false;
-	scene.add( collider );
-
 	const carGltf = await loader.loadAsync( '/models/quadra.glb' );
 	car = carGltf.scene;
 	car.position.set( - 128, - 5.47, 33 );
@@ -130,6 +124,39 @@ async function init() {
 }
 
 function refresh() {
+
+	scene.clear();
+
+	scene.add( sunLight );
+	scene.add( fillLight );
+	scene.add( ambientLight );
+	scene.add( city );
+	scene.add( car );
+
+	scene.fog = null;
+	scene.fogNode = null;
+
+	if ( renderer.inspector?.parameters ) {
+
+		const parameters = renderer.inspector.parameters;
+
+		if ( parameters.paramList?.children ) {
+
+			for ( const item of [ ...parameters.paramList.children ] ) {
+
+				parameters.paramList.remove( item );
+
+			}
+
+		}
+
+		if ( parameters.groups ) {
+
+			parameters.groups.length = 0;
+
+		}
+
+	}
 
 	renderPipeline.outputNode = defaultPass;
 	renderPipeline.needsUpdate = true;
@@ -157,4 +184,4 @@ function dispose() {
 
 }
 
-export { scene, camera, controls, city, collider, car, defaultPass, renderPipeline };
+export { scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline };

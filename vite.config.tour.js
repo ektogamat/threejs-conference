@@ -5,9 +5,15 @@ import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = dirname( fileURLToPath( import.meta.url ) );
-const devThreeDir = resolve( rootDir, 'node_modules/three' );
+const siblingThreeDir = resolve( rootDir, '../three.js' );
+const packagedThreeDir = resolve( rootDir, 'node_modules/three' );
+const devThreeDir = existsSync( siblingThreeDir )
+	? siblingThreeDir
+	: packagedThreeDir;
 const threeExamplesDir = resolve( devThreeDir, 'examples' );
-const threeFilesDir = resolve( devThreeDir, 'files' );
+const threeFilesDir = existsSync( resolve( devThreeDir, 'files' ) )
+	? resolve( devThreeDir, 'files' )
+	: resolve( siblingThreeDir, 'files' );
 
 const MIME_TYPES = {
 	'.json': 'application/json',

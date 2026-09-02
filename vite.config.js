@@ -5,9 +5,12 @@ import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
+const siblingThreeDir = resolve(rootDir, "../three.js");
+const packagedThreeDir = resolve(rootDir, "node_modules/three");
+const devThreeDir = existsSync(siblingThreeDir) ? siblingThreeDir : packagedThreeDir;
 const inspectorExtensionsDir = resolve(
-  rootDir,
-  "node_modules/three/examples/jsm/inspector/extensions",
+  devThreeDir,
+  "examples/jsm/inspector/extensions",
 );
 
 const MIME_TYPES = {

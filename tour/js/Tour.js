@@ -3,7 +3,7 @@ import * as TSL from 'three/tsl';
 
 import { Inspector } from 'three/addons/inspector/Inspector.js';
 
-import { parseTour, parse } from './utils/MarkdownUtils.js';
+import { parseTour, parse, tokenizeCodeToElement } from './utils/MarkdownUtils.js';
 import { CodeRunner } from './code/CodeRunner.js';
 import { CodeCompiler } from './code/CodeCompiler.js';
 import { CodeEditor } from './editor/CodeEditor.js';
@@ -69,12 +69,14 @@ class Tour {
 		this.runner = new CodeRunner();
 
 		this.renderer = null;
+		this._refreshPromise = null;
 		this.codeEditor = null;
 		this.debugCodeEditor = null;
 		this.readOnlyEditors = [];
 		this.isPlaygroundActive = false;
 		this.isContentRendered = false;
 		this.hasCriticalError = false;
+		this.refreshOnPageChange = true;
 		this.searchManager = new SearchManager( this );
 		this.historyManager = new HistoryManager( this );
 		this.layoutManager = new LayoutManager( this );
@@ -91,10 +93,38 @@ class Tour {
 
 		mermaid.initialize( {
 			startOnLoad: false,
-			theme: 'dark',
+			theme: 'base',
+			themeVariables: {
+				darkMode: true,
+				background: '#1e1e24',
+				mainBkg: '#2a2a33',
+				primaryColor: '#2a2a33',
+				primaryTextColor: '#f3f4f6',
+				primaryBorderColor: '#3f3f4e',
+				lineColor: '#00aaff',
+				secondaryColor: '#15151a',
+				tertiaryColor: '#1e1e24',
+				secondaryBorderColor: '#3f3f4e',
+				secondaryTextColor: '#d1d5db',
+				fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+				fontSize: '13px',
+				edgeLabelBackground: 'transparent',
+				clusterBkg: 'rgba(21, 21, 26, 0.65)',
+				clusterBorder: '#3f3f4e',
+				titleColor: '#00aaff',
+				nodeBorder: '#3f3f4e'
+			},
 			flowchart: {
 				useMaxWidth: true,
-				htmlLabels: true
+				htmlLabels: true,
+				curve: 'linear',
+				padding: 14,
+				nodeSpacing: 28,
+				rankSpacing: 34,
+				subGraphTitleMargin: {
+					top: 20,
+					bottom: 28
+				}
 			}
 		} );
 
@@ -138,30 +168,37 @@ class Tour {
 
 		const parts = parseParts( this.tourTitle );
 
-		const headerHtml = parts.map( ( part ) => {
-
-			const cls = part.highlight ? 'header-title-accent' : 'header-title-prefix';
-			return `<span class="${cls}">${part.text}</span>`;
-
-		} ).join( '' );
-
-		const loadingHtml = parts.map( ( part ) => {
-
-			const cls = part.highlight ? 'loading-text-bold' : 'loading-text-light';
-			return `<span class="${cls}">${part.text}</span>`;
-
-		} ).join( '' );
-
 		const cleanTitle = this.tourTitle.replace( /\*/g, '' );
 
 		const headerTitleEl = this.dom?.headerTitle || document.querySelector( '.header-title' );
-		headerTitleEl.innerHTML = headerHtml;
+		if ( headerTitleEl ) {
+
+			headerTitleEl.textContent = '';
+			parts.forEach( ( part ) => {
+
+				const span = document.createElement( 'span' );
+				span.className = part.highlight ? 'header-title-accent' : 'header-title-prefix';
+				span.textContent = part.text;
+				headerTitleEl.appendChild( span );
+
+			} );
+
+		}
 
 		const loadingTextEl = this.dom?.loadingText || document.querySelector( '.loading-text' );
-		loadingTextEl.innerHTML = loadingHtml;
+		if ( loadingTextEl ) {
 
-		/*const loadingTextContainer = document.querySelector( '.loading-text-container' );
-		loadingTextContainer.style.display = 'flex';*/
+			loadingTextEl.textContent = '';
+			parts.forEach( ( part ) => {
+
+				const span = document.createElement( 'span' );
+				span.className = part.highlight ? 'loading-text-bold' : 'loading-text-light';
+				span.textContent = part.text;
+				loadingTextEl.appendChild( span );
+
+			} );
+
+		}
 
 		document.title = `${cleanTitle} - Interactive Guide`;
 
@@ -218,6 +255,7 @@ class Tour {
 			headerPreviewToggle: document.getElementById( 'header-preview-toggle' ),
 			previewHide: document.getElementById( 'preview-hide' ),
 			previewFullscreen: document.getElementById( 'preview-fullscreen' ),
+			previewRefresh: document.getElementById( 'preview-refresh' ),
 			previewPlayground: document.getElementById( 'preview-playground' ),
 			previewCopy: document.getElementById( 'preview-copy' ),
 			editorConsole: document.getElementById( 'editor-console' ),
@@ -228,6 +266,7 @@ class Tour {
 			consoleToggleIcon: document.getElementById( 'console-toggle-icon' ),
 			consoleErrorMessage: document.getElementById( 'console-error-message' ),
 			copyCodeBtnHeader: document.getElementById( 'copy-code-btn-header' ),
+			shareBtnHeader: document.getElementById( 'share-btn-header' ),
 			playgroundBtn: document.getElementById( 'playground-btn' ),
 			debugContainer: document.getElementById( 'debug-container' ),
 			debugEditorContainer: document.getElementById( 'debug-editor-container' ),
@@ -519,13 +558,25 @@ class Tour {
 		const updateSearchFocus = () => {
 
 			const query = this.dom.searchInput.value;
-			if ( document.activeElement === this.dom.searchInput || query.trim().length > 0 ) {
+			const isInputFocused = ( document.activeElement === this.dom.searchInput );
+
+			if ( isInputFocused || query.trim().length > 0 ) {
 
 				this.dom.searchContainer.classList.add( 'focused' );
 
 			} else {
 
 				this.dom.searchContainer.classList.remove( 'focused' );
+
+			}
+
+			if ( isInputFocused ) {
+
+				this.dom.tocList.classList.add( 'search-focused' );
+
+			} else {
+
+				this.dom.tocList.classList.remove( 'search-focused' );
 
 			}
 
@@ -701,6 +752,48 @@ class Tour {
 
 		};
 
+		this.dom.shareBtnHeader.onclick = async () => {
+
+			if ( ! this.isPlaygroundActive ) return;
+
+			if ( this.playgroundManager.playgroundTabs && this.codeEditor ) {
+
+				const activeTab = this.playgroundManager.playgroundTabs.find( t => t.name === this.playgroundManager.activePlaygroundTabName );
+				if ( activeTab ) {
+
+					activeTab.code = this.codeEditor.getValue();
+
+				}
+
+			}
+
+			const encoded = await compressString( JSON.stringify( {
+				tabs: this.playgroundManager.playgroundTabs
+			} ) );
+			const release = THREE.RELEASE || THREE.REVISION;
+			const newHash = 'playground=' + encoded + ( release ? '&release=' + release : '' );
+			window.location.hash = newHash;
+
+			const shareUrl = window.location.href;
+
+			navigator.clipboard.writeText( shareUrl ).then( () => {
+
+				this.dom.shareBtnHeader.classList.add( 'success' );
+				this.dom.shareBtnHeader.innerHTML = '<i data-icon="check" style="width: 1.25rem; height: 1.25rem;"></i>';
+				this.createIcons( this.dom.shareBtnHeader );
+
+				setTimeout( () => {
+
+					this.dom.shareBtnHeader.classList.remove( 'success' );
+					this.dom.shareBtnHeader.innerHTML = '<i data-icon="share-2" style="width: 1.25rem; height: 1.25rem;"></i>';
+					this.createIcons( this.dom.shareBtnHeader );
+
+				}, 2000 );
+
+			} );
+
+		};
+
 		this.dom.headerPreviewToggle.onclick = () => {
 
 			this.isPreviewVisible = ! this.isPreviewVisible;
@@ -834,6 +927,12 @@ class Tour {
 				}, 2000 );
 
 			} );
+
+		};
+
+		this.dom.previewRefresh.onclick = async () => {
+
+			await this.refresh();
 
 		};
 
@@ -1010,7 +1109,7 @@ class Tour {
 
 						if ( this.isPlaygroundActive ) {
 
-							await this.runPlayground();
+							this.runPlayground();
 
 						} else {
 
@@ -1214,6 +1313,60 @@ class Tour {
 
 		mermaid.run( {
 			querySelector: '.mermaid'
+		} ).then( () => {
+
+			this.dom.contentArea.querySelectorAll( '.mermaid svg' ).forEach( ( svg ) => {
+
+				let defs = svg.querySelector( 'defs' );
+				if ( ! defs ) {
+
+					defs = document.createElementNS( 'http://www.w3.org/2000/svg', 'defs' );
+					svg.insertBefore( defs, svg.firstChild );
+
+				}
+
+				if ( ! svg.querySelector( '#cluster-radial-gradient' ) ) {
+
+					const grad = document.createElementNS( 'http://www.w3.org/2000/svg', 'radialGradient' );
+					grad.setAttribute( 'id', 'cluster-radial-gradient' );
+					grad.setAttribute( 'cx', '50%' );
+					grad.setAttribute( 'cy', '100%' );
+					grad.setAttribute( 'r', '80%' );
+					grad.setAttribute( 'fx', '50%' );
+					grad.setAttribute( 'fy', '100%' );
+					grad.innerHTML = `
+						<stop offset="0%" stop-color="#19243a" stop-opacity="0.95" />
+						<stop offset="45%" stop-color="#161a24" stop-opacity="0.95" />
+						<stop offset="100%" stop-color="#14141a" stop-opacity="0.95" />
+					`;
+					defs.appendChild( grad );
+
+				}
+
+				svg.querySelectorAll( '.cluster rect' ).forEach( ( rect ) => {
+
+					rect.setAttribute( 'fill', 'url(#cluster-radial-gradient)' );
+
+				} );
+
+			} );
+
+			this.dom.contentArea.querySelectorAll( '.mermaid .edgeLabel' ).forEach( ( el ) => {
+
+				if ( ! el.textContent.trim() ) {
+
+					el.style.display = 'none';
+
+				}
+
+			} );
+
+			this.dom.contentArea.querySelectorAll( '.mermaid code' ).forEach( ( el ) => {
+
+				tokenizeCodeToElement( el.textContent, el );
+
+			} );
+
 		} ).catch( err => console.error( 'Mermaid render error:', err ) );
 
 		getTwitterWidgets().ready( ( twttr ) => {
@@ -1298,8 +1451,7 @@ class Tour {
 			if ( nodeName ) {
 
 				const textVal = codeTag.textContent.trim();
-				codeTag.innerHTML = '';
-				codeTag.appendChild( document.createTextNode( textVal ) );
+				codeTag.textContent = textVal;
 
 				const button = document.createElement( 'button' );
 				button.className = 'code-modifier-inline-btn';
@@ -1351,13 +1503,21 @@ class Tour {
 
 			if ( ! this.isPlaygroundActive && ! isInitialPlayground && ! page.hasEmbed ) {
 
-				if ( this.renderer.domElement.parentElement !== this.dom.previewContainer ) {
+				if ( this.refreshOnPageChange ) {
 
-					this.dom.previewContainer.appendChild( this.renderer.domElement );
+					this.refresh();
+
+				} else {
+
+					if ( this.renderer && this.renderer.domElement.parentElement !== this.dom.previewContainer ) {
+
+						this.dom.previewContainer.appendChild( this.renderer.domElement );
+
+					}
+
+					this.runner.run( pageCode );
 
 				}
-
-				this.runner.run( pageCode );
 
 			}
 
@@ -1651,6 +1811,55 @@ class Tour {
 
 		this.createIcons( this.dom.contentArea );
 
+		// Auto-scroll when user clicks to expand API class accordions to frame them in view
+		const apiAccordions = this.dom.contentArea.querySelectorAll( '.tsl-api-class-accordion, .tsl-api-inherited-accordion' );
+		apiAccordions.forEach( ( details ) => {
+
+			const summary = details.querySelector( 'summary' );
+			if ( summary ) {
+
+				summary.addEventListener( 'click', () => {
+
+					// If currently closed, it will open after click
+					const willOpen = ! details.open;
+					if ( willOpen ) {
+
+						setTimeout( () => {
+
+							const contentRect = this.dom.contentArea.getBoundingClientRect();
+							const detailsRect = details.getBoundingClientRect();
+							const currentScrollTop = this.dom.contentArea.scrollTop;
+
+							let targetOffset;
+
+							if ( detailsRect.height < contentRect.height ) {
+
+								// Center vertically in viewport if the accordion fits
+								const centerMargin = ( contentRect.height - detailsRect.height ) / 2;
+								targetOffset = detailsRect.top - contentRect.top + currentScrollTop - centerMargin;
+
+							} else {
+
+								// Align to the top with a 20px padding if larger than viewport
+								targetOffset = detailsRect.top - contentRect.top + currentScrollTop - 20;
+
+							}
+
+							this.dom.contentArea.scrollTo( {
+								top: Math.max( 0, targetOffset ),
+								behavior: 'smooth'
+							} );
+
+						}, 60 );
+
+					}
+
+				} );
+
+			}
+
+		} );
+
 		// Hide/Show layout division depending on whether the page contains a TSL code example
 		const hash = window.location.hash.substring( 1 );
 		const isInitialPlayground = hash.startsWith( 'playground=' ) || hash.startsWith( 'playground/' );
@@ -1740,7 +1949,8 @@ class Tour {
 
 		this.dom.headerEditorToggle.style.display = showEditorToggle ? 'flex' : 'none';
 		this.dom.headerPreviewToggle.style.display = showHeaderToggles ? 'flex' : 'none';
-		this.dom.copyCodeBtnHeader.style.display = showHeaderToggles ? 'flex' : 'none';
+		this.dom.copyCodeBtnHeader.style.display = ( showHeaderToggles && ! this.isPlaygroundActive ) ? 'flex' : 'none';
+		this.dom.shareBtnHeader.style.display = this.isPlaygroundActive ? 'flex' : 'none';
 
 		// Manage hResizer display
 		if ( isMobile && this.isPlaygroundActive ) {
@@ -1820,12 +2030,12 @@ class Tour {
 
 		if ( suggestion ) {
 
-			this.dom.searchSuggestionContainer.innerHTML = `
-				Did you mean: <a href="#" class="search-suggestion-link">${suggestion}</a>?
-			`;
-			this.dom.searchSuggestionContainer.style.display = 'flex';
-
-			this.dom.searchSuggestionContainer.querySelector( '.search-suggestion-link' ).onclick = ( e ) => {
+			this.dom.searchSuggestionContainer.textContent = 'Did you mean: ';
+			const link = document.createElement( 'a' );
+			link.href = '#';
+			link.className = 'search-suggestion-link';
+			link.textContent = suggestion;
+			link.onclick = ( e ) => {
 
 				e.preventDefault();
 				this.dom.searchInput.value = suggestion;
@@ -1835,14 +2045,18 @@ class Tour {
 
 			};
 
+			this.dom.searchSuggestionContainer.appendChild( link );
+			this.dom.searchSuggestionContainer.appendChild( document.createTextNode( '?' ) );
+			this.dom.searchSuggestionContainer.style.display = 'flex';
+
 		} else {
 
-			this.dom.searchSuggestionContainer.innerHTML = '';
+			this.dom.searchSuggestionContainer.textContent = '';
 			this.dom.searchSuggestionContainer.style.display = 'none';
 
 		}
 
-		this.dom.tocList.innerHTML = '';
+		this.dom.tocList.textContent = '';
 
 		if ( tree.length === 0 && ! featuredPage && this.dom.searchInput.value.trim().length > 0 ) {
 
@@ -1870,19 +2084,23 @@ class Tour {
 
 				}
 
+				const titleSpan = document.createElement( 'span' );
+				titleSpan.style.paddingLeft = `${ level * 0.75 }rem`;
+				titleSpan.style.display = 'inline-flex';
+				titleSpan.style.alignItems = 'center';
+				titleSpan.textContent = node.title;
+				btn.appendChild( titleSpan );
+
 				if ( node.children.length === 0 ) {
 
-					btn.innerHTML = `
-						<span style="padding-left: ${ level * 0.75 }rem; display: inline-flex; align-items: center;">${node.title}</span>
-					`;
 					btn.disabled = true;
 
 				} else {
 
-					btn.innerHTML = `
-						<span style="padding-left: ${ level * 0.75 }rem; display: inline-flex; align-items: center;">${node.title}</span>
-						<i data-icon="chevron-down" class="toc-chevron"></i>
-					`;
+					const chevron = document.createElement( 'i' );
+					chevron.setAttribute( 'data-icon', 'chevron-down' );
+					chevron.className = 'toc-chevron';
+					btn.appendChild( chevron );
 
 					btn.onclick = () => {
 
@@ -1936,20 +2154,33 @@ class Tour {
 
 					}
 
-					btn.innerHTML = `
-						<span style="padding-left: ${ level * 0.75 }rem; display: inline-flex; align-items: center;">${node.title}</span>
-						<span class="toc-chevron-btn" style="display: inline-flex; align-items: center; padding: 0.2rem 0 0.2rem 0.5rem;">
-							<i data-icon="chevron-down" class="toc-chevron"></i>
-						</span>
-					`;
+					const titleSpan = document.createElement( 'span' );
+					titleSpan.style.paddingLeft = `${ level * 0.75 }rem`;
+					titleSpan.style.display = 'inline-flex';
+					titleSpan.style.alignItems = 'center';
+					titleSpan.textContent = node.title;
+					btn.appendChild( titleSpan );
 
-					btn.querySelector( '.toc-chevron-btn' ).onclick = ( e ) => {
+					const chevronBtn = document.createElement( 'span' );
+					chevronBtn.className = 'toc-chevron-btn';
+					chevronBtn.style.display = 'inline-flex';
+					chevronBtn.style.alignItems = 'center';
+					chevronBtn.style.padding = '0.2rem 0 0.2rem 0.5rem';
+
+					const chevron = document.createElement( 'i' );
+					chevron.setAttribute( 'data-icon', 'chevron-down' );
+					chevron.className = 'toc-chevron';
+					chevronBtn.appendChild( chevron );
+
+					chevronBtn.onclick = ( e ) => {
 
 						e.stopPropagation();
 						if ( this.dom.searchInput.value.trim().length > 0 ) return;
 						container.classList.toggle( 'collapsed' );
 
 					};
+
+					btn.appendChild( chevronBtn );
 
 					btn.onclick = () => {
 
@@ -2038,9 +2269,12 @@ class Tour {
 
 					}
 
-					btn.innerHTML = `
-						<span style="padding-left: ${ level * 0.75 }rem; display: inline-flex; align-items: center;">${node.title}</span>
-					`;
+					const titleSpan = document.createElement( 'span' );
+					titleSpan.style.paddingLeft = `${ level * 0.75 }rem`;
+					titleSpan.style.display = 'inline-flex';
+					titleSpan.style.alignItems = 'center';
+					titleSpan.textContent = node.title;
+					btn.appendChild( titleSpan );
 
 					btn.onclick = () => {
 
@@ -2135,6 +2369,23 @@ class Tour {
 			this.dom.tocList.appendChild( createTOCNode( rootNode, 0 ) );
 
 		} );
+
+		if ( this.dom.searchInput && this.dom.searchInput.value.trim().length > 0 ) {
+
+			const firstWrapper = this.dom.tocList.querySelector( '.toc-item-wrapper' );
+			if ( firstWrapper ) {
+
+				firstWrapper.classList.add( 'first-search-result' );
+
+			}
+
+			if ( document.activeElement === this.dom.searchInput ) {
+
+				this.dom.tocList.classList.add( 'search-focused' );
+
+			}
+
+		}
 
 		// Re-initialize Lucide icons to render the chevrons
 		this.createIcons( this.dom.tocList );
@@ -2287,7 +2538,10 @@ class Tour {
 	animate( t ) {
 
 		const page = this.pages[ this.currentPageIndex ];
-		if ( ! page || ( ! page.hasCode && ! page.hasEmbed && ! this.isPlaygroundActive ) || ( ! page.hasEmbed && ! this.isPreviewVisible ) ) return;
+		const isInitialized = this.renderer.hasInitialized();
+
+		if ( ! isInitialized || ! page || ( ! page.hasCode && ! page.hasEmbed && ! this.isPlaygroundActive ) || ( ! page.hasEmbed && ! this.isPreviewVisible ) ) return;
+
 
 		this.renderer.clear();
 
@@ -2313,14 +2567,27 @@ class Tour {
 
 			await this.renderer.init();
 
-			const device = this.renderer.backend.device;
+			const onError = this.renderer.onError;
+			const onDeviceLost = this.renderer.onDeviceLost;
 
-			device.addEventListener( 'uncapturederror', () => {
+			this.renderer.onError = ( info ) => {
+
+				onError( info );
 
 				this.renderer.setAnimationLoop( null );
 				this.hasCriticalError = true;
 
-			} );
+			};
+
+			this.renderer.onDeviceLost = ( info ) => {
+
+				onDeviceLost( info );
+
+				this.renderer.setAnimationLoop( null );
+				this.hasCriticalError = true;
+
+			};
+
 
 		} catch ( err ) {
 
@@ -2337,35 +2604,63 @@ class Tour {
 
 	disposeRenderer() {
 
-		this.renderer.setAnimationLoop( null );
+		if ( this.renderer ) {
 
-		this.renderer.inspector.domElement.remove();
+			this.renderer.dispose();
 
-		this.renderer.domElement.remove();
+			this.renderer.domElement.remove();
 
-		this.renderer.dispose();
+			this.renderer = null;
+
+		}
 
 	}
 
 	async refresh() {
 
-		this.disposeRenderer();
+		if ( this._refreshPromise !== null ) {
 
-		this.runner.dispose();
-
-		await this.createRenderer();
-
-		const currentCode = this.codeEditor.getValue();
-
-		if ( this.isPlaygroundActive ) {
-
-			await this.runPlayground();
-
-		} else {
-
-			await this.runner.run( currentCode );
+			return this._refreshPromise;
 
 		}
+
+		this._refreshPromise = new Promise( async ( resolve, reject ) => {
+
+			try {
+
+				this.disposeRenderer();
+
+				this.runner.dispose();
+
+				await this.createRenderer();
+
+				const currentCode = this.codeEditor.getValue();
+
+				if ( this.isPlaygroundActive ) {
+
+					this.runPlayground();
+
+				} else {
+
+					await this.runner.run( currentCode );
+
+				}
+
+				resolve();
+
+			} catch ( error ) {
+
+				reject( error );
+
+			} finally {
+
+				this._refreshPromise = null;
+
+			}
+
+		} );
+
+		return this._refreshPromise;
 
 	}
 

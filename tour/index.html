@@ -22,8 +22,6 @@
 					"three/webgpu": "../build/three.webgpu.js",
 					"three/tsl": "../build/three.tsl.js",
 					"three/addons/": "../examples/jsm/",
-					"three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.13/build/index.module.js",
-					"src/": "/src/",
 					"tsl-textures": "https://cdn.jsdelivr.net/gh/boytchev/tsl-textures/dist/tsl-textures.js",
 					"marked": "https://cdn.jsdelivr.net/npm/marked@12.0.1/lib/marked.esm.js",
 					"acorn": "https://cdn.jsdelivr.net/npm/acorn@8.11.3/dist/acorn.mjs",
@@ -32,9 +30,6 @@
 				}
 			}
 		</script>
-
-		<!-- Monaco Editor -->
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs/loader.min.js"></script>
 
 	</head>
 
@@ -117,6 +112,9 @@
 				</div>
 
 				<div style="width: auto; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-end;">
+					<button id="share-btn-header" class="icon-btn" title="Share Playground URL" style="display: none;">
+						<i data-icon="share-2" style="width: 1.25rem; height: 1.25rem;"></i>
+					</button>
 					<button id="copy-code-btn-header" class="icon-btn" title="Copy Markdown">
 						<i data-icon="copy" style="width: 1.25rem; height: 1.25rem;"></i>
 					</button>
@@ -159,6 +157,9 @@
 								</button>
 								<button id="preview-fullscreen" class="preview-fullscreen-btn" title="Toggle fullscreen">
 									<i data-icon="maximize" style="width: 1.15rem; height: 1.15rem;"></i>
+								</button>
+								<button id="preview-refresh" class="preview-refresh-btn" title="Refresh WebGPU Renderer & Runner">
+									<i data-icon="refresh" style="width: 1.15rem; height: 1.15rem;"></i>
 								</button>
 								<button id="preview-playground" class="preview-playground-btn" title="Open in Playground">
 									<i data-icon="terminal" style="width: 1.15rem; height: 1.15rem;"></i>
@@ -237,8 +238,6 @@
 			import { Tour } from './js/Tour.js';
 
 			const tour = new Tour();
-			tour.setTitle( '*TSL* Workshop' );
-			//tour.load( 'content/Tour.md' );
 			tour.load( 'content/Workshop.md' );
 
 		</script>

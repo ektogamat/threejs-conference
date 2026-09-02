@@ -3,8 +3,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { Fn, float, fract, fwidth, abs, saturate, max, smoothstep, length, positionWorld, positionLocal, vec4, reflector, pass } from 'three/tsl';
+import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 
-let scene, camera, controls, defaultPass, renderPipeline, prefab, previewMesh, calibrationMesh, floor, reflection, dragging = false;
+let scene, camera, controls, defaultPass, defaultAA, renderPipeline, prefab, previewMesh, calibrationMesh, floor, reflection, dragging = false;
 let model;
 
 const gridTexture = Fn( ( [ coord, lineWidth = float( 0.01 ), dotSize = float( 0.03 ) ] ) => {
@@ -26,54 +27,16 @@ const gridTexture = Fn( ( [ coord, lineWidth = float( 0.01 ), dotSize = float( 0
 
 } );
 
-function resetScene() {
-
-	scene.fogNode = null;
-	scene.backgroundNode = null;
-
-	floor.visible = true;
-
-	camera.position.set( 2, 3, 4 );
-	camera.lookAt( 0, 1, 0 );
-
-	controls.target.set( 0, 1, 0 );
-	controls.update();
-
-	prefab.rotation.set( 0, 0, 0 );
-
-	previewMesh.material.dispose();
-	calibrationMesh.material.dispose();
-
-	previewMesh.material = new THREE.MeshStandardNodeMaterial( { roughness: 0.8, metalness: 0.2 } );
-
-	// White checker calibration board material
-	const calibMaterial = new THREE.MeshStandardNodeMaterial( { roughness: 0.5, metalness: 0.0 } );
-	const calibGridColor = vec4( 0.25, 0.25, 0.25, 1.0 ); // Darker crisp grey lines
-	const calibBaseColor = vec4( 0.95, 0.95, 0.95, 1.0 ); // Clean off-white squares
-	calibMaterial.colorNode = gridTexture( positionLocal.xy.mul( 10.0 ), 0.02, 0.0 ).mix( calibBaseColor, calibGridColor );
-
-	calibrationMesh.material = calibMaterial;
-
-	renderPipeline.outputNode = defaultPass;
-	renderPipeline.needsUpdate = true;
-
-}
-
-async function init() {
-
-	if ( scene ) {
-
-		resetScene();
-		return;
-
-	}
+export async function init() {
 
 	scene = new THREE.Scene();
 
 	camera = new THREE.PerspectiveCamera( 45, renderer.domElement.clientWidth / renderer.domElement.clientHeight, 0.1, 100 );
 	camera.position.set( 2, 3, 4 );
+	camera.lookAt( 0, 1, 0 );
 
 	defaultPass = pass( scene, camera );
+	defaultAA = smaa( defaultPass );
 
 	renderPipeline = new THREE.RenderPipeline( renderer );
 
@@ -84,6 +47,7 @@ async function init() {
 	controls.target.set( 0, 1, 0 );
 	controls.addEventListener( 'start', () => dragging = true );
 	controls.addEventListener( 'end', () => dragging = false );
+	controls.update();
 
 	// Ground plane with procedural grid (glossy reflective showroom floor)
 	const floorMaterial = new THREE.MeshStandardNodeMaterial( { roughness: 0.6, metalness: 0.8 } );
@@ -173,11 +137,11 @@ async function init() {
 
 	model = previewMesh;
 
-	resetScene();
+	refresh();
 
 }
 
-function update() {
+export function update() {
 
 	// TODO: Probably a cache-key issue, see #normal and goto playground
 	model.material.needsUpdate = true;
@@ -187,23 +151,51 @@ function update() {
 
 }
 
-function resize( width, height ) {
+export function resize( width, height ) {
 
 	camera.aspect = width / height;
 	camera.updateProjectionMatrix();
 
 }
 
-function dispose() {
+export function refresh() {
+
+	scene.fogNode = null;
+	scene.backgroundNode = null;
+
+	floor.visible = true;
+
+	prefab.rotation.set( 0, 0, 0 );
+
+	previewMesh.material.dispose();
+	calibrationMesh.material.dispose();
+
+	previewMesh.material = new THREE.MeshStandardNodeMaterial( { roughness: 0.8, metalness: 0.2 } );
+
+	// White checker calibration board material
+	const calibMaterial = new THREE.MeshStandardNodeMaterial( { roughness: 0.5, metalness: 0.0 } );
+	const calibGridColor = vec4( 0.25, 0.25, 0.25, 1.0 ); // Darker crisp grey lines
+	const calibBaseColor = vec4( 0.95, 0.95, 0.95, 1.0 ); // Clean off-white squares
+	calibMaterial.colorNode = gridTexture( positionLocal.xy.mul( 10.0 ), 0.02, 0.0 ).mix( calibBaseColor, calibGridColor );
+
+	calibrationMesh.material = calibMaterial;
+
+	renderPipeline.outputNode = defaultAA;
+	renderPipeline.outputColorTransform = true;
+	renderPipeline.needsUpdate = true;
+
+}
+
+export function dispose() {
 
 	// TODO: Implement dispose
 
 }
 
-function debug() {
+export function debug() {
 
 	return { scene, camera, object: previewMesh || model };
 
 }
 
-export { scene, camera, controls, defaultPass, renderPipeline, model, floor, dragging, debug };
+export { scene, camera, controls, defaultPass, defaultAA, renderPipeline, model, floor, dragging };

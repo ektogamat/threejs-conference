@@ -199,7 +199,8 @@ let lastTime = 0;
 
 function refresh() {
 
-	console.log( 'refresh' );
+	scene.add( reflection.target );
+	scene.add( ground );
 
 }
 
@@ -232,4 +233,4 @@ function dispose() {
 
 }
 
-export { init, update, dispose, ground };
+export { init, refresh, update, dispose, ground };

@@ -273,6 +273,13 @@ async function init() {
 
 const cameraDir = new THREE.Vector3();
 
+function refresh() {
+
+	scene.add( rainParticles );
+	scene.add( splashParticles );
+
+}
+
 function update() {
 
 	uCameraPos.value.copy( camera.position );
@@ -304,4 +311,4 @@ function dispose() {
 
 }
 
-export { init, update, dispose };
+export { init, refresh, update, dispose };

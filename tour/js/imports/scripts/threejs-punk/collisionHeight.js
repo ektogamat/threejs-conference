@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { positionWorld, vec2, vec4, float, uniform } from 'three/tsl';
+import { positionWorld, vec2, vec3, vec4, float, uniform } from 'three/tsl';
 
 class CollisionHeight {
 
@@ -23,7 +23,7 @@ class CollisionHeight {
 
 		// outputNode bypasses tone mapping entirely in WebGPU
 		this.material = new THREE.MeshBasicNodeMaterial();
-		this.material.outputNode = vec4( positionWorld, 1 );
+		this.material.outputNode = vec4( vec3( positionWorld.y ), 1 );
 
 		// Single clean uniform tracking the Vector3 reference automatically
 		this._positionNode = uniform( this.position );
@@ -94,6 +94,12 @@ function init() {
 
 }
 
+function refresh() {
+
+	collisionHeight.update();
+
+}
+
 function update() {
 
 	collisionHeight.update();
@@ -106,4 +112,4 @@ function dispose() {
 
 }
 
-export { collisionHeight, init, update, dispose };
+export { collisionHeight, init, refresh, update, dispose };

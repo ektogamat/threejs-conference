@@ -1,3 +1,257 @@
+<page name="Ground">
+
+<page name="Simple Ground">
+
+In this step, we create a basic ground plane for the scene using traditional texture maps with `MeshStandardNodeMaterial`.
+
+**Step 1** — Load the texture maps (`albedo`, `roughness`, and `normal`) using `TextureLoader`.
+
+**Step 2** — Configure texture wrapping with `RepeatWrapping` and repeat them `15x15` times across the surface so the puddles and asphalt detail tile nicely across a large area.
+
+**Step 3** — Assign `SRGBColorSpace` to the albedo map for proper color reproduction in WebGPU.
+
+**Step 4** — Create a `PlaneGeometry( 400, 400 )`, rotate it horizontally (`-Math.PI / 2`), position it slightly below the road (`y = -5.4`), and enable `receiveShadow`.
+
+```tsl
+import * as THREE from 'three';
+import 'threejs-punk/scene';
+
+const textureLoader = new THREE.TextureLoader();
+
+const albedoMap = textureLoader.load( '/textures/wet-puddles-albedo.jpg' );
+albedoMap.wrapS = THREE.RepeatWrapping;
+albedoMap.wrapT = THREE.RepeatWrapping;
+albedoMap.colorSpace = THREE.SRGBColorSpace;
+albedoMap.repeat.set( 15, 15 );
+
+const roughnessMap = textureLoader.load( '/textures/wet-puddles-roughness.jpg' );
+roughnessMap.wrapS = THREE.RepeatWrapping;
+roughnessMap.wrapT = THREE.RepeatWrapping;
+roughnessMap.repeat.set( 15, 15 );
+
+const normalMapTex = textureLoader.load( '/textures/wet-puddles-normal.jpg' );
+normalMapTex.wrapS = THREE.RepeatWrapping;
+normalMapTex.wrapT = THREE.RepeatWrapping;
+normalMapTex.repeat.set( 15, 15 );
+
+const material = new THREE.MeshStandardNodeMaterial( {
+	map: albedoMap,
+	roughnessMap: roughnessMap,
+	roughness: 0.55,
+	metalness: 0.0
+} );
+
+const geometry = new THREE.PlaneGeometry( 400, 400 );
+const ground = new THREE.Mesh( geometry, material );
+ground.rotation.x = - Math.PI / 2;
+ground.position.y = - 5.4;
+ground.receiveShadow = true;
+
+scene.add( ground );
+```
+
+### Try this
+
+1. Add `normalMap: normalMapTex` to the material parameters. Notice how surface bumps and puddle borders catch the neon lights.
+2. Change the repeat tiling from `repeat.set( 15, 15 )` to `repeat.set( 5, 5 )` or `repeat.set( 30, 30 )`.
+3. Tweak `roughness` between `0.1` (glossy wet mirror) and `1.0` (matte asphalt).
+
+</page>
+
+<page name="Ripples">
+
+In this step, we generate dynamic rain ripples using the `ripples` TSL node and visualize them directly on `colorNode`.
+
+**Step 1** — Import `time` and `positionWorld` from `three/tsl`.
+
+**Step 2** — Import `ripples` from `threejs-punk/utils`.
+
+**Step 3** — Create `rippleUV` from horizontal world coordinates `positionWorld.xz.mul( 5 )` and calculate the ripples driven by `time`.
+
+**Step 4** — Assign `rippleSample` directly to `material.colorNode` to see the generated normal/height vectors in real time.
+
+```tsl
+import * as THREE from 'three';
+import { time, positionWorld } from 'three/tsl';
+import { ripples } from 'threejs-punk/utils';
+import 'threejs-punk/scene';
+
+// 1. Tiled coordinate derived from horizontal world position
+const rippleUV = positionWorld.xz.mul( 5 );
+
+// 2. Generate animated rain ripples driven continuously by time
+const rippleSample = ripples( rippleUV, time, 3, 0.3 );
+
+const material = new THREE.MeshBasicNodeMaterial();
+
+// 3. Direct visualization of the ripple vectors on colorNode
+material.colorNode = rippleSample;
+
+const geometry = new THREE.PlaneGeometry( 400, 400 );
+const ground = new THREE.Mesh( geometry, material );
+ground.rotation.x = - Math.PI / 2;
+ground.position.y = - 5.4;
+
+scene.add( ground );
+```
+
+### Try this
+
+1. Change the ripple scale in `const rippleUV = positionWorld.xz.mul( 5 )` to `mul( 2 )` (larger rings) or `mul( 10 )` (dense raindrops).
+2. Adjust the ripple speed parameter from `3` to `8` to make ripples propagate faster.
+3. Change the fourth parameter (ripple step/frequency) from `0.3` to `0.8` or `0.1`.
+
+</page>
+
+<page name="Collision Mask">
+
+In this step, we detect and visualize the shadow mask of obstacles above the ground using `height.step()`.
+
+**Step 1** — Import `collisionHeight` from `threejs-punk/collisionHeight`.
+
+**Step 2** — Sample the surface height at `positionWorld` using `collisionHeight.getUV( positionWorld )`.
+
+**Step 3** — Use `height.step( positionWorld.y.add( 0.5 ) ).oneMinus()` to create a binary mask (1.0 for open ground, 0.0 under vehicles/bridges).
+
+**Step 4** — Assign `mask` to `material.colorNode` to visualize the shadow footprints on the ground.
+
+```tsl
+import * as THREE from 'three';
+import { positionWorld, texture } from 'three/tsl';
+import 'threejs-punk/scene';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+
+// 1. Sample top-down collision height map at ground position
+const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
+
+// 2. Binary mask: 1.0 on open ground, 0.0 where objects are higher than ground + 0.5
+const mask = height.step( positionWorld.y.add( 0.5 ) ).oneMinus();
+
+const material = new THREE.MeshBasicNodeMaterial();
+
+// 3. Display the binary collision mask directly on the ground plane
+material.colorNode = mask;
+
+const geometry = new THREE.PlaneGeometry( 400, 400 );
+const ground = new THREE.Mesh( geometry, material );
+ground.rotation.x = - Math.PI / 2;
+ground.position.y = - 5.4;
+
+scene.add( ground );
+```
+
+### Try this
+
+1. Orbit the camera under the car and bridge structures to see the sharp binary shadow footprints.
+2. Remove `.oneMinus()` to invert the mask (white where covered, black on open ground).
+3. Change `0.5` to `2.0` to see how the height clearance threshold changes.
+
+</page>
+
+<page name="Ripple Mask">
+
+To prevent rain ripples from appearing under bridges, overpasses, and vehicles, we sample top-down height occlusion from `collisionHeight`.
+
+**Step 1** — Import `collisionHeight` from `threejs-punk/collisionHeight`.
+
+**Step 2** — Sample the surface height at `positionWorld` using `collisionHeight.getUV( positionWorld )`.
+
+**Step 3** — Use `height.step( positionWorld.y.add( 0.5 ) ).oneMinus()` to dynamically map open ground to 1.0 and elevated obstacles to 0.0.
+
+**Step 4** — Multiply `rippleSample` by `rippleMask` so ripples are clipped in sheltered areas.
+
+```tsl
+import * as THREE from 'three';
+import { time, positionWorld, texture } from 'three/tsl';
+import { ripples } from 'threejs-punk/utils';
+import 'threejs-punk/scene';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+
+// 1. Generate animated rain ripples
+const rippleUV = positionWorld.xz.mul( 5 );
+const rippleSample = ripples( rippleUV, time, 3, 0.3 );
+
+// 2. Sample top-down collision height map
+const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
+
+// 3. Dynamic occlusion mask: 1.0 on ground, 0.0 under shelter
+const rippleMask = height.step( positionWorld.y.add( 0.5 ) ).oneMinus();
+
+const material = new THREE.MeshBasicNodeMaterial();
+
+// 4. Occlude ripples in covered/sheltered areas with soft edges
+material.colorNode = rippleSample.mul( rippleMask );
+
+const geometry = new THREE.PlaneGeometry( 400, 400 );
+const ground = new THREE.Mesh( geometry, material );
+ground.rotation.x = - Math.PI / 2;
+ground.position.y = - 5.4;
+
+scene.add( ground );
+```
+
+### Try this
+
+1. Set `material.colorNode = rippleMask;` to inspect the soft anti-aliased rain shadow mask directly.
+2. Tweak the `remapClamp` thresholds (e.g. `-5.4, -4.8, 1, 0` or `-5.4, -4.0, 1, 0`) to adjust the penumbra/softness of the shadow.
+3. Orbit around the car to observe how cleanly the ripples fade under the chassis.
+
+</page>
+
+<page name="Reflector">
+
+In this step, we add realtime planar reflections with bicubic blur filtering using `textureBicubic` and add a GUI parameter to the inspector.
+
+**Step 1** — Import `reflector`, `texture`, `textureBicubic`, and `uniform` from `three/tsl`.
+
+**Step 2** — Create a `reflector` node with `generateMipmaps: true` so blurred reflection mipmaps can be sampled.
+
+**Step 3** — Create a `roughness` uniform and register it in the GUI with `renderer.inspector.createParameters( 'Scene settings' )`.
+
+**Step 4** — Filter the reflection texture using `textureBicubic( texture( reflection ), roughness )` and connect to `material.colorNode`.
+
+```tsl
+import * as THREE from 'three';
+import { reflector, texture, textureBicubic, uniform } from 'three/tsl';
+import 'threejs-punk/scene';
+
+// 1. Create realtime planar reflector with mipmap generation enabled
+const reflection = reflector( { resolutionScale: 0.5, bounces: false, generateMipmaps: true } );
+reflection.target.rotation.x = - Math.PI / 2;
+reflection.target.position.y = - 5.4;
+scene.add( reflection.target );
+
+// 2. Roughness uniform to control blur strength
+const roughness = uniform( 0.2 );
+
+// 3. Add parameter slider to the inspector GUI
+const gui = renderer.inspector.createParameters( 'Scene settings' );
+gui.add( roughness, 'value', 0, 1, 0.01 ).name( 'roughness' );
+
+// 4. Filter reflection texture with bicubic mipmap blur
+const blurredReflection = textureBicubic( texture( reflection ), roughness );
+
+const material = new THREE.MeshBasicNodeMaterial();
+material.colorNode = blurredReflection;
+
+const geometry = new THREE.PlaneGeometry( 400, 400 );
+const ground = new THREE.Mesh( geometry, material );
+ground.rotation.x = - Math.PI / 2;
+ground.position.y = - 5.4;
+
+scene.add( ground );
+```
+
+### Try this
+
+1. Open the inspector's "Scene settings" panel and drag the `roughness` slider from `0.0` (sharp mirror) to `1.0` (blurry/rough).
+2. Orbit around the car to see how neon light streaks dynamically blur across the wet surface.
+3. Add a second control to the GUI: `gui.add( reflection.target.position, 'y', -10, 0, 0.1 ).name( 'reflector Y' );`.
+
+</page>
+
+</page>
+
 <page name="Three.js Punk">
 
 <page name="The Cyberpunk Scene">
@@ -23,68 +277,6 @@ import 'threejs-punk/fog';
 > - Click and drag the left mouse button to rotate around the city street.
 > - Use the scroll wheel to zoom in and out.
 > - Click and drag the right mouse button to pan.
-
-</page>
-
-<page name="Ground">
-
-<page name="Creating the Ground">
-
-Explain about ripple
-
-```tsl ripple
-import * as THREE from 'three';
-import 'threejs-punk/scene';
-
-const textureLoader = new THREE.TextureLoader();
-
-albedoMap = textureLoader.load( '/textures/wet-puddles-albedo.jpg' );
-albedoMap.wrapS = THREE.RepeatWrapping;
-albedoMap.wrapT = THREE.RepeatWrapping;
-albedoMap.colorSpace = THREE.SRGBColorSpace;
-albedoMap.repeat.set( 15, 15 );
-
-roughnessMap = textureLoader.load( '/textures/wet-puddles-roughness.jpg' );
-roughnessMap.wrapS = THREE.RepeatWrapping;
-roughnessMap.wrapT = THREE.RepeatWrapping;
-roughnessMap.repeat.set( 15, 15 );
-
-normalMapTex = textureLoader.load( '/textures/wet-puddles-normal.jpg' );
-normalMapTex.wrapS = THREE.RepeatWrapping;
-normalMapTex.wrapT = THREE.RepeatWrapping;
-normalMapTex.repeat.set( 15, 15 );
-
-const material = new THREE.MeshStandardNodeMaterial( {
-    map: albedoMap,
-    roughnessMap: roughnessMap,
-    roughness: 0.55,
-    metalness: 0.0
-} );
-
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
-ground.receiveShadow = true;
-
-scene.add( ground );
-```
-
-</page>
-
-<page name="Rain ripples">
-
-Post processing example
-
-```tsl
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-```
-
-</page>
 
 </page>
 

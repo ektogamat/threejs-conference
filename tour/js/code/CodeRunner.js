@@ -20,9 +20,11 @@ try {
 
 //
 
-function getImportDeclarations( code ) {
+function parseScript( code ) {
 
-	const declarations = [];
+	const importDeclarations = [];
+	const declaredSymbols = new Set();
+
 	let ast;
 	try {
 
@@ -30,9 +32,36 @@ function getImportDeclarations( code ) {
 
 	} catch {
 
-		return declarations;
+		return { importDeclarations, declaredSymbols };
 
 	}
+
+	const extractPattern = ( pattern ) => {
+
+		if ( ! pattern ) return;
+		if ( pattern.type === 'Identifier' ) {
+
+			declaredSymbols.add( pattern.name );
+
+		} else if ( pattern.type === 'ObjectPattern' ) {
+
+			pattern.properties.forEach( prop => extractPattern( prop.value || prop.argument ) );
+
+		} else if ( pattern.type === 'ArrayPattern' ) {
+
+			pattern.elements.forEach( elem => extractPattern( elem ) );
+
+		} else if ( pattern.type === 'AssignmentPattern' ) {
+
+			extractPattern( pattern.left );
+
+		} else if ( pattern.type === 'RestElement' ) {
+
+			extractPattern( pattern.argument );
+
+		}
+
+	};
 
 	ast.body.forEach( node => {
 
@@ -72,7 +101,7 @@ function getImportDeclarations( code ) {
 
 			} );
 
-			declarations.push( {
+			importDeclarations.push( {
 				start: node.start,
 				end: node.end,
 				moduleName: moduleName,
@@ -82,9 +111,39 @@ function getImportDeclarations( code ) {
 
 		}
 
+		let decl = node;
+		if ( node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration' ) {
+
+			decl = node.declaration;
+			if ( node.specifiers ) {
+
+				node.specifiers.forEach( s => {
+
+					if ( s.local ) declaredSymbols.add( s.local.name );
+
+				} );
+
+			}
+
+		}
+
+		if ( decl ) {
+
+			if ( decl.type === 'VariableDeclaration' ) {
+
+				decl.declarations.forEach( d => extractPattern( d.id ) );
+
+			} else if ( decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration' ) {
+
+				if ( decl.id ) declaredSymbols.add( decl.id.name );
+
+			}
+
+		}
+
 	} );
 
-	return declarations;
+	return { importDeclarations, declaredSymbols };
 
 }
 
@@ -103,6 +162,94 @@ function stripImportDeclarations( code, declarations ) {
 
 }
 
+function processExportDeclarations( code ) {
+
+	let cleanText = code;
+	const exportedSymbols = [];
+
+	// 1. Parse braced exports (e.g., export { foo, bar as baz };)
+	const bracedExportRegex = /export\s*\{([\s\S]*?)\};?/g;
+	let bracedMatch;
+	while ( ( bracedMatch = bracedExportRegex.exec( cleanText ) ) !== null ) {
+
+		const symbolList = bracedMatch[ 1 ].split( ',' ).map( s => s.trim() ).filter( Boolean );
+		symbolList.forEach( symbol => {
+
+			let localName = symbol;
+			let exportName = symbol;
+			if ( symbol.includes( ' as ' ) ) {
+
+				const parts = symbol.split( /\s+as\s+/ );
+				localName = parts[ 0 ].trim();
+				exportName = parts[ 1 ].trim();
+
+			}
+
+			exportedSymbols.push( { local: localName, export: exportName } );
+
+		} );
+
+	}
+
+	cleanText = cleanText.replace( bracedExportRegex, '' );
+
+	// 2. Parse inline variable exports (e.g., export const foo = 1; or export let a = 1, b = 2;)
+	cleanText = cleanText.replace( /export\s+(const|let|var)\s+([^;\n]+)/g, ( match, type, decls ) => {
+
+		const parts = decls.split( ',' );
+		parts.forEach( p => {
+
+			const name = p.trim().split( '=' )[ 0 ].trim().split( /\s+/ )[ 0 ];
+			if ( /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test( name ) ) {
+
+				exportedSymbols.push( { local: name, export: name } );
+
+			}
+
+		} );
+
+		return `${type} ${decls}`;
+
+	} );
+
+	// 3. Parse inline function or class exports (e.g., export function foo() {}, export async function foo() {})
+	cleanText = cleanText.replace( /export\s+(async\s+)?(function\*?|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
+
+		exportedSymbols.push( { local: name, export: name } );
+		return `${asyncPrefix || ''}${type} ${name}`;
+
+	} );
+
+	// 4. Parse default function/class declaration exports (e.g., export default function foo() {})
+	cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function\*?|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
+
+		exportedSymbols.push( { local: name, export: 'default' } );
+		return `${asyncPrefix || ''}${type} ${name}`;
+
+	} );
+
+	// 5. Parse default anonymous function/class exports (e.g., export default function() {})
+	cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function\*?|class)\s*\(/g, ( match, asyncPrefix, type ) => {
+
+		const name = '__default_export__';
+		exportedSymbols.push( { local: name, export: 'default' } );
+		return `${asyncPrefix || ''}${type} ${name}(`;
+
+	} );
+
+	// 6. Parse default expression exports (e.g., export default foo;)
+	cleanText = cleanText.replace( /export\s+default\s+([^;]+);?/g, ( match, expression ) => {
+
+		const name = '__default_export__';
+		exportedSymbols.push( { local: name, export: 'default' } );
+		return `const ${name} = ${expression};`;
+
+	} );
+
+	return { cleanText, exportedSymbols };
+
+}
+
 function serializeArg( arg, depth = 0, seen = new WeakSet() ) {
 
 	if ( arg === null ) return 'null';
@@ -117,65 +264,59 @@ function serializeArg( arg, depth = 0, seen = new WeakSet() ) {
 
 	}
 
-	if ( typeof arg === 'object' ) {
+	if ( seen.has( arg ) ) return '[Circular]';
+	seen.add( arg );
 
-		if ( seen.has( arg ) ) return '[Circular]';
-		seen.add( arg );
+	if ( arg instanceof HTMLElement ) {
 
-		if ( arg instanceof HTMLElement ) {
-
-			return `<${arg.tagName.toLowerCase()}${arg.id ? '#' + arg.id : ''}${arg.className ? '.' + arg.className.split( ' ' ).join( '.' ) : ''}>`;
-
-		}
-
-		if ( Array.isArray( arg ) ) {
-
-			if ( depth > 2 ) return '[Array]';
-			const items = arg.slice( 0, 10 ).map( item => serializeArg( item, depth + 1, seen ) );
-			if ( arg.length > 10 ) items.push( `... ${arg.length - 10} more` );
-			return `[ ${items.join( ', ' )} ]`;
-
-		}
-
-		const constructorName = arg.constructor ? arg.constructor.name : 'Object';
-		if ( constructorName && constructorName !== 'Object' ) {
-
-			if ( [ 'Vector2', 'Vector3', 'Vector4', 'Color' ].includes( constructorName ) ) {
-
-				if ( constructorName === 'Color' ) {
-
-					return `Color( r: ${arg.r}, g: ${arg.g}, b: ${arg.b} )`;
-
-				}
-
-				const coords = [ arg.x, arg.y, arg.z, arg.w ].filter( v => v !== undefined );
-				return `${constructorName}( ${coords.join( ', ' )} )`;
-
-			}
-
-			const desc = [];
-			if ( arg.type ) desc.push( `type: "${arg.type}"` );
-			if ( arg.name ) desc.push( `name: "${arg.name}"` );
-			if ( arg.uuid ) desc.push( `uuid: "${arg.uuid.substring( 0, 8 )}..."` );
-
-			const descStr = desc.length > 0 ? ` { ${desc.join( ', ' )} }` : '';
-			return `${constructorName}${descStr}`;
-
-		}
-
-		if ( depth > 2 ) return '[Object]';
-		const keys = Object.keys( arg );
-		const entries = keys.slice( 0, 10 ).map( key => {
-
-			return `${key}: ${serializeArg( arg[ key ], depth + 1, seen )}`;
-
-		} );
-		if ( keys.length > 10 ) entries.push( `... ${keys.length - 10} more` );
-		return `{ ${entries.join( ', ' )} }`;
+		return `<${arg.tagName.toLowerCase()}${arg.id ? '#' + arg.id : ''}${arg.className ? '.' + arg.className.split( ' ' ).join( '.' ) : ''}>`;
 
 	}
 
-	return String( arg );
+	if ( Array.isArray( arg ) ) {
+
+		if ( depth > 2 ) return '[Array]';
+		const items = arg.slice( 0, 10 ).map( item => serializeArg( item, depth + 1, seen ) );
+		if ( arg.length > 10 ) items.push( `... ${arg.length - 10} more` );
+		return `[ ${items.join( ', ' )} ]`;
+
+	}
+
+	const constructorName = arg.constructor ? arg.constructor.name : 'Object';
+	if ( constructorName && constructorName !== 'Object' ) {
+
+		if ( [ 'Vector2', 'Vector3', 'Vector4', 'Color' ].includes( constructorName ) ) {
+
+			if ( constructorName === 'Color' ) {
+
+				return `Color( r: ${arg.r}, g: ${arg.g}, b: ${arg.b} )`;
+
+			}
+
+			const coords = [ arg.x, arg.y, arg.z, arg.w ].filter( v => v !== undefined );
+			return `${constructorName}( ${coords.join( ', ' )} )`;
+
+		}
+
+		const desc = [];
+		if ( arg.type ) desc.push( `type: "${arg.type}"` );
+		if ( arg.name ) desc.push( `name: "${arg.name}"` );
+		if ( arg.uuid ) desc.push( `uuid: "${arg.uuid.substring( 0, 8 )}..."` );
+
+		const descStr = desc.length > 0 ? ` { ${desc.join( ', ' )} }` : '';
+		return `${constructorName}${descStr}`;
+
+	}
+
+	if ( depth > 2 ) return '[Object]';
+	const keys = Object.keys( arg );
+	const entries = keys.slice( 0, 10 ).map( key => {
+
+		return `${key}: ${serializeArg( arg[ key ], depth + 1, seen )}`;
+
+	} );
+	if ( keys.length > 10 ) entries.push( `... ${keys.length - 10} more` );
+	return `{ ${entries.join( ', ' )} }`;
 
 }
 
@@ -368,40 +509,14 @@ class CodeRunner extends EventDispatcher {
 
 					}
 
-					const importDeclarations = getImportDeclarations( text );
-
-					const declaredVariables = new Set();
-					const declRegex = /(?:let|const|var)\s+([^;=]+)/g;
-					let declMatch;
-					while ( ( declMatch = declRegex.exec( text ) ) !== null ) {
-
-						const vars = declMatch[ 1 ].split( ',' ).map( v => v.trim().split( /\s*=\s*/ )[ 0 ].split( /\s+/ ).pop() );
-						vars.forEach( v => {
-
-							if ( v && /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test( v ) ) {
-
-								declaredVariables.add( v );
-
-							}
-
-						} );
-
-					}
-
-					const funcRegex = /function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
-					let funcMatch;
-					while ( ( funcMatch = funcRegex.exec( text ) ) !== null ) {
-
-						declaredVariables.add( funcMatch[ 1 ] );
-
-					}
+					const { importDeclarations, declaredSymbols } = parseScript( text );
 
 					const symbols = [];
 					const values = [];
 
 					for ( const [ key, val ] of Object.entries( this.env ) ) {
 
-						if ( ! declaredVariables.has( key ) ) {
+						if ( ! declaredSymbols.has( key ) ) {
 
 							symbols.push( key );
 							values.push( val );
@@ -504,82 +619,17 @@ class CodeRunner extends EventDispatcher {
 
 					}
 
-					let cleanText = stripImportDeclarations( text, importDeclarations );
-
-					const exportedSymbols = [];
-
-					// 1. Parse braced exports (e.g., export { foo, bar as baz };)
-					const bracedExportRegex = /export\s+\{([\s\S]+?)\}/g;
-					let bracedMatch;
-					while ( ( bracedMatch = bracedExportRegex.exec( cleanText ) ) !== null ) {
-
-						const symbolList = bracedMatch[ 1 ].split( ',' ).map( s => s.trim() ).filter( Boolean );
-						symbolList.forEach( symbol => {
-
-							let localName = symbol;
-							let exportName = symbol;
-							if ( symbol.includes( ' as ' ) ) {
-
-								const parts = symbol.split( /\s+as\s+/ );
-								localName = parts[ 0 ].trim();
-								exportName = parts[ 1 ].trim();
-
-							}
-
-							exportedSymbols.push( { local: localName, export: exportName } );
-
-						} );
-
-					}
-
-					cleanText = cleanText.replace( bracedExportRegex, '' );
-
-					// 2. Parse inline variable exports (e.g., export const foo = 1;)
-					cleanText = cleanText.replace( /export\s+(const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, type, name ) => {
-
-						exportedSymbols.push( { local: name, export: name } );
-						return `${type} ${name}`;
-
-					} );
-
-					// 3. Parse inline function or class exports (e.g., export function foo() {})
-					cleanText = cleanText.replace( /export\s+(async\s+)?(function|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
-
-						exportedSymbols.push( { local: name, export: name } );
-						return `${asyncPrefix || ''}${type} ${name}`;
-
-					} );
-
-					// 4. Parse default function/class declaration exports (e.g., export default function foo() {})
-					cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
-
-						exportedSymbols.push( { local: name, export: 'default' } );
-						return `${asyncPrefix || ''}${type} ${name}`;
-
-					} );
-
-					// 5. Parse default anonymous function/class exports (e.g., export default function() {})
-					cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function|class)\s*\(/g, ( match, asyncPrefix, type ) => {
-
-						const name = '__default_export__';
-						exportedSymbols.push( { local: name, export: 'default' } );
-						return `${asyncPrefix || ''}${type} ${name}(`;
-
-					} );
-
-					// 6. Parse default expression exports (e.g., export default foo;)
-					cleanText = cleanText.replace( /export\s+default\s+([^;]+);?/g, ( match, expression ) => {
-
-						const name = '__default_export__';
-						exportedSymbols.push( { local: name, export: 'default' } );
-						return `const ${name} = ${expression};`;
-
-					} );
+					const cleanImportsText = stripImportDeclarations( text, importDeclarations );
+					const { cleanText, exportedSymbols } = processExportDeclarations( cleanImportsText );
 
 					const returnFields = LIFECYCLE_METHODS.map( name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined` );
 					exportedSymbols.forEach( symbol => {
 
-						returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
+						if ( ! LIFECYCLE_METHODS.includes( symbol.export ) ) {
+
+							returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
+
+						}
 
 					} );
 
@@ -655,7 +705,7 @@ class CodeRunner extends EventDispatcher {
 
 		try {
 
-			const importDeclarations = getImportDeclarations( code );
+			const { importDeclarations, declaredSymbols } = parseScript( code );
 
 			const symbols = [];
 			const values = [];
@@ -886,13 +936,36 @@ class CodeRunner extends EventDispatcher {
 
 			}
 
+			// Inject runner env variables (e.g. renderer) not shadowed by local declarations
+			for ( const [ key, val ] of Object.entries( this.env ) ) {
+
+				if ( ! symbols.includes( key ) && ! declaredSymbols.has( key ) ) {
+
+					symbols.push( key );
+					values.push( val );
+
+				}
+
+			}
+
 			symbols.push( 'console' );
 			values.push( this.customConsole );
 
-			// Strip all import statements from code so it can run inside Function body
-			const strippedCode = stripImportDeclarations( code, importDeclarations );
+			// Strip all import and export statements from code so it can run inside Function body
+			const strippedImportsCode = stripImportDeclarations( code, importDeclarations );
+			const { cleanText: strippedCode, exportedSymbols } = processExportDeclarations( strippedImportsCode );
 
 			const returnFields = LIFECYCLE_METHODS.map( name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined` );
+			exportedSymbols.forEach( symbol => {
+
+				if ( ! LIFECYCLE_METHODS.includes( symbol.export ) ) {
+
+					returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
+
+				}
+
+			} );
+
 			const executor = new Function( ...symbols, `${strippedCode}\nreturn { ${returnFields.join( ', ' )} };\n//# sourceURL=playground-eval.js` );
 			const instance = executor( ...values );
 

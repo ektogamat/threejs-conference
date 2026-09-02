@@ -6,6 +6,8 @@ const fogDensity = float( 0.002 );
 const fogHeight = float( 0.5 ); // fog fades out above this height
 const fogFloor = float( - 5.4 ); // ground level Y
 
+let fogNode;
+
 function init() {
 
 	const distance = positionWorld.sub( cameraPosition ).length();
@@ -16,7 +18,14 @@ function init() {
 
 	const fogFactor = fogDensity.mul( distance ).mul( heightFade ).clamp( 0, 1 );
 
-	scene.fogNode = fog( fogColor, fogFactor );
+	fogNode = fog( fogColor, fogFactor );
+	scene.fogNode = fogNode;
+
+}
+
+function refresh() {
+
+	scene.fogNode = fogNode;
 
 }
 
@@ -28,4 +37,4 @@ function dispose() {
 
 }
 
-export { init, update, dispose };
+export { init, refresh, update, dispose };

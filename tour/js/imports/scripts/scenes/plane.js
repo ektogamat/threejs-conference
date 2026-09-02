@@ -4,7 +4,7 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { Fn, float, fract, fwidth, abs, saturate, max, smoothstep, length, positionWorld, vec4, reflector, pass } from 'three/tsl';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 
-let scene, camera, controls, defaultPass, defaultAA, renderPipeline, floor, reflection, dragging = false;
+let scene, camera, controls, defaultPass, defaultAA, renderPipeline, floor, reflection, plane, model, dragging = false;
 
 const gridTexture = Fn( ( [ coord, lineWidth = float( 0.01 ), dotSize = float( 0.03 ) ] ) => {
 
@@ -37,6 +37,14 @@ export function refresh() {
 
 	floor.visible = true;
 
+	if ( plane ) {
+
+		plane.material.dispose();
+		plane.material = new THREE.MeshBasicNodeMaterial( { side: THREE.DoubleSide } );
+		scene.add( plane );
+
+	}
+
 	renderPipeline.outputNode = defaultAA;
 	renderPipeline.outputColorTransform = true;
 	renderPipeline.needsUpdate = true;
@@ -49,7 +57,7 @@ export async function init() {
 
 	camera = new THREE.PerspectiveCamera( 45, renderer.domElement.clientWidth / renderer.domElement.clientHeight, 0.1, 100 );
 	camera.position.set( 2, 3, 4 );
-	camera.lookAt( 0, 1, 0 );
+	camera.lookAt( 0, 1.5, 0 );
 
 	defaultPass = pass( scene, camera );
 	defaultAA = smaa( defaultPass );
@@ -60,7 +68,7 @@ export async function init() {
 	controls.enableDamping = true;
 	controls.minDistance = 2;
 	controls.maxDistance = 20;
-	controls.target.set( 0, 1, 0 );
+	controls.target.set( 0, 1.5, 0 );
 	controls.addEventListener( 'start', () => dragging = true );
 	controls.addEventListener( 'end', () => dragging = false );
 	controls.update();
@@ -99,12 +107,18 @@ export async function init() {
 
 	texture.mapping = THREE.EquirectangularReflectionMapping;
 	scene.environment = texture;
-	scene.environmentIntensity = 0.25; // Soft HDR reflections
+	scene.environmentIntensity = 0.25;
 
-	// Blur and dim background environment for cinematic look
 	scene.background = texture;
 	scene.backgroundBlurriness = 0.65;
 	scene.backgroundIntensity = 0.15;
+
+	// Setup Plane Mesh
+	const geometry = new THREE.PlaneGeometry( 3, 3 );
+	const material = new THREE.MeshBasicNodeMaterial( { side: THREE.DoubleSide } );
+	plane = new THREE.Mesh( geometry, material );
+	plane.position.set( 0, 1.5, 0 );
+	model = plane;
 
 	refresh();
 
@@ -126,14 +140,19 @@ export function resize( width, height ) {
 
 export function dispose() {
 
-	// Implement dispose
+	if ( plane ) {
+
+		plane.geometry.dispose();
+		plane.material.dispose();
+
+	}
 
 }
 
 export function debug() {
 
-	return { scene, camera, object: floor };
+	return { scene, camera, object: plane };
 
 }
 
-export { scene, camera, controls, defaultPass, defaultAA, renderPipeline, floor, dragging };
+export { scene, camera, controls, defaultPass, defaultAA, renderPipeline, floor, plane, model, dragging };
