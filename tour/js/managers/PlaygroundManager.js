@@ -162,6 +162,8 @@ class PlaygroundManager {
 
 	async loadPlaygroundFromHash( hash ) {
 
+		this.tour.lastHandledHash = hash;
+
 		const base64Str = hash.replace( /^playground[=\/]/, '' ).split( '&' )[ 0 ];
 		let decodedCode = '';
 		try {
@@ -264,6 +266,109 @@ class PlaygroundManager {
 		this.tour.dom.tabsBar.style.display = 'flex';
 		this.tour.dom.tabsBar.innerHTML = '';
 
+		const scrollWrapper = document.createElement( 'div' );
+		scrollWrapper.className = 'playground-tabs-scroll-wrapper';
+
+		const tabsScrollContainer = document.createElement( 'div' );
+		tabsScrollContainer.className = 'playground-tabs-scroll-container';
+
+		const customScrollbar = document.createElement( 'div' );
+		customScrollbar.className = 'playground-custom-scrollbar';
+		const thumb = document.createElement( 'div' );
+		thumb.className = 'playground-custom-scrollbar-thumb';
+		customScrollbar.appendChild( thumb );
+
+		const updateScrollThumb = () => {
+
+			const { clientWidth, scrollWidth, scrollLeft } = tabsScrollContainer;
+			if ( scrollWidth <= clientWidth + 2 ) {
+
+				customScrollbar.style.display = 'none';
+				return;
+
+			}
+
+			customScrollbar.style.display = 'block';
+			const thumbWidth = Math.max( 28, ( clientWidth / scrollWidth ) * clientWidth );
+			const maxScroll = scrollWidth - clientWidth;
+			const maxThumbLeft = clientWidth - thumbWidth;
+			const thumbLeft = maxScroll > 0 ? ( scrollLeft / maxScroll ) * maxThumbLeft : 0;
+
+			thumb.style.width = `${thumbWidth}px`;
+			thumb.style.transform = `translateX(${thumbLeft}px)`;
+
+		};
+
+		tabsScrollContainer.addEventListener( 'scroll', updateScrollThumb );
+
+		tabsScrollContainer.addEventListener( 'wheel', ( e ) => {
+
+			if ( e.deltaY !== 0 ) {
+
+				e.preventDefault();
+				tabsScrollContainer.scrollLeft += e.deltaY;
+
+			}
+
+		}, { passive: false } );
+
+		// Dragging thumb
+		let isDraggingThumb = false;
+		let startX = 0;
+		let startScrollLeft = 0;
+
+		thumb.onpointerdown = ( e ) => {
+
+			e.stopPropagation();
+			e.preventDefault();
+			isDraggingThumb = true;
+			startX = e.clientX;
+			startScrollLeft = tabsScrollContainer.scrollLeft;
+			thumb.classList.add( 'dragging' );
+			thumb.setPointerCapture( e.pointerId );
+
+		};
+
+		thumb.onpointermove = ( e ) => {
+
+			if ( ! isDraggingThumb ) return;
+			const dx = e.clientX - startX;
+			const { clientWidth, scrollWidth } = tabsScrollContainer;
+			const thumbWidth = thumb.offsetWidth;
+			const maxThumbLeft = clientWidth - thumbWidth;
+			const maxScroll = scrollWidth - clientWidth;
+			if ( maxThumbLeft > 0 ) {
+
+				const scrollDelta = ( dx / maxThumbLeft ) * maxScroll;
+				tabsScrollContainer.scrollLeft = startScrollLeft + scrollDelta;
+
+			}
+
+		};
+
+		thumb.onpointerup = ( e ) => {
+
+			isDraggingThumb = false;
+			thumb.classList.remove( 'dragging' );
+			try {
+
+				thumb.releasePointerCapture( e.pointerId );
+
+			} catch ( _ ) {}
+
+		};
+
+		customScrollbar.onclick = ( e ) => {
+
+			if ( e.target === thumb ) return;
+			const rect = customScrollbar.getBoundingClientRect();
+			const clickX = e.clientX - rect.left;
+			const { clientWidth, scrollWidth } = tabsScrollContainer;
+			const ratio = clickX / clientWidth;
+			tabsScrollContainer.scrollLeft = ratio * ( scrollWidth - clientWidth );
+
+		};
+
 		if ( ! this.playgroundTabs ) {
 
 			this.playgroundTabs = [ { name: 'main', code: '// Play here!\n' } ];
@@ -271,10 +376,14 @@ class PlaygroundManager {
 
 		}
 
+		let draggedTabName = null;
+
 		this.playgroundTabs.forEach( ( tab ) => {
 
 			const tabEl = document.createElement( 'div' );
 			tabEl.className = 'playground-tab';
+			tabEl.draggable = true;
+
 			if ( tab.name === this.activePlaygroundTabName ) {
 
 				tabEl.classList.add( 'active' );
@@ -290,8 +399,8 @@ class PlaygroundManager {
 
 				const closeEl = document.createElement( 'span' );
 				closeEl.className = 'playground-tab-close';
-				closeEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 11px; height: 11px; display: block;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-				closeEl.title = 'Delete tab';
+				closeEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; display: block;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+				closeEl.title = 'Close tab';
 				closeEl.onclick = ( e ) => {
 
 					e.stopPropagation();
@@ -303,9 +412,107 @@ class PlaygroundManager {
 
 			}
 
+			let isDragging = false;
+
+			tabEl.ondragstart = ( e ) => {
+
+				draggedTabName = tab.name;
+				isDragging = true;
+				tabEl.classList.add( 'dragging' );
+				e.dataTransfer.effectAllowed = 'move';
+				e.dataTransfer.setData( 'text/plain', tab.name );
+
+			};
+
+			tabEl.ondragend = () => {
+
+				tabEl.classList.remove( 'dragging' );
+				this.tour.dom.tabsBar.querySelectorAll( '.playground-tab' ).forEach( el => {
+
+					el.classList.remove( 'drag-over-left', 'drag-over-right' );
+
+				} );
+				draggedTabName = null;
+				setTimeout( () => {
+
+					isDragging = false;
+
+				}, 0 );
+
+			};
+
+			tabEl.ondragover = ( e ) => {
+
+				e.preventDefault();
+				e.dataTransfer.dropEffect = 'move';
+
+				if ( draggedTabName && draggedTabName !== tab.name ) {
+
+					const rect = tabEl.getBoundingClientRect();
+					const midX = rect.left + rect.width / 2;
+
+					if ( e.clientX < midX ) {
+
+						tabEl.classList.add( 'drag-over-left' );
+						tabEl.classList.remove( 'drag-over-right' );
+
+					} else {
+
+						tabEl.classList.add( 'drag-over-right' );
+						tabEl.classList.remove( 'drag-over-left' );
+
+					}
+
+				}
+
+			};
+
+			tabEl.ondragleave = () => {
+
+				tabEl.classList.remove( 'drag-over-left', 'drag-over-right' );
+
+			};
+
+			tabEl.ondrop = ( e ) => {
+
+				e.preventDefault();
+				tabEl.classList.remove( 'drag-over-left', 'drag-over-right' );
+
+				const sourceName = e.dataTransfer.getData( 'text/plain' ) || draggedTabName;
+				if ( ! sourceName || sourceName === tab.name ) return;
+
+				const fromIndex = this.playgroundTabs.findIndex( t => t.name === sourceName );
+				let toIndex = this.playgroundTabs.findIndex( t => t.name === tab.name );
+
+				if ( fromIndex === - 1 || toIndex === - 1 ) return;
+
+				const rect = tabEl.getBoundingClientRect();
+				const midX = rect.left + rect.width / 2;
+				const isRight = e.clientX >= midX;
+
+				const [ movedTab ] = this.playgroundTabs.splice( fromIndex, 1 );
+
+				toIndex = this.playgroundTabs.findIndex( t => t.name === tab.name );
+				if ( isRight ) {
+
+					toIndex ++;
+
+				}
+
+				this.playgroundTabs.splice( toIndex, 0, movedTab );
+
+				this.renderPlaygroundTabs();
+				this.updatePlaygroundHash( true );
+
+			};
+
 			tabEl.onclick = () => {
 
-				this.activatePlaygroundTab( tab.name );
+				if ( ! isDragging ) {
+
+					this.activatePlaygroundTab( tab.name );
+
+				}
 
 			};
 
@@ -316,7 +523,7 @@ class PlaygroundManager {
 
 			};
 
-			this.tour.dom.tabsBar.appendChild( tabEl );
+			tabsScrollContainer.appendChild( tabEl );
 
 		} );
 
@@ -330,7 +537,26 @@ class PlaygroundManager {
 
 		};
 
-		this.tour.dom.tabsBar.appendChild( addBtn );
+		tabsScrollContainer.appendChild( addBtn );
+
+		scrollWrapper.appendChild( tabsScrollContainer );
+		scrollWrapper.appendChild( customScrollbar );
+
+		// Create Actions toolbar container pinned to the right
+		const actionsContainer = document.createElement( 'div' );
+		actionsContainer.className = 'playground-tabs-actions';
+
+		// Create Projects button
+		const projectsBtn = document.createElement( 'button' );
+		projectsBtn.className = 'playground-tab-btn playground-projects-btn';
+		projectsBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-upload" style="width: 16px; height: 16px; display: block;"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>';
+		projectsBtn.title = 'Playground Projects (Save, Load & JSON)';
+		projectsBtn.onclick = ( e ) => {
+
+			e.stopPropagation();
+			this.tour.projectsManager.openProjectsModal();
+
+		};
 
 		// Create Clean & Format button
 		const cleanBtn = document.createElement( 'button' );
@@ -381,10 +607,23 @@ class PlaygroundManager {
 
 		};
 
-		this.tour.dom.tabsBar.appendChild( cleanBtn );
-		this.tour.dom.tabsBar.appendChild( undoBtn );
-		this.tour.dom.tabsBar.appendChild( redoBtn );
-		this.tour.dom.tabsBar.appendChild( refreshBtn );
+		actionsContainer.appendChild( projectsBtn );
+		actionsContainer.appendChild( cleanBtn );
+		actionsContainer.appendChild( undoBtn );
+		actionsContainer.appendChild( redoBtn );
+		actionsContainer.appendChild( refreshBtn );
+
+		this.tour.dom.tabsBar.appendChild( scrollWrapper );
+		this.tour.dom.tabsBar.appendChild( actionsContainer );
+
+		const activeTabEl = tabsScrollContainer.querySelector( '.playground-tab.active' );
+		if ( activeTabEl ) {
+
+			activeTabEl.scrollIntoView( { behavior: 'smooth', block: 'nearest', inline: 'nearest' } );
+
+		}
+
+		setTimeout( updateScrollThumb, 0 );
 
 		this.updateUndoRedoButtons();
 
@@ -418,7 +657,7 @@ class PlaygroundManager {
 		this.renderPlaygroundTabs();
 		this.runPlayground();
 
-		this.updatePlaygroundHash();
+		this.updatePlaygroundHash( false );
 
 	}
 
@@ -460,7 +699,7 @@ class PlaygroundManager {
 		this.renderPlaygroundTabs();
 		this.runPlayground();
 
-		this.updatePlaygroundHash();
+		this.updatePlaygroundHash( true );
 
 	}
 
@@ -499,7 +738,7 @@ class PlaygroundManager {
 		this.renderPlaygroundTabs();
 		this.runPlayground();
 
-		this.updatePlaygroundHash();
+		this.updatePlaygroundHash( true );
 
 	}
 
@@ -552,7 +791,7 @@ class PlaygroundManager {
 
 				this.renderPlaygroundTabs();
 				this.runPlayground();
-				this.updatePlaygroundHash();
+				this.updatePlaygroundHash( true );
 
 			} else {
 
@@ -585,14 +824,27 @@ class PlaygroundManager {
 
 	}
 
-	async updatePlaygroundHash() {
+	async updatePlaygroundHash( pushHistory = false ) {
+
+		if ( ! this.playgroundTabs ) return;
+
+		this.tour.projectsManager.autoSaveCurrentProject();
 
 		const encoded = await compressString( JSON.stringify( {
 			tabs: this.playgroundTabs
 		} ) );
-		const revision = THREE.REVISION;
-		const newHash = 'playground=' + encoded + '&release=' + revision;
-		window.location.hash = newHash;
+		const release = THREE.REVISION;
+		const newHash = 'playground=' + encoded + ( release ? '&release=' + release : '' );
+
+		this.tour.lastHandledHash = newHash;
+
+		if ( pushHistory ) {
+
+			this.tour.historyManager.pushState( newHash );
+
+		}
+
+		history.replaceState( null, '', '#' + newHash );
 
 	}
 
@@ -635,7 +887,7 @@ class PlaygroundManager {
 			}
 
 			this.runPlayground();
-			this.updatePlaygroundHash();
+			this.updatePlaygroundHash( true );
 
 		}
 
@@ -656,13 +908,7 @@ class PlaygroundManager {
 
 				if ( ! tabNames.includes( key ) ) {
 
-					const scriptConfig = this.tour.runner.scripts[ key ];
-					if ( scriptConfig && scriptConfig.instance && scriptConfig.instance.dispose ) {
-
-						scriptConfig.instance.dispose();
-
-					}
-
+					this.tour.runner.invalidateScript( key );
 					delete this.tour.runner.scripts[ key ];
 
 				}
@@ -679,9 +925,9 @@ class PlaygroundManager {
 				const existing = this.tour.runner.scripts[ tab.name ];
 				if ( ! existing || existing.text !== tab.code ) {
 
-					if ( existing && existing.instance && existing.instance.dispose ) {
+					if ( existing ) {
 
-						existing.instance.dispose();
+						this.tour.runner.invalidateScript( tab.name );
 
 					}
 
@@ -689,7 +935,8 @@ class PlaygroundManager {
 						url: null,
 						text: tab.code,
 						instance: null,
-						promise: null
+						promise: null,
+						dependencies: []
 					};
 
 				}
@@ -831,6 +1078,81 @@ class PlaygroundManager {
 			this.tour.debugCodeEditor.setValue( 'WebGPURenderer debug.getShaderAsync is not available.' );
 
 		}
+
+	}
+
+	hasActiveCustomProject() {
+
+		if ( ! this.playgroundTabs || this.playgroundTabs.length === 0 ) return false;
+		if ( this.playgroundTabs.length > 1 ) return true;
+
+		const mainTab = this.playgroundTabs[ 0 ];
+		if ( ! mainTab ) return false;
+		if ( mainTab.name !== 'main' ) return true;
+
+		const code = ( mainTab.code || '' ).trim();
+		if ( ! code || code === '// Tour of TSL' || code === '// Play here!' || code === '// No example available.\nimport \'scenes/empty\';' ) {
+
+			return false;
+
+		}
+
+		return true;
+
+	}
+
+	async openExistingPlayground() {
+
+		if ( ! this.playgroundTabs || this.playgroundTabs.length === 0 ) {
+
+			const activePage = this.tour.pages[ this.tour.currentPageIndex ];
+			let currentCode = '// Tour of TSL\n';
+
+			if ( activePage && activePage.hasCode && this.tour.codeEditor ) {
+
+				currentCode = this.tour.codeEditor.getValue();
+
+			}
+
+			this.playgroundTabs = [ { name: 'main', code: currentCode } ];
+			this.activePlaygroundTabName = 'main';
+
+		}
+
+		this.togglePlayground( true );
+		this.renderPlaygroundTabs();
+
+		const activeTab = this.playgroundTabs.find( t => t.name === this.activePlaygroundTabName ) || this.playgroundTabs[ 0 ];
+		if ( this.tour.codeEditor ) {
+
+			this.tour.codeEditor.setValue( activeTab.code );
+
+		}
+
+		this.runPlayground();
+		await this.updatePlaygroundHash( false );
+
+	}
+
+	async loadExampleIntoPlayground( code ) {
+
+		this.tour.projectsManager.setCurrentProjectId( null );
+
+		const newCode = code || '// Tour of TSL\n';
+		this.playgroundTabs = [ { name: 'main', code: newCode } ];
+		this.activePlaygroundTabName = 'main';
+
+		this.togglePlayground( true );
+		this.renderPlaygroundTabs();
+
+		if ( this.tour.codeEditor ) {
+
+			this.tour.codeEditor.setValue( newCode );
+
+		}
+
+		this.runPlayground();
+		await this.updatePlaygroundHash( true );
 
 	}
 
