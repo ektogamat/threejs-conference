@@ -31,7 +31,7 @@ function init() {
 		position.z = randZ.mul( area.depth ).sub( area.depth / 2 ).add( center.z );
 		position.y = randY.mul( area.height ).add( center.y );
 
-		velocity.y = randX.mul( - 5 ).add( - 20 );
+		velocity.y = randX.mul( - 5 ).add( - 30 );
 
 	} )().compute( particleCount );
 
@@ -61,7 +61,7 @@ function init() {
 			position.z = randZ.mul( area.depth ).sub( area.depth / 2 ).add( center.z );
 			position.y = randY.mul( 15 ).add( center.y.add( area.height ) );
 
-			velocity.y = randX.mul( - 5 ).add( - 20 );
+			velocity.y = randX.mul( - 5 ).add( - 30 );
 
 		} );
 
