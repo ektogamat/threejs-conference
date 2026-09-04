@@ -5,7 +5,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline;
+let scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline, ground;
 
 const UNCOMPRESSED_FORMATS = new Set( [
 	THREE.RGBAFormat,
@@ -57,8 +57,6 @@ function patchKTX2UncompressedTextures() {
 
 async function init() {
 
-	console.log( 'init' );
-
 	//renderer.toneMapping = THREE.AgXToneMapping;
 
 	scene = new THREE.Scene();
@@ -69,7 +67,7 @@ async function init() {
 	const height = renderer.domElement.clientHeight;
 
 	camera = new THREE.PerspectiveCamera( 55, width / height, 0.1, 1000 );
-	camera.position.set( - 138, 5, 34 );
+	camera.position.set( - 135.3, - 3.7, 33.3 );
 
 	defaultPass = pass( scene, camera ).toInspector( 'pass' );
 
@@ -112,6 +110,7 @@ async function init() {
 	const cityGltf = await loader.loadAsync( '/models/cyberpunk_compressed.glb' );
 	city = cityGltf.scene;
 	city.position.y = - 20;
+	cityOriginalChildren = [ ...city.children ];
 	scene.add( city );
 
 	const carGltf = await loader.loadAsync( '/models/quadra.glb' );
@@ -119,19 +118,82 @@ async function init() {
 	car.position.set( - 128, - 5.47, 33 );
 	car.rotation.y = Math.PI / 2 + 0.6;
 	car.scale.set( 1.1, 1.1, 1.1 );
+	carOriginalChildren = [ ...car.children ];
 	scene.add( car );
+
+	const groundGeometry = new THREE.PlaneGeometry( 400, 400 );
+	ground = new THREE.Mesh( groundGeometry, new THREE.MeshBasicNodeMaterial( { color: 0x333333 } ) );
+	ground.rotation.x = - Math.PI / 2;
+	ground.position.y = - 5.4;
+	ground.receiveShadow = true;
+	scene.add( ground );
 
 }
 
+let carOriginalChildren = [];
+let cityOriginalChildren = [];
+
 function refresh() {
 
-	scene.clear();
+	if ( car ) {
 
+		for ( const child of [ ...car.children ] ) {
+
+			if ( ! carOriginalChildren.includes( child ) ) {
+
+				car.remove( child );
+
+			}
+
+		}
+
+	}
+
+	if ( city ) {
+
+		for ( const child of [ ...city.children ] ) {
+
+			if ( ! cityOriginalChildren.includes( child ) ) {
+
+				city.remove( child );
+
+			}
+
+		}
+
+	}
+
+	if ( ground ) {
+
+		for ( const child of [ ...ground.children ] ) {
+
+			ground.remove( child );
+
+		}
+
+	}
+
+	const permanentObjects = [ sunLight, fillLight, ambientLight, city, car, ground ];
+
+	for ( const child of [ ...scene.children ] ) {
+
+		if ( ! permanentObjects.includes( child ) ) {
+
+			scene.remove( child );
+
+		}
+
+	}
+
+	scene.clear();
 	scene.add( sunLight );
 	scene.add( fillLight );
 	scene.add( ambientLight );
 	scene.add( city );
 	scene.add( car );
+	scene.add( ground );
+
+	ground.material = new THREE.MeshStandardNodeMaterial( { color: 0x000000, roughness: 0.8, metalness: 0 } );
 
 	scene.fog = null;
 	scene.fogNode = null;
@@ -182,6 +244,16 @@ function dispose() {
 
 	controls.dispose();
 
+	if ( ground ) {
+
+		for ( const child of [ ...ground.children ] ) {
+
+			ground.remove( child );
+
+		}
+
+	}
+
 }
 
-export { scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline };
+export { init, refresh, update, resize, dispose, scene, camera, controls, city, collider, car, sunLight, fillLight, ambientLight, defaultPass, renderPipeline, ground };

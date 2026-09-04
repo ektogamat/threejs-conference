@@ -1,19 +1,235 @@
+<page name="Introduction">
+
+<page name="Welcome">
+
+Welcome to the **Three.js Punk Workshop**!
+
+This interactive tour provides a hands-on environment for creating and experimenting with **TSL (Three.js Shading Language)** and **WebGPU**.
+
+### Workshop Tools
+
+- **Tour of TSL Environment**: An integrated editor with live code compilation and real-time 3D preview. You can modify any code directly, tweak uniforms, or experiment with your own shaders.
+- **Three.js Inspector**: A built-in visual inspection tool on the 3D viewport. It lets you inspect nodes, tweak scene properties, and dynamically adjust shader parameters.
+- **Console & Error Diagnostics**: The collapsible console panel at the bottom captures WebGPU compilation outputs, logs, and syntax errors.
+
+> **Refreshing the Scene**
+> Code executes reactively. If your shader enters an invalid state, an error occurs, or the GPU preview freezes:
+> - Click the **Refresh** button (<i data-icon="refresh" style="width: 1rem; height: 1rem; display: inline-block; vertical-align: middle;"></i>) in the preview toolbar or top header to cleanly re-execute and reset the scene.
+> - Open the **Console** at the bottom to inspect error traces.
+
+</page>
+
+</page>
+
 <page name="Ground">
 
-<page name="Simple Ground">
+<page name="Ripples">
 
-In this step, we create a basic ground plane for the scene using traditional texture maps with `MeshStandardNodeMaterial`.
+Procedural rain ripples simulate circular expanding wavefronts created by raindrops hitting the ground, inspired by [Shadertoy (ldfyzl)](https://www.shadertoy.com/view/ldfyzl).
 
-**Step 1** — Load the texture maps (`albedo`, `roughness`, and `normal`) using `TextureLoader`.
+- **World-Space Coordinates**: We derive continuous coordinates from `positionWorld.xz` so the ripple grid aligns seamlessly across any surface and remains independent of geometry UV layout.
+- **Time Propagation & Volume**: The `time` node drives wave expansion, while `volume` (0.0 to 1.0) controls the density/frequency of active raindrops falling on each area.
+- **Normal Perturbations**: The `ripples()` function generates procedural ripples and returns tangent-space normal vectors `vec3` ready to displace surface reflections and lighting.
 
-**Step 2** — Configure texture wrapping with `RepeatWrapping` and repeat them `15x15` times across the surface so the puddles and asphalt detail tile nicely across a large area.
-
-**Step 3** — Assign `SRGBColorSpace` to the albedo map for proper color reproduction in WebGPU.
-
-**Step 4** — Create a `PlaneGeometry( 400, 400 )`, rotate it horizontally (`-Math.PI / 2`), position it slightly below the road (`y = -5.4`), and enable `receiveShadow`.
+#### Related
+- [Coordinate Spaces](?tour#coordinate-spaces)
+- [Position](?tour#position)
+- [Normal](?tour#normal)
+- [time](?tour#timer)
 
 ```tsl
 import * as THREE from 'three';
+import { time, positionWorld } from 'three/tsl';
+import { ripples } from 'threejs-punk/utils';
+import 'threejs-punk/scene';
+
+// https://www.shadertoy.com/view/ldfyzl
+// 1. Tiled coordinate derived from horizontal world position
+const rippleUV = positionWorld.xz.mul( 5 );
+
+// 2. Generate animated rain ripples
+const rippleSample = ripples( rippleUV, time, .5 );
+
+// 3. Direct visualization of the ripple vectors on colorNode
+ground.material = new THREE.MeshBasicNodeMaterial();
+ground.material.colorNode = rippleSample;
+```
+
+</page>
+
+<page name="Reflector">
+
+Building upon the procedural rain ripples from the previous step, real-time planar reflections capture mirror images of dynamic scene geometry onto flat surfaces and distort them using ripple normal vectors.
+
+- **Planar Reflector**: The `reflector` node creates an offscreen render target and virtual camera tracked by the ground plane via `ground.add( reflection.target )`. Configured with `resolutionScale: 0.5` and `generateMipmaps: true` for crisp, blurred reflections.
+- **Screen-Space UV & Mirror Alignment**: The `screenUV` coordinates are horizontally flipped using `flipX` to align the mirrored projection accurately with the ground plane.
+- **Ripple Perturbations**: Animated rain ripple normal vectors perturb the reflection coordinates through `rippleOffset`, creating realistic optical water distortion.
+- **Distance Attenuation**: Uses `rangeFogFactor( 0, 30 ).oneMinus()` to smoothly fade out ripple distortion over distance, eliminating sub-pixel shimmering in the background.
+- **Bicubic Mipmap Filtering**: The `textureBicubic` node filters the distorted reflection texture across mipmap levels for smooth, artifact-free blurring.
+
+#### Related
+- [Screen](?tour#screen)
+- [Texture](?tour#texture)
+- [Fog](?tour#fog)
+- [Coordinate Spaces](?tour#coordinate-spaces)
+
+```tsl
+import * as THREE from 'three';
+import { time, positionWorld, screenUV, reflector, texture, textureBicubic, rangeFogFactor } from 'three/tsl';
+import { ripples } from 'threejs-punk/utils';
+import 'threejs-punk/scene';
+
+// ===========================================================================
+// Rain Ripples (from previous step)
+// ===========================================================================
+
+const rippleUV = positionWorld.xz.mul( 5 );
+const rippleSample = ripples( rippleUV, time, .5 );
+
+// ===========================================================================
+// Planar Reflector
+// ===========================================================================
+
+// 1. Create realtime planar reflector with mipmaps
+const reflection = reflector( { resolutionScale: 0.5, generateMipmaps: true } );
+reflection.reflector.getVirtualCamera( camera ).layers.set( 0 );
+ground.add( reflection.target );
+
+// 2. Distortion & Distance Attenuation
+const distFade = rangeFogFactor( 0, 30 ).oneMinus();
+const rippleOffset = rippleSample.xy.mul( 0.13 ).mul( distFade );
+const reflectionUV = screenUV.flipX().add( rippleOffset );
+
+// 3. Bicubic Mipmap Blur
+const blurredReflection = textureBicubic( texture( reflection, reflectionUV ), 0 );
+
+// 4. Direct visualization of blurred reflection on ground material
+ground.material = new THREE.MeshBasicNodeMaterial();
+ground.material.colorNode = blurredReflection;
+```
+
+</page>
+
+<page name="Collision Height">
+
+A top-down orthographic camera captures the scene elevation into a floating-point collision height map. We then compare surface heights against the ground level using `pcfSoft` to generate a smooth, anti-aliased occlusion mask.
+
+### Collision Height
+
+The `collisionHeight` instance renders the scene from above using an orthographic camera to record world-space elevation:
+- **Orthographic Top-Down Camera**: Positioned above the scene looking straight down along the Y axis to cover the gameplay area.
+- **Elevation Encoding**: Uses `scene.overrideMaterial` with `outputNode = vec4( vec3( positionWorld.y ), 1 )` to write unclamped world Y coordinates directly into a `HalfFloatType` texture, bypassing tone mapping.
+- **Coordinate Transformations**: The `getUV` method maps any world `XZ` position into normalized `[0, 1]` UV coordinates matching the collision camera bounds.
+
+### Collision Mask & Filtering
+
+- **Height Bias**: A `bias` offset avoids self-occlusion and ensures only objects elevated above the ground (like cars, roofs, and bridges) block raindrops.
+- **PCFSoft Filtering**: The `pcfSoft` function samples a 16-tap rotated Vogel disk around the collision UV coordinates to smoothly filter the occlusion threshold without pixelated edges.
+
+#### Related
+- [Texture](?tour#texture)
+- [Position](?tour#position)
+- [Coordinate Spaces](?tour#coordinate-spaces)
+
+```tsl
+import * as THREE from 'three';
+import { float, positionWorld, texture } from 'three/tsl';
+import { pcfSoft } from 'threejs-punk/utils';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+import 'threejs-punk/scene';
+
+// 1. Sample top-down collision height map at ground position
+const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
+
+// 2. Generate soft anti-aliased collision mask with height bias
+const bias = float( 0.5 );
+const floorPosition = positionWorld.y.add( bias );
+
+//const binaryMask = floorPosition.step( height );
+const mask = pcfSoft( height, floorPosition );
+
+// 3. Display the soft collision mask directly on the ground plane
+ground.material = new THREE.MeshBasicNodeMaterial();
+ground.material.colorNode = mask;
+```
+
+</page>
+
+<page name="Reflector Mask">
+
+Combining the planar reflector with the collision mask allows rain ripples to only perturb reflections in open, exposed areas. Sheltered ground beneath cars, bridges, and roofs remains calm with crisp planar reflections.
+
+- **Masked Ripples**: Multiplying the ripple displacement by `mask` ensures ripple normal offsets only distort the reflection where raindrops can freely reach the ground.
+- **Occlusion Blend**: Sheltered areas transition smoothly into calm reflective surfaces without hard seams thanks to `pcfSoft` filtering.
+
+#### Related
+- [Texture](?tour#texture)
+- [Screen](?tour#screen)
+- [Position](?tour#position)
+- [Coordinate Spaces](?tour#coordinate-spaces)
+
+```tsl
+import * as THREE from 'three';
+import { float, positionWorld, rangeFogFactor, reflector, screenUV, texture, textureBicubic, time } from 'three/tsl';
+import { pcfSoft, ripples } from 'threejs-punk/utils';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+import 'threejs-punk/scene';
+
+// ===========================================================================
+// Rain Ripples
+// ===========================================================================
+
+const rippleUV = positionWorld.xz.mul( 5 );
+const rippleSample = ripples( rippleUV, time, .5 );
+
+// ===========================================================================
+// Collision Mask
+// ===========================================================================
+
+const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
+const bias = float( 0.5 );
+const floorPosition = positionWorld.y.add( bias );
+const mask = pcfSoft( height, floorPosition );
+
+// ===========================================================================
+// Planar Reflector
+// ===========================================================================
+
+// 1. Create realtime planar reflector with mipmaps
+const reflection = reflector( { resolutionScale: 0.5, generateMipmaps: true } );
+reflection.reflector.getVirtualCamera( camera ).layers.set( 0 );
+ground.add( reflection.target );
+
+// 2. Distortion modulated by collision mask & distance fade
+const distFade = rangeFogFactor( 0, 30 ).oneMinus();
+const rippleOffset = rippleSample.xy.mul( 0.13 ).mul( distFade ).mul( mask );
+const reflectionUV = screenUV.flipX().add( rippleOffset );
+
+// 3. Bicubic Mipmap Blur
+const blurredReflection = textureBicubic( texture( reflection, reflectionUV ), 0 );
+
+// 4. Direct visualization of masked reflection on ground material
+ground.material = new THREE.MeshBasicNodeMaterial();
+ground.material.colorNode = blurredReflection;
+```
+
+</page>
+
+<page name="Ground Details">
+
+PBR textures provide the base visual details for wet asphalt, configuring diffuse albedo, surface roughness, and normal bump maps.
+
+- **Tiled Coordinates**: The `uv` is scaled and offset using `.mul( 25 ).add( 0.13 )` to repeat asphalt details seamlessly across the ground plane.
+- **PBR Maps**: Samples `albedoMap`, `roughnessMap`, and `normalMapTex` to define surface appearance, reflectivity, and surface normals.
+
+#### Related
+- [Texture](?tour#texture)
+- [UV](?tour#uv)
+- [Node Material](?tour#node-material)
+
+```tsl
+import * as THREE from 'three';
+import { uv, texture, normalMap } from 'three/tsl';
 import 'threejs-punk/scene';
 
 const textureLoader = new THREE.TextureLoader();
@@ -22,628 +238,712 @@ const albedoMap = textureLoader.load( '/textures/wet-puddles-albedo.jpg' );
 albedoMap.wrapS = THREE.RepeatWrapping;
 albedoMap.wrapT = THREE.RepeatWrapping;
 albedoMap.colorSpace = THREE.SRGBColorSpace;
-albedoMap.repeat.set( 15, 15 );
 
 const roughnessMap = textureLoader.load( '/textures/wet-puddles-roughness.jpg' );
 roughnessMap.wrapS = THREE.RepeatWrapping;
 roughnessMap.wrapT = THREE.RepeatWrapping;
-roughnessMap.repeat.set( 15, 15 );
 
 const normalMapTex = textureLoader.load( '/textures/wet-puddles-normal.jpg' );
 normalMapTex.wrapS = THREE.RepeatWrapping;
 normalMapTex.wrapT = THREE.RepeatWrapping;
-normalMapTex.repeat.set( 15, 15 );
 
-const material = new THREE.MeshStandardNodeMaterial( {
-	map: albedoMap,
-	roughnessMap: roughnessMap,
-	roughness: 0.55,
-	metalness: 0.0
-} );
+// 1. TSL tiled UV with offset to avoid repetitive texture alignment
+const tiledUV = uv().mul( 25 ).add( 0.13 );
 
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
-ground.receiveShadow = true;
+// 2. Albedo and roughness
+const albedo = texture( albedoMap, tiledUV );
+const roughness = texture( roughnessMap, tiledUV ).r;
 
-scene.add( ground );
+const material = new THREE.MeshStandardNodeMaterial();
+material.colorNode = albedo;
+material.roughnessNode = roughness;
+material.metalness = 0;
+material.normalNode = normalMap( texture( normalMapTex, tiledUV ) );
+
+ground.material = material;
 ```
-
-### Try this
-
-1. Add `normalMap: normalMapTex` to the material parameters. Notice how surface bumps and puddle borders catch the neon lights.
-2. Change the repeat tiling from `repeat.set( 15, 15 )` to `repeat.set( 5, 5 )` or `repeat.set( 30, 30 )`.
-3. Tweak `roughness` between `0.1` (glossy wet mirror) and `1.0` (matte asphalt).
 
 </page>
 
-<page name="Ripples">
+<page name="Ground Final">
 
-In this step, we generate dynamic rain ripples using the `ripples` TSL node and visualize them directly on `colorNode`.
+The final ground material fuses all previously explored shading techniques into a complete, photorealistic wet asphalt shader with dynamic puddle reflections and procedural rain ripples.
 
-**Step 1** — Import `time` and `positionWorld` from `three/tsl`.
+- **PBR Surface Textures**: Tiled albedo, roughness, and normal maps define the asphalt and puddle material foundation.
+- **Occluded Rain Ripples**: Procedural raindrop ripples perturb the ground normal map only in open areas verified by the `pcfSoft` collision mask.
+- **Roughness-Aware Planar Reflection**: The planar mirror texture is blurred dynamically based on the surface roughness using `textureBicubic`, and masked by surface wetness.
+- **PBR Material Integration**: Standard node material unifies lighting, diffuse color, perturbed normal vectors, and emissive mirror reflections into a single GPU pipeline.
 
-**Step 2** — Import `ripples` from `threejs-punk/utils`.
-
-**Step 3** — Create `rippleUV` from horizontal world coordinates `positionWorld.xz.mul( 5 )` and calculate the ripples driven by `time`.
-
-**Step 4** — Assign `rippleSample` directly to `material.colorNode` to see the generated normal/height vectors in real time.
-
-```tsl
-import * as THREE from 'three';
-import { time, positionWorld } from 'three/tsl';
-import { ripples } from 'threejs-punk/utils';
-import 'threejs-punk/scene';
-
-// 1. Tiled coordinate derived from horizontal world position
-const rippleUV = positionWorld.xz.mul( 5 );
-
-// 2. Generate animated rain ripples driven continuously by time
-const rippleSample = ripples( rippleUV, time, 3, 0.3 );
-
-const material = new THREE.MeshBasicNodeMaterial();
-
-// 3. Direct visualization of the ripple vectors on colorNode
-material.colorNode = rippleSample;
-
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
-
-scene.add( ground );
-```
-
-### Try this
-
-1. Change the ripple scale in `const rippleUV = positionWorld.xz.mul( 5 )` to `mul( 2 )` (larger rings) or `mul( 10 )` (dense raindrops).
-2. Adjust the ripple speed parameter from `3` to `8` to make ripples propagate faster.
-3. Change the fourth parameter (ripple step/frequency) from `0.3` to `0.8` or `0.1`.
-
-</page>
-
-<page name="Collision Mask">
-
-In this step, we detect and visualize the shadow mask of obstacles above the ground using `height.step()`.
-
-**Step 1** — Import `collisionHeight` from `threejs-punk/collisionHeight`.
-
-**Step 2** — Sample the surface height at `positionWorld` using `collisionHeight.getUV( positionWorld )`.
-
-**Step 3** — Use `height.step( positionWorld.y.add( 0.5 ) ).oneMinus()` to create a binary mask (1.0 for open ground, 0.0 under vehicles/bridges).
-
-**Step 4** — Assign `mask` to `material.colorNode` to visualize the shadow footprints on the ground.
+#### Related
+- [Node Material](?tour#node-material)
+- [Texture](?tour#texture)
+- [Screen](?tour#screen)
+- [Coordinate Spaces](?tour#coordinate-spaces)
 
 ```tsl
 import * as THREE from 'three';
-import { positionWorld, texture } from 'three/tsl';
-import 'threejs-punk/scene';
+import { float, normalMap, normalView, normalViewGeometry, positionWorld, reflector, screenUV, texture, textureBicubic, time, uv, vec4 } from 'three/tsl';
+import { pcfSoft, ripples } from 'threejs-punk/utils';
 import { collisionHeight } from 'threejs-punk/collisionHeight';
-
-// 1. Sample top-down collision height map at ground position
-const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
-
-// 2. Binary mask: 1.0 on open ground, 0.0 where objects are higher than ground + 0.5
-const mask = height.step( positionWorld.y.add( 0.5 ) ).oneMinus();
-
-const material = new THREE.MeshBasicNodeMaterial();
-
-// 3. Display the binary collision mask directly on the ground plane
-material.colorNode = mask;
-
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
-
-scene.add( ground );
-```
-
-### Try this
-
-1. Orbit the camera under the car and bridge structures to see the sharp binary shadow footprints.
-2. Remove `.oneMinus()` to invert the mask (white where covered, black on open ground).
-3. Change `0.5` to `2.0` to see how the height clearance threshold changes.
-
-</page>
-
-<page name="Ripple Mask">
-
-To prevent rain ripples from appearing under bridges, overpasses, and vehicles, we sample top-down height occlusion from `collisionHeight`.
-
-**Step 1** — Import `collisionHeight` from `threejs-punk/collisionHeight`.
-
-**Step 2** — Sample the surface height at `positionWorld` using `collisionHeight.getUV( positionWorld )`.
-
-**Step 3** — Use `height.step( positionWorld.y.add( 0.5 ) ).oneMinus()` to dynamically map open ground to 1.0 and elevated obstacles to 0.0.
-
-**Step 4** — Multiply `rippleSample` by `rippleMask` so ripples are clipped in sheltered areas.
-
-```tsl
-import * as THREE from 'three';
-import { time, positionWorld, texture } from 'three/tsl';
-import { ripples } from 'threejs-punk/utils';
 import 'threejs-punk/scene';
-import { collisionHeight } from 'threejs-punk/collisionHeight';
 
-// 1. Generate animated rain ripples
+// ===========================================================================
+// 1. Ground Details (PBR Textures)
+// ===========================================================================
+
+const textureLoader = new THREE.TextureLoader();
+
+const albedoMap = textureLoader.load( '/textures/wet-puddles-albedo.jpg' );
+albedoMap.wrapS = THREE.RepeatWrapping;
+albedoMap.wrapT = THREE.RepeatWrapping;
+albedoMap.colorSpace = THREE.SRGBColorSpace;
+
+const roughnessMap = textureLoader.load( '/textures/wet-puddles-roughness.jpg' );
+roughnessMap.wrapS = THREE.RepeatWrapping;
+roughnessMap.wrapT = THREE.RepeatWrapping;
+
+const normalMapTex = textureLoader.load( '/textures/wet-puddles-normal.jpg' );
+normalMapTex.wrapS = THREE.RepeatWrapping;
+normalMapTex.wrapT = THREE.RepeatWrapping;
+
+const tiledUV = uv().mul( 25 ).add( 0.13 );
+
+const albedo = texture( albedoMap, tiledUV );
+const roughness = texture( roughnessMap, tiledUV ).r;
+const normalSample = texture( normalMapTex, tiledUV );
+
+// ===========================================================================
+// 2. Rain Ripples
+// ===========================================================================
+
 const rippleUV = positionWorld.xz.mul( 5 );
-const rippleSample = ripples( rippleUV, time, 3, 0.3 );
+const rippleSample = ripples( rippleUV, time, .5 );
 
-// 2. Sample top-down collision height map
+// ===========================================================================
+// 3. Collision Mask
+// ===========================================================================
+
 const height = texture( collisionHeight.renderTarget.texture, collisionHeight.getUV( positionWorld ) );
+const bias = float( 0.5 );
+const floorPosition = positionWorld.y.add( bias );
+const mask = pcfSoft( height, floorPosition );
 
-// 3. Dynamic occlusion mask: 1.0 on ground, 0.0 under shelter
-const rippleMask = height.step( positionWorld.y.add( 0.5 ) ).oneMinus();
+// ===========================================================================
+// 4. Planar Reflector
+// ===========================================================================
 
-const material = new THREE.MeshBasicNodeMaterial();
+const reflection = reflector( { resolutionScale: 0.5, generateMipmaps: true } );
+reflection.reflector.getVirtualCamera( camera ).layers.set( 0 );
+ground.add( reflection.target );
 
-// 4. Occlude ripples in covered/sheltered areas with soft edges
-material.colorNode = rippleSample.mul( rippleMask );
+const normalOffset = normalView.sub( normalViewGeometry ).xy.mul( 0.035 );
+const reflectionUV = screenUV.flipX().add( normalOffset );
+const blurredReflection = textureBicubic( texture( reflection, reflectionUV ), roughness );
+const reflectionWetness = roughness.oneMinus().pow( 4.0 );
 
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
+// ===========================================================================
+// 5. Ground Material Assembly
+// ===========================================================================
 
-scene.add( ground );
+const wetness = roughness.oneMinus();
+const rippleOffset = rippleSample.xy.mul( 0.5 ).mul( mask ).mul( wetness );
+const perturbedNormal = normalSample.add( vec4( rippleOffset, 0, 0 ) );
+
+const material = new THREE.MeshStandardNodeMaterial();
+material.colorNode = albedo.pow( 2 );
+material.roughnessNode = roughness;
+material.metalness = 0;
+material.normalNode = normalMap( perturbedNormal );
+material.emissiveNode = blurredReflection.rgb.mul( reflectionWetness );
+
+ground.material = material;
 ```
 
-### Try this
-
-1. Set `material.colorNode = rippleMask;` to inspect the soft anti-aliased rain shadow mask directly.
-2. Tweak the `remapClamp` thresholds (e.g. `-5.4, -4.8, 1, 0` or `-5.4, -4.0, 1, 0`) to adjust the penumbra/softness of the shadow.
-3. Orbit around the car to observe how cleanly the ripples fade under the chassis.
+</page>
 
 </page>
 
-<page name="Reflector">
+<page name="Scene">
 
-In this step, we add realtime planar reflections with bicubic blur filtering using `textureBicubic` and add a GUI parameter to the inspector.
+<page name="Fog">
 
-**Step 1** — Import `reflector`, `texture`, `textureBicubic`, and `uniform` from `three/tsl`.
+Volumetric height fog adds atmospheric depth and mood by combining camera distance attenuation with an exponential vertical height falloff. The fog gathers densely over the wet ground and gradually dissipates into the sky.
 
-**Step 2** — Create a `reflector` node with `generateMipmaps: true` so blurred reflection mipmaps can be sampled.
+- **Camera Distance**: Uses `positionView.z.negate()` to measure planar depth directly in view space without spherical edge distortion. In world space, the equivalent calculation is `positionWorld.distance( cameraPosition )`.
+- **Exponential Height Decay**: Calculates elevation above `fogFloor` and applies `.negate().exp()` to create dense low-altitude ground fog that smoothly thins out with height.
+- **Global Scene Integration**: Setting `scene.fogNode = fog( fogColor, fogFactor )` automatically blends the atmospheric fog across all rendered materials in the scene.
 
-**Step 3** — Create a `roughness` uniform and register it in the GUI with `renderer.inspector.createParameters( 'Scene settings' )`.
-
-**Step 4** — Filter the reflection texture using `textureBicubic( texture( reflection ), roughness )` and connect to `material.colorNode`.
+#### Related
+- [Fog](?tour#fog)
+- [Position](?tour#position)
+- [Math](?tour#math)
+- [Camera](?tour#camera)
 
 ```tsl
-import * as THREE from 'three';
-import { reflector, texture, textureBicubic, uniform } from 'three/tsl';
+import { color, float, fog, positionView, positionWorld } from 'three/tsl';
 import 'threejs-punk/scene';
-
-// 1. Create realtime planar reflector with mipmap generation enabled
-const reflection = reflector( { resolutionScale: 0.5, bounces: false, generateMipmaps: true } );
-reflection.target.rotation.x = - Math.PI / 2;
-reflection.target.position.y = - 5.4;
-scene.add( reflection.target );
-
-// 2. Roughness uniform to control blur strength
-const roughness = uniform( 0.2 );
-
-// 3. Add parameter slider to the inspector GUI
-const gui = renderer.inspector.createParameters( 'Scene settings' );
-gui.add( roughness, 'value', 0, 1, 0.01 ).name( 'roughness' );
-
-// 4. Filter reflection texture with bicubic mipmap blur
-const blurredReflection = textureBicubic( texture( reflection ), roughness );
-
-const material = new THREE.MeshBasicNodeMaterial();
-material.colorNode = blurredReflection;
-
-const geometry = new THREE.PlaneGeometry( 400, 400 );
-const ground = new THREE.Mesh( geometry, material );
-ground.rotation.x = - Math.PI / 2;
-ground.position.y = - 5.4;
-
-scene.add( ground );
-```
-
-### Try this
-
-1. Open the inspector's "Scene settings" panel and drag the `roughness` slider from `0.0` (sharp mirror) to `1.0` (blurry/rough).
-2. Orbit around the car to see how neon light streaks dynamically blur across the wet surface.
-3. Add a second control to the GUI: `gui.add( reflection.target.position, 'y', -10, 0, 0.1 ).name( 'reflector Y' );`.
-
-</page>
-
-</page>
-
-<page name="Three.js Punk">
-
-<page name="The Cyberpunk Scene">
-
-We import the `threejs-punk/scene` script, which configures:
-
-- **WebGPU Renderer & Scene**: A night sky backdrop and directional neon lighting.
-- **Mesh Loading**: Streams the city mesh (`cyberpunk_compressed.glb`), the player bounds collider (`colider.glb`), and the sports car (`quadra.glb`).
-- **OrbitControls**: Lets you drag to orbit the camera, scroll to zoom, and right-click drag to pan.
-
-Run the code to view the scene:
-
-```tsl
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
 import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
+
+// 1. Fog parameters
+const fogColor = color( 0xb6c5cb );
+const fogDensity = float( 0.002 );
+const fogHeight = float( 0.5 );
+const fogFloor = float( - 5.4 );
+
+// 2. Camera distance factor (view-space planar depth)
+const distance = positionView.z.negate();
+
+// 3. Height factor: dense at floor, fades exponentially above fogHeight
+const heightAboveFloor = positionWorld.y.sub( fogFloor );
+const heightFade = heightAboveFloor.div( fogHeight ).negate().exp();
+
+// 4. Combined fog factor clamped to [0, 1]
+const power = 3;
+const fogFactor = fogDensity.mul( distance ).mul( heightFade ).mul( power ).clamp();
+
+const fogNode = fog( fogColor.pow( 3 ), fogFactor );
+scene.fogNode = fogNode;
 ```
 
-> [!TIP]
->
-> - Click and drag the left mouse button to rotate around the city street.
-> - Use the scroll wheel to zoom in and out.
-> - Click and drag the right mouse button to pan.
+</page>
+
+</page>
+
+<page name="Simple Particle">
+
+<page name="Smoke">
+
+Procedural exhaust smoke particles are created using `SpriteNodeMaterial` and GPU instancing with `range`, driving complex particle lifetimes and animations directly in shader code without compute shaders or CPU loops.
+
+- **GPU Instanced Sprites**: Setting `sprite.count = 60` instantiates 60 camera-facing billboard sprites rendered in a single draw call.
+- **Instance Randomization**: The `range` node generates per-instance variations for particle lifetime, 3D velocity offsets, scaling, and rotation speed.
+- **Procedural Lifetime Animation**: `time` combined with `.mod( 1 )` drives continuous emission cycles, while `smoothstep` and `.oneMinus()` create smooth spawn and dissipation alpha fades.
+- **Texture UV Rotation**: The `rotateUV` node dynamically spins the smoke texture over time at randomized rates per puff.
+- **Shared Material Architecture**: Both exhaust pipes attach separate instanced sprites while sharing the exact same `SpriteNodeMaterial` instance.
+
+#### Related
+- [Sprite Material](?tour#sprite-material)
+- [Range](?tour#range)
+- [UV](?tour#uv)
+- [Math](?tour#math)
+
+```tsl
+import * as THREE from 'three';
+import { color, mix, range, rotateUV, smoothstep, texture, time, uniform, uv } from 'three/tsl';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+
+const textureLoader = new THREE.TextureLoader();
+const smokeMap = textureLoader.load( '/textures/smoke.png' );
+smokeMap.colorSpace = THREE.SRGBColorSpace;
+
+// 1. Random ranges per particle instance
+const lifeRange = range( 0.1, 1 );
+const offsetRange = range( new THREE.Vector3( - 0.08, 0.02, - 0.04 ), new THREE.Vector3( 0.08, 0.35, 0.04 ) );
+const scaleRange = range( 0.12, 0.42 );
+const rotateRange = range( 0.1, 4 );
+
+// 2. Animated lifetime calculations
+const speed = uniform( 0.5 );
+const opacity = uniform( 0.4 );
+const scaledTime = time.add( 5 ).mul( speed );
+const lifeTime = scaledTime.mul( lifeRange ).mod( 1 );
+const life = lifeTime.div( lifeRange );
+
+// 3. Rotating smoke texture with smooth fade-in and fade-out
+const fadeIn = smoothstep( 0.0, 0.2, life );
+const fadeOut = life.oneMinus();
+const textureNode = texture( smokeMap, rotateUV( uv(), scaledTime.mul( rotateRange ) ) );
+const opacityNode = textureNode.a.mul( fadeIn ).mul( fadeOut ).mul( opacity );
+
+// 4. Single shared SpriteNodeMaterial for all smoke sprites
+const smokeMaterial = new THREE.SpriteNodeMaterial();
+smokeMaterial.colorNode = mix( color( 0x9a9890 ), color( 0x4a4845 ), life.mul( 0.85 ) );
+smokeMaterial.opacityNode = opacityNode;
+smokeMaterial.positionNode = offsetRange.mul( lifeTime );
+smokeMaterial.scaleNode = scaleRange.mul( lifeTime.max( 0.25 ) );
+smokeMaterial.depthWrite = false;
+smokeMaterial.depthTest = true;
+smokeMaterial.transparent = true;
+
+// 5. Multiple sprites sharing the exact same material
+const exhaustRight = new THREE.Sprite( smokeMaterial );
+exhaustRight.scale.setScalar( 6 );
+exhaustRight.count = 60;
+exhaustRight.position.set( 0.47, 0.52, - 2.45 );
+car.add( exhaustRight );
+
+const exhaustLeft = new THREE.Sprite( smokeMaterial );
+exhaustLeft.scale.setScalar( 6 );
+exhaustLeft.count = 60;
+exhaustLeft.position.set( - 0.51, 0.55, - 2.42 );
+car.add( exhaustLeft );
+```
+
+</page>
+
+</page>
+
+<page name="Compute Particle">
+
+<page name="Compute">
+
+Compute shaders in WebGPU enable high-performance general-purpose parallel computing directly on the GPU. Using GPU storage buffers `instancedArray` and compute nodes `Fn().compute()`, thousands of data elements can be calculated simultaneously in parallel without CPU overhead.
+
+- **GPU Storage Buffers**: `instancedArray` allocates GPU memory buffers for instance data (like 3D positions) that persist across dispatches and can be read by shaders.
+- **Compute Kernel**: `Fn()().compute( count )` creates an executable GPU compute shader dispatched across `count` parallel threads `instanceIndex`.
+- **Parallel Randomization**: The `hash` TSL node produces pseudo-random numbers per invocation to scatter initial particle positions in 3D space.
+- **Buffer Element Access**: `positionBuffer.element( instanceIndex )` indexes into the storage buffer to position each geometry instance during rendering.
+
+#### Related
+- [Compute](?tour#compute)
+- [Instanced Array](?tour#instanced-array)
+- [Hash](?tour#hash)
+- [Fn](?tour#fn)
+
+```tsl
+import * as THREE from 'three';
+import { color, Fn, hash, instancedArray, instanceIndex, positionGeometry, vec3 } from 'three/tsl';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+import 'threejs-punk/smoke';
+
+const particleCount = 1000;
+const area = { width: 60, height: 25, depth: 60 };
+
+// 1. Storage buffers for particle positions and velocities
+const positionBuffer = instancedArray( particleCount, 'vec3' );
+
+// 2. Compute Init: randomize initial rain positions within area
+const computeInit = Fn( () => {
+
+	const position = positionBuffer.element( instanceIndex );
+
+	const randX = hash( instanceIndex );
+	const randY = hash( instanceIndex.add( particleCount + 1 ) );
+	const randZ = hash( instanceIndex.add( particleCount + 2 ) );
+
+	position.x = randX.mul( area.width ).sub( area.width / 2 );
+	position.z = randZ.mul( area.depth ).sub( area.depth / 2 );
+	position.y = randY.mul( area.height ).sub( area.height / 2 );
+
+} )().compute( particleCount );
+
+// Initial compute pass
+renderer.compute( computeInit );
+
+// 3. Material using instanced position buffer
+const rainMaterial = new THREE.MeshStandardMaterial();
+rainMaterial.colorNode = color( 0xdcf4ff );
+rainMaterial.positionNode = positionGeometry.add( positionBuffer.element( instanceIndex ) ).add( 
+	vec3( - 100, 7, 10 )
+);
+
+const rainGeometry = new THREE.SphereGeometry( .6, 12, 10 );
+const rain = new THREE.Mesh( rainGeometry, rainMaterial );
+rain.count = particleCount;
+rain.frustumCulled = false;
+rain.layers.set( 1 );
+
+scene.add( rain );
+camera.layers.enable( 1 );
+```
+
+</page>
+
+<page name="Rain">
+
+Full GPU particle simulation with dynamic physics and real-time terrain collision detection. Using delta time integration and collision height sampling, raindrops fall, wrap infinitely around the camera, and collide with scene surfaces.
+
+- **Delta Time Physics**: The `computeUpdate` shader advances particles every frame using `position.addAssign( velocity.mul( deltaTime ) )`.
+- **Camera-Centered Area Positioning**: Spawns raindrops in a 3D box area around the camera using `area` and `uniform( camera.position )`.
+- **Terrain Heightmap Collision**: Samples the ground collision texture using `collisionHeight.getUV()` to detect floor impacts.
+- **Dynamic Respawn**: Droplets hitting surfaces respawn with randomized coordinates and velocities to prevent clumping.
+- **Cylindrical Billboarding**: Renders each rain streak with cylindrical billboarding `horizontal: true` and distance-based opacity.
+
+#### Related
+- [Compute](?tour#compute)
+- [Collision](?tour#collision)
+- [Billboarding](?tour#billboarding)
+- [Delta Time](?tour#delta-time)
+
+```tsl
+import * as THREE from 'three';
+import { billboarding, color, deltaTime, Fn, hash, If, instancedArray, instanceIndex, positionGeometry, texture, time, uniform, uv } from 'three/tsl';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+import 'threejs-punk/smoke';
+
+const particleCount = 4000;
+const area = { width: 60, height: 25, depth: 60 };
+const center = uniform( camera.position );
+
+// 1. Storage buffers for particle positions and velocities
+const positionBuffer = instancedArray( particleCount, 'vec3' );
+const velocityBuffer = instancedArray( particleCount, 'vec3' );
+
+// 2. Compute Init: randomize initial rain positions within area
+const computeInit = Fn( () => {
+
+	const position = positionBuffer.element( instanceIndex );
+	const velocity = velocityBuffer.element( instanceIndex );
+
+	const randX = hash( instanceIndex );
+	const randY = hash( instanceIndex.add( particleCount + 1 ) );
+	const randZ = hash( instanceIndex.add( particleCount + 2 ) );
+
+	position.x = randX.mul( area.width ).sub( area.width / 2 ).add( center.x );
+	position.z = randZ.mul( area.depth ).sub( area.depth / 2 ).add( center.z );
+	position.y = randY.mul( area.height ).add( center.y );
+
+	velocity.y = randX.mul( - 5 ).add( - 20 );
+
+} )().compute( particleCount );
+
+// 3. Compute Update: move droplets down and detect collision using collisionHeight
+const computeUpdate = Fn( () => {
+
+	const position = positionBuffer.element( instanceIndex );
+	const velocity = velocityBuffer.element( instanceIndex );
+
+	position.addAssign( velocity.mul( deltaTime ) );
+
+	// Sample surface height from collision map
+	const coords = collisionHeight.getUV( position );
+	const floorHeight = texture( collisionHeight.renderTarget.texture, coords ).y;
+	const floorPosition = floorHeight.add( 0.05 );
+
+	// Respawn when hitting the collision surface
+	If( position.y.lessThan( floorPosition ), () => {
+
+		const seed = instanceIndex.toFloat().add( time.mul( 1000 ) );
+
+		const randX = hash( seed );
+		const randY = hash( seed.add( particleCount + 1 ) );
+		const randZ = hash( seed.add( particleCount + 2 ) );
+
+		position.x = randX.mul( area.width ).sub( area.width / 2 ).add( center.x );
+		position.z = randZ.mul( area.depth ).sub( area.depth / 2 ).add( center.z );
+		position.y = randY.mul( 15 ).add( center.y.add( area.height ) );
+
+		velocity.y = randX.mul( - 5 ).add( - 20 );
+
+	} );
+
+} )().compute( particleCount );
+
+// Initial compute pass
+renderer.compute( computeInit );
+
+// 4. Streak shader: bright center with soft vertical fade
+const streak = uv().distance( .5 ).oneMinus().pow( 5 );
+
+// 5. Rain material with cylindrical billboarding
+const rainMaterial = new THREE.NodeMaterial();
+rainMaterial.colorNode = color( 0xdcf4ff );
+rainMaterial.opacityNode = streak.mul( 0.35 );
+rainMaterial.positionNode = positionGeometry.add( positionBuffer.element( instanceIndex ) );
+rainMaterial.vertexNode = billboarding( { horizontal: true, horizontalRotation: true } );
+rainMaterial.depthWrite = false;
+rainMaterial.depthTest = true;
+rainMaterial.transparent = true;
+
+const rainGeometry = new THREE.PlaneGeometry( 0.04, 0.8 );
+const rain = new THREE.Mesh( rainGeometry, rainMaterial );
+rain.count = particleCount;
+rain.frustumCulled = false;
+rain.layers.set( 1 );
+
+// Run compute update on every frame before rendering
+rain.onBeforeRender = ( renderer ) => {
+
+	renderer.compute( computeUpdate );
+
+};
+
+scene.add( rain );
+camera.layers.enable( 1 );
+```
+
+</page>
+
+<page name="Spritesheet">
+
+Spritesheets pack multiple animation frames into a single texture atlas. Using the built-in `spritesheetUV` TSL node, we dynamically offset the UV coordinates across rows and columns over time to play flipbook animations with zero CPU overhead.
+
+![Water Splash Spritesheet](/textures/water-splash.webp)
+
+- **Texture Atlas**: Loads a spritesheet image `water-splash.webp` containing 5 horizontal animation frames of water droplets splashing.
+- **spritesheetUV Node**: Calculates the current column/row UV offset automatically based on frame dimensions `vec2( 5, 1 )`, base UV coordinates `uv()`, and continuous time-driven frame progress `time.mul( 20 )`.
+- **Billboarding**: Uses `billboarding()` to ensure the splash sprite always faces directly toward the camera regardless of viewpoint angle.
+
+#### Related
+- [Texture](?tour#texture)
+- [UV](?tour#uv)
+- [Timer](?tour#timer)
+
+```tsl
+import * as THREE from 'three';
+import { billboarding, color, spritesheetUV, texture, time, uv, vec2 } from 'three/tsl';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+import 'threejs-punk/smoke';
+
+// 1. Load splash spritesheet (5 frames horizontal)
+const splashSheet = new THREE.TextureLoader().load( '/textures/water-splash.webp' );
+
+// 2. Spritesheet frame animation (5 columns, 1 row, 20 fps)
+const frameUV = spritesheetUV( vec2( 5, 1 ), uv(), time.mul( 20 ) );
+const splashSample = texture( splashSheet, frameUV );
+
+// 3. Sprite material with billboarding
+const splashMaterial = new THREE.MeshBasicNodeMaterial();
+splashMaterial.colorNode = color( 0xdcf4ff );
+splashMaterial.opacityNode = splashSample.r;
+splashMaterial.vertexNode = billboarding( { horizontal: true, vertical: true } );
+splashMaterial.depthWrite = false;
+splashMaterial.depthTest = true;
+splashMaterial.transparent = true;
+
+const splashGeometry = new THREE.PlaneGeometry( 3, 3 );
+const splash = new THREE.Mesh( splashGeometry, splashMaterial );
+splash.position.set( - 128, - 2, 33 );
+
+scene.add( splash );
+```
+
+</page>
+
+<page name="Splash">
+
+Animated water splash particles generated on scene surfaces around the camera using compute shaders, collision height sampling, and spritesheets.
+
+- **Animation Cycles**: Advances splash frames and picks a new random position every cycle using `splashCycleBuffer`.
+- **Collision Snapping**: Uses `collisionHeight.getUV()` to place splashes directly on top of floors, cars, and buildings.
+- **Radial Spawning**: Spawns splashes in a circle in front of the camera with `cos()`, `sin()`, and `cameraDirection`.
+- **Automatic Billboarding**: Uses `SpriteNodeMaterial` and `THREE.Sprite` for native camera-facing sprites without manual vertex transformations.
+
+#### Related
+- [Compute](?tour#compute)
+- [Spritesheet](?tour#spritesheet)
+- [Collision](?tour#collision)
+- [Sprite Material](?tour#sprite-material)
+
+```tsl
+import * as THREE from 'three';
+import { color, cos, Fn, hash, If, instancedArray, instanceIndex, objectDirection, sin, spritesheetUV, texture, time, uniform, uv, vec2 } from 'three/tsl';
+import { collisionHeight } from 'threejs-punk/collisionHeight';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+import 'threejs-punk/smoke';
+import 'threejs-punk/rain';
+
+const particleCount = 2000;
+const radius = 40;
+const cameraDirection = objectDirection( camera );
+const center = uniform( camera.position ).add( cameraDirection.mul( radius / 2 ) );
+
+// 1. Storage buffers for splash positions and animation cycle tracking
+const splashPositionBuffer = instancedArray( particleCount, 'vec3' );
+const splashCycleBuffer = instancedArray( particleCount, 'uint' );
+
+// 2. Compute Update: place splashes at random surface heights using collisionHeight
+const computeSplashUpdate = Fn( () => {
+
+	const splashPos = splashPositionBuffer.element( instanceIndex );
+	const lastCycle = splashCycleBuffer.element( instanceIndex );
+
+	// Per-particle phase offset (advances cycle index every 1/4 second)
+	const phase = hash( instanceIndex );
+	const cycleIndex = time.mul( 4 ).add( phase ).floor().toUint();
+
+	// When a splash cycle restarts, pick a new random position within circular area
+	If( cycleIndex.notEqual( lastCycle ), () => {
+
+		lastCycle.assign( cycleIndex );
+
+		const seed = instanceIndex.add( cycleIndex.mul( particleCount ) );
+		const randAngle = hash( seed );
+		const randDist = hash( seed.add( particleCount ) );
+
+		const angle = randAngle.mul( Math.PI * 2 );
+		const dist = randDist.sqrt().mul( radius );
+
+		splashPos.x = center.x.add( cos( angle ).mul( dist ) );
+		splashPos.z = center.z.add( sin( angle ).mul( dist ) );
+
+		// Sample exact surface height from collision map
+		const coords = collisionHeight.getUV( splashPos );
+		const floorY = texture( collisionHeight.renderTarget.texture, coords ).y;
+		splashPos.y = floorY.add( 0.06 );
+
+	} );
+
+} )().compute( particleCount );
+
+// 3. Load splash spritesheet (5 frames horizontal)
+const splashSheet = new THREE.TextureLoader().load( '/textures/water-splash.webp' );
+
+// 4. Spritesheet frame animation (5 columns, 1 row, 20 fps + per-particle phase)
+const frameUV = spritesheetUV( vec2( 5, 1 ), uv(), time.mul( 20 ).add( hash( instanceIndex ).mul( 5 ) ) );
+const splashSample = texture( splashSheet, frameUV );
+
+// 5. Splash material using SpriteNodeMaterial (automatic billboarding)
+const splashMaterial = new THREE.SpriteNodeMaterial();
+splashMaterial.colorNode = color( 0xdcf4ff );
+splashMaterial.opacityNode = splashSample.r.mul( 0.4 );
+splashMaterial.positionNode = splashPositionBuffer.element( instanceIndex );
+splashMaterial.scaleNode = vec2( 0.2, 0.2 );
+splashMaterial.depthWrite = false;
+splashMaterial.depthTest = true;
+splashMaterial.transparent = true;
+
+const splash = new THREE.Sprite( splashMaterial );
+splash.count = particleCount;
+splash.frustumCulled = false;
+splash.layers.set( 1 );
+
+// Run compute update on every frame before rendering
+splash.onBeforeRender = ( renderer ) => {
+
+	renderer.compute( computeSplashUpdate );
+
+};
+
+scene.add( splash );
+camera.layers.enable( 1 );
+```
+
+</page>
+
+</page>
+
+<page name="Render Pipeline">
+
+<page name="Pass + MRT">
+
+Multiple Render Targets (MRT) allow a single render pass to output multiple shader channels simultaneously into separate texture buffers, such as full scene color and isolated emissive lighting.
+
+- **Single Pass Capture**: Uses `pass()` with `setMRT()` and `mrt()` to render color `output` and neon glow `emissive` in one GPU pass.
+- **Texture Extraction**: `getTextureNode()` extracts individual texture channels `output` and `emissive` for post-processing.
+- **Split-Screen Comparison**: Compares the full scene render with the isolated emissive channel side-by-side using `select()` and `screenUV`.
+
+#### Related
+- [Pass](?tour#pass)
+- [MRT](?tour#mrt)
+- [Screen](?tour#screen)
+- [Render Pipeline](?tour#render-pipeline)
+
+```tsl
+import * as THREE from 'three';
+import { emissive, mrt, output, pass, select, screenUV, vec4 } from 'three/tsl';
+import 'threejs-punk/scene';
+import 'threejs-punk/ground';
+import 'threejs-punk/fog';
+import 'threejs-punk/smoke';
+import 'threejs-punk/rain';
+import 'threejs-punk/splash';
+
+// 1. Render pass configured with Multiple Render Targets (Color + Emissive)
+const mainPass = pass( scene, camera );
+const mrtNode = mrt( {
+	output: output,
+	emissive: vec4( emissive, output.a )
+} );
+mrtNode.setBlendMode( 'emissive', new THREE.BlendMode( THREE.NormalBlending ) );
+
+mainPass.setMRT( mrtNode );
+
+// 2. Extract and display the isolated emissive channel directly
+const outputPass = mainPass.getTextureNode( 'output' );
+const emissivePass = mainPass.getTextureNode( 'emissive' );
+
+renderPipeline.outputNode = select( screenUV.x.greaterThan( .5 ), emissivePass, outputPass ).xyz;
+```
 
 </page>
 
 <page name="Post-Processing">
 
-Post-processing means we render the scene first, then change the image with TSL nodes. We connect those nodes to `renderPipeline.outputNode`.
+Assembles a complete cyberpunk post-processing pipeline combining selective neon bloom with depth attenuation, anamorphic lens flares, half-resolution Gaussian depth of field, color balance grading, chromatic aberration, anti-aliasing, and cinematic film grain.
 
-We build the effect in small steps. Each step adds one idea. Run the code after every step and compare the result.
+- **Selective Depth-Faded Bloom**: Attenuates distant emissive materials using `getLinearDepthNode()` and applies `bloom()` exclusively to isolated neon glow without washing out diffuse surfaces.
+- **Lens Flare**: Generates cinematic ghost flares and light streaks from glowing lights using `lensflare()`.
+- **Depth of Field Blur**: Creates distance depth blur using `gaussianBlur()` at half resolution with `resolutionScale: 0.5` blended via `getLinearDepthNode()`.
+- **Cyberpunk Grading**: Shifts the color balance towards magenta/cyan tones using `vec3()`, enhances vibrancy with `saturation()`, and focuses the viewpoint using a radial `screenUV` vignette.
+- **Chromatic Aberration**: Adds radial lens color fringing using `chromaticAberration()` to separate RGB color channels towards the screen edges.
+- **Anti-Aliasing & Film Grain**: Cleans specular edges with `smaa()` and adds cinematic film texture using `film()`.
 
-<page name="Bloom">
+#### Related
+- [Pass](?tour#pass)
+- [MRT](?tour#mrt)
+- [Screen](?tour#screen)
+- [Render Pipeline](?tour#render-pipeline)
 
-Bloom makes bright areas glow. It is perfect for neon signs and headlights in a night city.
-
-**Step 1** — Render the scene into a pass.
-
-**Step 2** — Run the `bloom()` node on that pass.
-
-**Step 3** — Add the bloom back on top of the original image.
-
-```tsl postprocessingBloom
-import { pass } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-
-// 1. Render the scene once
-const mainPass = pass( scene, camera );
-
-// 2. Bloom: strength, radius, threshold (only bright pixels glow)
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-
-// 3. Add glow on top of the normal image
-renderPipeline.outputNode = mainPass.add( bloomPass );
-renderPipeline.needsUpdate = true;
-```
-
-### Try this
-
-1. Make the glow much stronger, then much weaker. Which number did you change?
-2. Set `threshold` to `0`. What happens to the street and the rain?
-3. Raise `threshold` until only the neon signs glow.
-
-</page>
-
-<page name="Lens Flare">
-
-Lens flare creates light ghosts from very bright spots. It uses the bloom result, so we chain it after bloom.
-
-**Step 1** — Keep bloom from the previous step.
-
-**Step 2** — Pass the bloom texture into `lensflare()`.
-
-**Step 3** — Add a soft flare layer on top of the scene + bloom.
-
-```tsl postprocessingLensflare
-import { pass } from 'three/tsl';
+```tsl
+import * as THREE from 'three';
+import { emissive, mix, mrt, output, pass, saturation, screenUV, vec2, vec3, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-
-const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-
-// Flare reads the bloom texture (bright areas only)
-const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35
-} );
-
-renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
-renderPipeline.needsUpdate = true;
-```
-
-### Try this
-
-1. Change `flarePass.mul( 0.6 )` to `0` and to `2`. Watch the ghosts.
-2. Change `ghostSpacing`. Do the ghosts move closer or farther?
-3. Why do we pass `bloomPass` into `lensflare()`, not `mainPass`? (Hint: flare wants only bright pixels.)
-
-</page>
-
-<page name="Anti-Aliasing">
-
-SMAA smooths jagged edges on neon lines and building silhouettes. Run it after bloom and flare. Film grain comes later, after SMAA. If grain runs first, SMAA can treat the noise as edges.
-
-**Step 1** — Build the full image (scene + bloom + flare).
-
-**Step 2** — Wrap it with `smaa()`.
-
-```tsl postprocessingSmaa
-import { pass } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import { smaa } from 'three/addons/tsl/display/SMAANode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-
-const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35
-} );
-
-const beauty = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
-
-// SMAA after bloom and flare. Grain comes after SMAA (next step)
-renderPipeline.outputNode = smaa( beauty );
-renderPipeline.needsUpdate = true;
-```
-
-### Try this
-
-1. Comment out `smaa()` and look at neon edges. Put it back.
-2. Try `smaa( bloomPass )` only (wrong input). Why does the rest of the image look bad?
-3. Do not add film grain on this page yet. Grain comes in the next step.
-
-</page>
-
-<page name="Cinematic Color Grade">
-
-This step gives the cyberpunk mood: color tint, chromatic aberration at the edges, vignette, and film grain.
-
-**Step 1** — Sample the scene color and split RGB slightly at the screen edges (chromatic aberration).
-
-**Step 2** — Tint and boost saturation.
-
-**Step 3** — Add bloom + flare, then darken the corners (vignette).
-
-**Step 4** — Run SMAA, then add film grain last.
-
-```tsl postprocessingColorGrade
-import { pass, screenUV, vec2, vec3, vec4, float, smoothstep, length, saturation } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
+import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js';
+import { chromaticAberration } from 'three/addons/tsl/display/ChromaticAberrationNode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import { film } from 'three/addons/tsl/display/FilmNode.js';
 import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
 import 'threejs-punk/ground';
-import 'threejs-punk/rain';
 import 'threejs-punk/fog';
-
-const mainPass = pass( scene, camera );
-const mainColor = mainPass.getTextureNode( 'output' );
-
-// Bloom + lens flare (same as before)
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35
-} );
-const glow = bloomPass.add( flarePass.mul( 0.6 ) );
-
-// 1. Chromatic aberration — RGB channels shift a little at the edges
-const center = vec2( 0.5, 0.5 );
-const toCenter = screenUV.sub( center );
-const edgeMask = smoothstep( 0.2, 0.85, length( toCenter ).mul( 1.6 ) );
-const shift = toCenter.mul( edgeMask ).mul( 0.012 );
-
-const r = mainColor.sample( screenUV.add( shift ) ).r;
-const g = mainColor.sample( screenUV ).g;
-const b = mainColor.sample( screenUV.sub( shift ) ).b;
-const a = mainColor.sample( screenUV ).a;
-
-// 2. Neon tint + a bit more saturation
-const tint = vec3( 1.02, 0.9, 1.06 );
-let graded = vec4( saturation( vec3( r, g, b ).mul( tint ), 1.08 ), a );
-
-// 3. Add glow, then vignette (darker corners)
-graded = vec4( graded.rgb.add( glow.rgb ), graded.a );
-
-const vigDist = length( screenUV.sub( center ) ).mul( 1.6 );
-const vigFactor = float( 1 ).sub( smoothstep( 0.64, 1.0, vigDist ).mul( 0.75 ) );
-graded = vec4( graded.rgb.mul( vigFactor ), graded.a );
-
-// 4. SMAA first, then film grain (grain after AA so noise is not treated as edges)
-const aa = smaa( graded );
-renderPipeline.outputNode = film( aa, 0.15 );
-renderPipeline.needsUpdate = true;
-```
-
-### Try this
-
-1. Change the tint toward teal (`0.9, 1.0, 1.1`), then toward magenta.
-2. Raise vignette until the corners are almost black. Then turn it off (`mul( 0 )` on the vignette strength).
-3. Put `film()` **before** `smaa()`. Compare. Put grain back after SMAA.
-4. Extra: use `hue()` or `grayscale()` from `three/tsl` on the graded color before SMAA.
-
-</page>
-
-<page name="Your turn">
-
-You have the full pipeline. Now make it yours.
-
-**Stay in the playground**
-
-Combine all steps and invent a look:
-
-- **Silent Hill** — low saturation, more grain, strong vignette
-- **Neon night** — more bloom, magenta tint, soft flare
-
-**If you finish early**
-
-Open the Three.js examples and try **one** extra display node. Good choices:
-
-- `gaussianBlur` from `three/addons/tsl/display/GaussianBlurNode.js`
-- `sepia` from `three/addons/tsl/display/Sepia.js`
-
-Examples: [threejs.org/examples/?q=post](https://threejs.org/examples/?q=post)
-
-**Rule:** add any new effect **before** `smaa()`. Put film grain **after** `smaa()`.
-
-</page>
-
-</page>
-
-<page name="Final Optimization">
-
-Post effects can be expensive because they blur many pixels. Some nodes let you render **inside** the effect at lower resolution. The final image on screen stays full size.
-
-Keep full resolution for the main scene, color grade, and SMAA. Use lower resolution inside bloom, flare, and the ground reflector.
-
-<page name="Bloom resolution">
-
-Bloom runs many blur passes. You can make those passes smaller with `setResolutionScale()`.
-
-- `1.0` — full resolution (sharper glow, slower)
-- `0.5` — half width and height (4x fewer pixels, usually looks fine for glow)
-- `0.25` — very fast, glow may look blocky
-
-```tsl optimizationBloom
-import { pass } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
+import 'threejs-punk/smoke';
 import 'threejs-punk/rain';
-import 'threejs-punk/fog';
+import 'threejs-punk/splash';
 
+// 1. Render pass with Multiple Render Targets (Color + Emissive)
 const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-
-// Half resolution inside bloom only — main scene stays sharp
-bloomPass.setResolutionScale( 0.5 );
-
-const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35
+const mrtNode = mrt( {
+	output: output,
+	emissive: vec4( emissive, output.a )
 } );
+mrtNode.setBlendMode( 'emissive', new THREE.BlendMode( THREE.NormalBlending ) );
 
-renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
-renderPipeline.needsUpdate = true;
-```
+mainPass.setMRT( mrtNode );
 
-### Try this
+// 2. Neon Bloom applied to emissive channel with linear depth attenuation
+const emissiveOutput = mainPass.getTextureNode( 'emissive' );
+const depthFade = mainPass.getLinearDepthNode().mul( 17 ).oneMinus().clamp();
+const bloomPass = bloom( emissiveOutput.mul( depthFade ), 0.1, 0.5 ).toInspector( 'bloom' );
 
-1. Try `1.0`, then `0.5`, then `0.25`. Which looks best?
-2. The street and buildings should stay sharp. Only the glow changes. Why?
-
-</page>
-
-<page name="Lens flare resolution">
-
-Lens flare also renders into a smaller buffer. Use `downSampleRatio` in the `lensflare()` options.
-
-- `1` — full buffer size (sharper flare, slower)
-- `4` — default, buffer is 1/4 screen size
-- `8` — even smaller and faster, may look softer
-
-```tsl optimizationFlare
-import { pass } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-
-const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-bloomPass.setResolutionScale( 0.5 );
-
+// 3. Cinematic Lens Flare from the neon lights
 const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35,
-	downSampleRatio: 4
-} );
+	threshold: 0.0,
+	ghostSpacing: 0.7,
+	ghostAttenuationFactor: 30
+} ).toInspector( 'flare' );
 
-renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
-renderPipeline.needsUpdate = true;
+// 4. Composite bloom and lens flare on top of the main scene color
+const sceneComposite = mainPass.add( bloomPass ).add( flarePass.mul( 2 ) );
+
+// 5. Depth of Field with half-resolution Gaussian Blur
+const blurredScene = gaussianBlur( sceneComposite, .3, 4, { resolutionScale: 0.5 } );
+const dofFactor = mainPass.getLinearDepthNode().mul( 14 ).clamp();
+const dofComposite = mix( sceneComposite, blurredScene, dofFactor );
+
+// 6. Cyberpunk Color Grading (Color Balance + Vignette + Saturation)
+const colorBalance = vec3( 1.05, 0.9, 1.4 );
+const vignette = screenUV.distance( .5 ).mul( 1.2 ).oneMinus().clamp();
+const gradedColor = saturation( dofComposite.rgb.mul( colorBalance ), 1.25 ).mul( vignette );
+
+// 7. Chromatic aberration, SMAA & subtle cinematic film grain
+const chromaticPass = chromaticAberration( gradedColor, 0.5, vec2( .5 ) );
+const smaaPass = smaa( chromaticPass );
+const finalPass = film( smaaPass, 0.15 );
+
+renderPipeline.outputNode = finalPass;
 ```
-
-### Try this
-
-1. Set `downSampleRatio` to `1`. Is the flare sharper? Is it worth it?
-2. Set it to `8`. Do you see quality loss?
-3. Keep bloom at `0.5` and flare at `4`. This is a good balance for a night city.
-
-</page>
-
-<page name="Ground reflection">
-
-The wet ground uses `reflector()`. It draws the city **again** every frame into a mirror buffer. At full size (`resolutionScale: 1.0`) this is very expensive.
-
-This example keeps bloom and flare from the previous steps, with their resolution settings. Then we tune the ground on top.
-
-Use `setReflectionScale()` to make the mirror buffer smaller:
-
-- `1.0` — full size (sharpest reflection, slowest)
-- `0.5` — half width and height (4x fewer pixels, puddles still look wet)
-- `0.25` — even faster, reflection may look softer
-
-`hashBlur` softens the reflection for a dirty wet look. It samples many times per pixel. It is **off** by default here — turn it on only if you want that look and can afford the cost.
-
-```tsl optimizationGround
-import { pass } from 'three/tsl';
-import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import 'threejs-punk/scene';
-import 'threejs-punk/collisionHeight';
-import 'threejs-punk/ground';
-import 'threejs-punk/rain';
-import 'threejs-punk/fog';
-
-const mainPass = pass( scene, camera );
-const bloomPass = bloom( mainPass, 0.2, 0.4, 0.35 );
-bloomPass.setResolutionScale( 0.5 );
-
-const flarePass = lensflare( bloomPass, {
-	threshold: 0.1,
-	ghostSpacing: 0.2,
-	ghostAttenuationFactor: 35,
-	downSampleRatio: 4
-} );
-
-setReflectionScale( 0.5 );
-setHashBlur( false );
-
-renderPipeline.outputNode = mainPass.add( bloomPass ).add( flarePass.mul( 0.6 ) );
-renderPipeline.needsUpdate = true;
-```
-
-### Try this
-
-1. Try `setReflectionScale( 1.0 )`, then `0.5`, then `0.25`. Which still looks wet?
-2. Set `setHashBlur( true )`. Does the puddle look better? Is the FPS hit worth it?
-3. Good balance for a night city: bloom `0.5`, flare `4`, reflection scale `0.5`, hashBlur off.
-
-</page>
 
 </page>
 

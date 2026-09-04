@@ -164,85 +164,120 @@ function stripImportDeclarations( code, declarations ) {
 
 function processExportDeclarations( code ) {
 
-	let cleanText = code;
-	const exportedSymbols = [];
+	let ast;
+	try {
 
-	// 1. Parse braced exports (e.g., export { foo, bar as baz };)
-	const bracedExportRegex = /export\s*\{([\s\S]*?)\};?/g;
-	let bracedMatch;
-	while ( ( bracedMatch = bracedExportRegex.exec( cleanText ) ) !== null ) {
+		ast = acorn.parse( code, { ecmaVersion: 'latest', sourceType: 'module' } );
 
-		const symbolList = bracedMatch[ 1 ].split( ',' ).map( s => s.trim() ).filter( Boolean );
-		symbolList.forEach( symbol => {
+	} catch {
 
-			let localName = symbol;
-			let exportName = symbol;
-			if ( symbol.includes( ' as ' ) ) {
-
-				const parts = symbol.split( /\s+as\s+/ );
-				localName = parts[ 0 ].trim();
-				exportName = parts[ 1 ].trim();
-
-			}
-
-			exportedSymbols.push( { local: localName, export: exportName } );
-
-		} );
+		return { cleanText: code, exportedSymbols: [] };
 
 	}
 
-	cleanText = cleanText.replace( bracedExportRegex, '' );
+	const exportedSymbols = [];
+	const replacements = [];
 
-	// 2. Parse inline variable exports (e.g., export const foo = 1; or export let a = 1, b = 2;)
-	cleanText = cleanText.replace( /export\s+(const|let|var)\s+([^;\n]+)/g, ( match, type, decls ) => {
+	const extractPattern = ( pattern ) => {
 
-		const parts = decls.split( ',' );
-		parts.forEach( p => {
+		if ( ! pattern ) return [];
+		if ( pattern.type === 'Identifier' ) return [ pattern.name ];
+		if ( pattern.type === 'ObjectPattern' ) {
 
-			const name = p.trim().split( '=' )[ 0 ].trim().split( /\s+/ )[ 0 ];
-			if ( /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test( name ) ) {
+			const names = [];
+			pattern.properties.forEach( p => names.push( ...extractPattern( p.value || p.argument ) ) );
+			return names;
 
-				exportedSymbols.push( { local: name, export: name } );
+		}
+
+		if ( pattern.type === 'ArrayPattern' ) {
+
+			const names = [];
+			pattern.elements.forEach( el => names.push( ...extractPattern( el ) ) );
+			return names;
+
+		}
+
+		return [];
+
+	};
+
+	ast.body.forEach( node => {
+
+		if ( node.type === 'ExportNamedDeclaration' ) {
+
+			if ( node.declaration ) {
+
+				const decl = node.declaration;
+				const exportKwLength = decl.start - node.start;
+				const spaces = ' '.repeat( exportKwLength );
+				replacements.push( { start: node.start, end: decl.start, replacement: spaces } );
+
+				if ( decl.type === 'VariableDeclaration' ) {
+
+					decl.declarations.forEach( d => {
+
+						extractPattern( d.id ).forEach( name => exportedSymbols.push( { local: name, export: name } ) );
+
+					} );
+
+				} else if ( decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration' ) {
+
+					if ( decl.id ) exportedSymbols.push( { local: decl.id.name, export: decl.id.name } );
+
+				}
+
+			} else if ( node.specifiers ) {
+
+				const snippet = code.substring( node.start, node.end );
+				const linePreserved = snippet.replace( /[^\n]/g, ' ' );
+				replacements.push( { start: node.start, end: node.end, replacement: linePreserved } );
+
+				node.specifiers.forEach( spec => {
+
+					const local = spec.local ? spec.local.name : spec.local.value;
+					const exported = spec.exported ? ( spec.exported.name || spec.exported.value ) : local;
+					exportedSymbols.push( { local, export: exported } );
+
+				} );
 
 			}
 
-		} );
+		} else if ( node.type === 'ExportDefaultDeclaration' ) {
 
-		return `${type} ${decls}`;
+			const decl = node.declaration;
+			if ( decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration' ) {
+
+				if ( decl.id ) {
+
+					const exportKwLength = decl.start - node.start;
+					const spaces = ' '.repeat( exportKwLength );
+					replacements.push( { start: node.start, end: decl.start, replacement: spaces } );
+					exportedSymbols.push( { local: decl.id.name, export: 'default' } );
+
+				} else {
+
+					replacements.push( { start: node.start, end: decl.start, replacement: 'const __default_export__ = ' } );
+					exportedSymbols.push( { local: '__default_export__', export: 'default' } );
+
+				}
+
+			} else {
+
+				replacements.push( { start: node.start, end: decl.start, replacement: 'const __default_export__ = ' } );
+				exportedSymbols.push( { local: '__default_export__', export: 'default' } );
+
+			}
+
+		}
 
 	} );
 
-	// 3. Parse inline function or class exports (e.g., export function foo() {}, export async function foo() {})
-	cleanText = cleanText.replace( /export\s+(async\s+)?(function\*?|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
+	replacements.sort( ( a, b ) => b.start - a.start );
+	let cleanText = code;
+	replacements.forEach( r => {
 
-		exportedSymbols.push( { local: name, export: name } );
-		return `${asyncPrefix || ''}${type} ${name}`;
-
-	} );
-
-	// 4. Parse default function/class declaration exports (e.g., export default function foo() {})
-	cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function\*?|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g, ( match, asyncPrefix, type, name ) => {
-
-		exportedSymbols.push( { local: name, export: 'default' } );
-		return `${asyncPrefix || ''}${type} ${name}`;
-
-	} );
-
-	// 5. Parse default anonymous function/class exports (e.g., export default function() {})
-	cleanText = cleanText.replace( /export\s+default\s+(async\s+)?(function\*?|class)\s*\(/g, ( match, asyncPrefix, type ) => {
-
-		const name = '__default_export__';
-		exportedSymbols.push( { local: name, export: 'default' } );
-		return `${asyncPrefix || ''}${type} ${name}(`;
-
-	} );
-
-	// 6. Parse default expression exports (e.g., export default foo;)
-	cleanText = cleanText.replace( /export\s+default\s+([^;]+);?/g, ( match, expression ) => {
-
-		const name = '__default_export__';
-		exportedSymbols.push( { local: name, export: 'default' } );
-		return `const ${name} = ${expression};`;
+		cleanText = cleanText.substring( 0, r.start ) + r.replacement + cleanText.substring( r.end );
 
 	} );
 
@@ -440,6 +475,31 @@ class CodeRunner extends EventDispatcher {
 
 	}
 
+	call( methodName, ...args ) {
+
+		for ( const name of this.activeScriptNames ) {
+
+			const scriptConfig = this.scripts[ name ];
+			const instance = scriptConfig ? scriptConfig.instance : null;
+
+			if ( instance && typeof instance[ methodName ] === 'function' ) {
+
+				try {
+
+					instance[ methodName ]( ...args );
+
+				} catch ( e ) {
+
+					console.error( `Error executing "${methodName}" on script "${name}":`, e );
+
+				}
+
+			}
+
+		}
+
+	}
+
 	activateScript( name ) {
 
 		const scriptConfig = this.scripts[ name ];
@@ -484,30 +544,6 @@ class CodeRunner extends EventDispatcher {
 
 			}
 
-			if ( scriptConfig.exportedKeys ) {
-
-				for ( const key of scriptConfig.exportedKeys ) {
-
-					if ( ! LIFECYCLE_METHODS.includes( key ) ) {
-
-						delete this.env[ key ];
-
-					}
-
-				}
-
-			}
-
-			for ( const key of Object.keys( scriptConfig.instance ) ) {
-
-				if ( ! LIFECYCLE_METHODS.includes( key ) ) {
-
-					delete this.env[ key ];
-
-				}
-
-			}
-
 		}
 
 		scriptConfig.instance = null;
@@ -527,7 +563,25 @@ class CodeRunner extends EventDispatcher {
 
 	}
 
-	async load( name ) {
+	dispose() {
+
+		for ( const name of [ ...this.activeScriptNames ] ) {
+
+			this.invalidateScript( name );
+
+		}
+
+		if ( this.scripts[ '__main__' ] ) {
+
+			this.invalidateScript( '__main__' );
+
+		}
+
+		this.activeScriptNames = [];
+
+	}
+
+	async load( name, refreshedScripts = null, loadingStack = new Set() ) {
 
 		const scriptConfig = this.scripts[ name ];
 		if ( ! scriptConfig ) return null;
@@ -538,9 +592,35 @@ class CodeRunner extends EventDispatcher {
 
 		}
 
-		if ( scriptConfig.instance ) return scriptConfig.instance;
+		if ( scriptConfig.instance ) {
 
-		if ( this.loadingScripts.has( name ) ) {
+			if ( refreshedScripts && ! refreshedScripts.has( name ) ) {
+
+				refreshedScripts.add( name );
+
+				if ( scriptConfig.dependencies ) {
+
+					for ( const dep of scriptConfig.dependencies ) {
+
+						await this.load( dep, refreshedScripts, loadingStack );
+
+					}
+
+				}
+
+				if ( scriptConfig.instance.refresh ) {
+
+					await scriptConfig.instance.refresh();
+
+				}
+
+			}
+
+			return scriptConfig.instance;
+
+		}
+
+		if ( loadingStack.has( name ) ) {
 
 			return scriptConfig.instance || {};
 
@@ -548,7 +628,8 @@ class CodeRunner extends EventDispatcher {
 
 		if ( ! scriptConfig.promise ) {
 
-			this.loadingScripts.add( name );
+			const branchStack = new Set( loadingStack );
+			branchStack.add( name );
 
 			scriptConfig.promise = ( async () => {
 
@@ -561,26 +642,184 @@ class CodeRunner extends EventDispatcher {
 
 					} else {
 
-						const response = await fetch( scriptConfig.url );
-						if ( ! response.ok ) {
+						let response;
+						try {
 
-							throw new Error( `Failed to load script "${name}": Server returned status ${response.status}.` );
+							response = await fetch( scriptConfig.url );
+
+						} catch ( fetchErr ) {
+
+							throw new Error( `Failed to load module "${name}". Network error: ${fetchErr.message || fetchErr}.` );
+
+						}
+
+						const contentType = response.headers.get( 'content-type' ) || '';
+						if ( ! response.ok || contentType.includes( 'text/html' ) ) {
+
+							throw new Error( `Failed to load module "${name}". File not found at "${scriptConfig.url}".` );
 
 						}
 
 						text = await response.text();
+
+						if ( text.trim().startsWith( '<' ) ) {
+
+							throw new Error( `Failed to load module "${name}". Server returned HTML instead of JavaScript.` );
+
+						}
+
 						scriptConfig.text = text;
 
 					}
 
 					const { importDeclarations, declaredSymbols } = parseScript( text );
 
+					const loadedModules = new Map();
+
+					const importPromises = importDeclarations.map( async ( decl ) => {
+
+						const moduleName = decl.moduleName;
+						const fullMatch = decl.fullMatch;
+
+						let moduleObj = this.imports[ moduleName ];
+						if ( ! moduleObj ) {
+
+							const isStandard = isStandardModule( moduleName, this.imports );
+							if ( ! isStandard ) {
+
+								const resolvedPath = resolvePath( name, moduleName );
+								const baseName = resolvedPath.replace( /\.js$/, '' );
+								if ( ! this.scripts[ baseName ] ) {
+
+									this.scripts[ baseName ] = {
+										url: `./js/imports/scripts/${baseName}.js`,
+										instance: null,
+										promise: null,
+										dependencies: []
+									};
+
+								}
+
+								if ( ! scriptConfig.dependencies.includes( baseName ) ) {
+
+									scriptConfig.dependencies.push( baseName );
+
+								}
+
+								try {
+
+									moduleObj = await this.load( baseName, refreshedScripts, branchStack );
+
+								} catch ( err ) {
+
+									const lineNumber = text.substring( 0, decl.start ).split( '\n' ).length;
+									const error = new Error( `Failed to load import "${moduleName}" in script "${name}.js". ${err.message}` );
+									error.customLineNumber = lineNumber;
+									throw error;
+
+								}
+
+							} else {
+
+								try {
+
+									moduleObj = await import( moduleName );
+
+								} catch ( err ) {
+
+									const lineNumber = text.substring( 0, decl.start ).split( '\n' ).length;
+									const error = new Error( `Failed to load import "${moduleName}" in script "${name}.js". Make sure the module path is correct.` );
+									error.customLineNumber = lineNumber;
+									throw error;
+
+								}
+
+							}
+
+						}
+
+						loadedModules.set( decl, moduleObj );
+
+					} );
+
+					if ( importPromises.length > 0 ) {
+
+						await Promise.all( importPromises );
+
+					}
+
 					const symbols = [];
 					const values = [];
 
+					// 1. Process explicit import specifiers (named, namespace, default) or side-effect imports
+					for ( const decl of importDeclarations ) {
+
+						const moduleObj = loadedModules.get( decl );
+						if ( moduleObj ) {
+
+							if ( decl.specifiers.length > 0 ) {
+
+								decl.specifiers.forEach( spec => {
+
+									if ( spec.type === 'named' ) {
+
+										if ( ! symbols.includes( spec.local ) ) {
+
+											symbols.push( spec.local );
+											values.push( moduleObj[ spec.imported ] );
+
+										}
+
+									} else if ( spec.type === 'namespace' ) {
+
+										if ( ! symbols.includes( spec.local ) ) {
+
+											symbols.push( spec.local );
+											values.push( moduleObj );
+
+										}
+
+									} else if ( spec.type === 'default' ) {
+
+										if ( ! symbols.includes( spec.local ) ) {
+
+											symbols.push( spec.local );
+											values.push( moduleObj[ 'default' ] );
+
+										}
+
+									}
+
+								} );
+
+							} else {
+
+								// Side-effect import (e.g. import 'threejs-punk/scene';)
+								for ( const key of Object.keys( moduleObj ) ) {
+
+									if ( ! LIFECYCLE_METHODS.includes( key ) && moduleObj[ key ] !== undefined ) {
+
+										if ( ! symbols.includes( key ) && ! declaredSymbols.has( key ) ) {
+
+											symbols.push( key );
+											values.push( moduleObj[ key ] );
+
+										}
+
+									}
+
+								}
+
+							}
+
+						}
+
+					}
+
+					// 2. Inject runner environment variables (e.g. renderer) not shadowed by local declarations
 					for ( const [ key, val ] of Object.entries( this.env ) ) {
 
-						if ( ! declaredSymbols.has( key ) ) {
+						if ( ! symbols.includes( key ) && ! declaredSymbols.has( key ) ) {
 
 							symbols.push( key );
 							values.push( val );
@@ -592,161 +831,59 @@ class CodeRunner extends EventDispatcher {
 					symbols.push( 'console' );
 					values.push( this.customConsole );
 
-					const importPromises = [];
-
-					importDeclarations.forEach( decl => {
-
-						const moduleName = decl.moduleName;
-						const fullMatch = decl.fullMatch;
-
-						importPromises.push( ( async () => {
-
-							let moduleObj = this.imports[ moduleName ];
-							if ( ! moduleObj ) {
-
-								const isStandard = isStandardModule( moduleName, this.imports );
-								if ( ! isStandard ) {
-
-									const resolvedPath = resolvePath( name, moduleName );
-									const baseName = resolvedPath.replace( /\.js$/, '' );
-									if ( ! this.scripts[ baseName ] ) {
-
-										this.scripts[ baseName ] = {
-											url: `./js/imports/scripts/${baseName}.js`,
-											instance: null,
-											promise: null,
-											dependencies: []
-										};
-
-									}
-
-									if ( ! scriptConfig.dependencies.includes( baseName ) ) {
-
-										scriptConfig.dependencies.push( baseName );
-
-									}
-
-									moduleObj = await this.load( baseName );
-
-								} else {
-
-									try {
-
-										moduleObj = await import( moduleName );
-
-									} catch ( err ) {
-
-										const charIndex = text.indexOf( fullMatch );
-										const lineNumber = charIndex !== - 1 ? text.substring( 0, charIndex ).split( '\n' ).length : 1;
-										const error = new Error( `Failed to load import "${moduleName}" in script "${name}.js". Make sure the module path is correct.` );
-										error.customLineNumber = lineNumber;
-										throw error;
-
-									}
-
-								}
-
-							}
-
-							if ( moduleObj ) {
-
-								decl.specifiers.forEach( spec => {
-
-									if ( spec.type === 'named' ) {
-
-										symbols.push( spec.local );
-										values.push( moduleObj[ spec.imported ] );
-
-									} else if ( spec.type === 'namespace' ) {
-
-										symbols.push( spec.local );
-										values.push( moduleObj );
-
-									} else if ( spec.type === 'default' ) {
-
-										symbols.push( spec.local );
-										values.push( moduleObj[ 'default' ] );
-
-									}
-
-								} );
-
-							}
-
-						} )() );
-
-					} );
-
-					if ( importPromises.length > 0 ) {
-
-						await Promise.all( importPromises );
-
-					}
-
 					const cleanImportsText = stripImportDeclarations( text, importDeclarations );
 					const { cleanText, exportedSymbols } = processExportDeclarations( cleanImportsText );
 
-					const returnFields = LIFECYCLE_METHODS.map( name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined` );
+					const returnFields = [];
 					exportedSymbols.forEach( symbol => {
 
-						if ( ! LIFECYCLE_METHODS.includes( symbol.export ) ) {
-
-							returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
-
-						}
+						returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
 
 					} );
 
-					const wrapperFn = new Function( ...symbols, `${cleanText}\nreturn { ${returnFields.join( ', ' )} };\n//# sourceURL=${name}.js` );
+					let wrapperFn;
+					try {
 
-					if ( scriptConfig.exportedKeys ) {
+						wrapperFn = new Function( ...symbols, `${cleanText}\nreturn { ${returnFields.join( ', ' )} };\n//# sourceURL=${name}.js` );
 
-						for ( const key of scriptConfig.exportedKeys ) {
+					} catch ( err ) {
 
-							if ( ! LIFECYCLE_METHODS.includes( key ) ) {
-
-								delete this.env[ key ];
-
-							}
-
-						}
+						throw new Error( `Syntax error in script "${name}.js": ${err.message}` );
 
 					}
 
 					scriptConfig.exportedKeys = new Set();
-					scriptConfig.instance = wrapperFn( ...values );
 
-					if ( scriptConfig.instance ) {
+					try {
 
-						for ( const key of Object.keys( scriptConfig.instance ) ) {
+						scriptConfig.instance = wrapperFn( ...values );
 
-							if ( ! LIFECYCLE_METHODS.includes( key ) ) {
+					} catch ( err ) {
 
-								scriptConfig.exportedKeys.add( key );
-
-								Object.defineProperty( this.env, key, {
-									get: () => scriptConfig.instance ? scriptConfig.instance[ key ] : undefined,
-									configurable: true,
-									enumerable: true
-								} );
-
-							}
-
-						}
+						throw new Error( `Error executing script "${name}.js": ${err.message}` );
 
 					}
 
 					if ( scriptConfig.instance && scriptConfig.instance.init ) {
 
-						await scriptConfig.instance.init();
+						try {
+
+							await scriptConfig.instance.init();
+
+						} catch ( err ) {
+
+							throw new Error( `Error in init() of script "${name}.js": ${err.message}` );
+
+						}
 
 					}
 
 					return scriptConfig.instance;
 
-				} finally {
+				} catch ( err ) {
 
-					this.loadingScripts.delete( name );
+					scriptConfig.promise = null;
+					throw err;
 
 				}
 
@@ -754,21 +891,7 @@ class CodeRunner extends EventDispatcher {
 
 		}
 
-		return scriptConfig.promise;
-
-	}
-	call( name, ...args ) {
-
-		this.activeScriptNames.forEach( scriptName => {
-
-			const scriptConfig = this.scripts[ scriptName ];
-			if ( scriptConfig && scriptConfig.instance && scriptConfig.instance[ name ] ) {
-
-				scriptConfig.instance[ name ]( ...args );
-
-			}
-
-		} );
+		return await scriptConfig.promise;
 
 	}
 
@@ -791,6 +914,8 @@ class CodeRunner extends EventDispatcher {
 			const values = [];
 
 			const importedCustomScripts = [];
+
+			const loadedStandardModules = new Map();
 
 			for ( const decl of importDeclarations ) {
 
@@ -820,8 +945,8 @@ class CodeRunner extends EventDispatcher {
 
 						} catch ( err ) {
 
-							const charIndex = code.indexOf( fullMatch );
-							const lineNumber = charIndex !== - 1 ? code.substring( 0, charIndex ).split( '\n' ).length : 1;
+							const decl = importDeclarations.find( d => d.moduleName === moduleName );
+							const lineNumber = decl ? code.substring( 0, decl.start ).split( '\n' ).length : 1;
 							const error = new Error( `Failed to load import "${moduleName}" in script. Make sure the module path/importmap is correct.` );
 							error.customLineNumber = lineNumber;
 							throw error;
@@ -831,6 +956,120 @@ class CodeRunner extends EventDispatcher {
 					}
 
 					if ( moduleObj ) {
+
+						loadedStandardModules.set( decl, moduleObj );
+
+					}
+
+				}
+
+			}
+
+			// Execute scene scripts dynamically
+			const prevActiveCustomScripts = this.activeScriptNames.filter( name => name !== '__main__' );
+			const refreshedScripts = new Set();
+
+			this.activeScriptNames = [];
+
+			// 1. Load / Create active scripts (refreshing cached dependencies before dependents execute)
+			for ( const baseName of importedCustomScripts ) {
+
+				if ( ! this.scripts[ baseName ] ) {
+
+					this.scripts[ baseName ] = {
+						url: `./js/imports/scripts/${baseName}.js`,
+						instance: null,
+						promise: null,
+						dependencies: []
+					};
+
+				}
+
+				try {
+
+					await this.load( baseName, refreshedScripts );
+
+				} catch ( err ) {
+
+					const decl = importDeclarations.find( d => {
+
+						const resolved = resolvePath( '__main__', d.moduleName ).replace( /\.js$/, '' );
+						return resolved === baseName;
+
+					} );
+
+					if ( decl ) {
+
+						err.customLineNumber = code.substring( 0, decl.start ).split( '\n' ).length;
+
+					}
+
+					throw err;
+
+				}
+
+			}
+
+			// 2. Activate scripts recursively (building correct activeScriptNames order)
+			for ( const baseName of importedCustomScripts ) {
+
+				this.activateScript( baseName );
+
+			}
+
+			// 3. Dispose and clear removed scripts (using complete activeScriptNames list)
+			const removedCustomScripts = prevActiveCustomScripts.filter( name => ! this.activeScriptNames.includes( name ) );
+			for ( const baseName of removedCustomScripts ) {
+
+				this.invalidateScript( baseName );
+
+			}
+
+			// 4. Resize active custom scripts
+			for ( const baseName of this.activeScriptNames ) {
+
+				const scriptConfig = this.scripts[ baseName ];
+				const instance = scriptConfig ? scriptConfig.instance : null;
+				if ( instance ) {
+
+					if ( instance.resize && this.env.renderer ) {
+
+						const width = this.env.renderer.domElement.clientWidth;
+						const height = this.env.renderer.domElement.clientHeight;
+						if ( width > 0 && height > 0 ) {
+
+							instance.resize( width, height );
+
+						}
+
+					}
+
+				}
+
+			}
+
+			// 5. Process imports for main script scope
+			for ( const decl of importDeclarations ) {
+
+				const moduleName = decl.moduleName;
+				const isStandard = isStandardModule( moduleName, this.imports );
+				let moduleObj;
+				if ( ! isStandard ) {
+
+					const resolvedPath = resolvePath( '__main__', moduleName );
+					const baseName = resolvedPath.replace( /\.js$/, '' );
+					const scriptConfig = this.scripts[ baseName ];
+					moduleObj = scriptConfig ? scriptConfig.instance : null;
+
+				} else {
+
+					moduleObj = loadedStandardModules.get( decl );
+
+				}
+
+				if ( moduleObj ) {
+
+					if ( decl.specifiers.length > 0 ) {
 
 						decl.specifiers.forEach( spec => {
 
@@ -865,119 +1104,25 @@ class CodeRunner extends EventDispatcher {
 
 						} );
 
-					}
+					} else {
 
-				}
+						// Side-effect import (e.g. import 'threejs-punk/scene';)
+						for ( const key of Object.keys( moduleObj ) ) {
 
-			}
+							if ( ! LIFECYCLE_METHODS.includes( key ) && moduleObj[ key ] !== undefined ) {
 
-			// Execute scene scripts dynamically
-			const activeModules = {};
-			const prevActiveCustomScripts = this.activeScriptNames.filter( name => name !== '__main__' );
+								if ( ! symbols.includes( key ) && ! declaredSymbols.has( key ) ) {
 
-			this.activeScriptNames = [];
+									symbols.push( key );
+									values.push( moduleObj[ key ] );
 
-			// Load / Create active scripts
-			for ( const baseName of importedCustomScripts ) {
+								}
 
-				if ( ! this.scripts[ baseName ] ) {
-
-					this.scripts[ baseName ] = {
-						url: `./js/imports/scripts/${baseName}.js`,
-						instance: null,
-						promise: null,
-						dependencies: []
-					};
-
-				}
-
-				try {
-
-					await this.load( baseName );
-
-				} catch ( err ) {
-
-					// Find where the script was imported in the main editor code
-					const matchRegex = new RegExp( `import\\s+(?:[\\s\\S]*?\\s+from\\s+)?['"](\\.\\/)?${baseName}(\\.js)?['"];?`, 'i' );
-					const match = code.match( matchRegex );
-					if ( match ) {
-
-						const charIndex = code.indexOf( match[ 0 ] );
-						if ( charIndex !== - 1 ) {
-
-							err.customLineNumber = code.substring( 0, charIndex ).split( '\n' ).length;
+							}
 
 						}
 
 					}
-
-					throw err;
-
-				}
-
-			}
-
-			// Activate scripts recursively (building correct activeScriptNames order)
-			for ( const baseName of importedCustomScripts ) {
-
-				this.activateScript( baseName );
-
-			}
-
-			// Dispose and clear removed scripts (using complete activeScriptNames list)
-			const removedCustomScripts = prevActiveCustomScripts.filter( name => ! this.activeScriptNames.includes( name ) );
-			for ( const baseName of removedCustomScripts ) {
-
-				this.invalidateScript( baseName );
-
-			}
-
-			// Refresh, resize, and expose exports for all active custom scripts
-			for ( const baseName of this.activeScriptNames ) {
-
-				const scriptConfig = this.scripts[ baseName ];
-				const instance = scriptConfig ? scriptConfig.instance : null;
-				if ( instance ) {
-
-					if ( instance.refresh ) {
-
-						await instance.refresh();
-
-					}
-
-					if ( instance.resize && this.env.renderer ) {
-
-						const width = this.env.renderer.domElement.clientWidth;
-						const height = this.env.renderer.domElement.clientHeight;
-						if ( width > 0 && height > 0 ) {
-
-							instance.resize( width, height );
-
-						}
-
-					}
-
-					for ( const key of Object.keys( instance ) ) {
-
-						if ( ! LIFECYCLE_METHODS.includes( key ) && instance[ key ] !== undefined ) {
-
-							activeModules[ key ] = instance[ key ];
-
-						}
-
-					}
-
-				}
-
-			}
-
-			// Inject active modules into parameters
-			for ( const [ name, obj ] of Object.entries( activeModules ) ) {
-
-				if ( ! symbols.includes( name ) ) {
-
-					symbols.push( name );
-					values.push( obj );
 
 				}
 
@@ -1002,14 +1147,10 @@ class CodeRunner extends EventDispatcher {
 			const strippedImportsCode = stripImportDeclarations( code, importDeclarations );
 			const { cleanText: strippedCode, exportedSymbols } = processExportDeclarations( strippedImportsCode );
 
-			const returnFields = LIFECYCLE_METHODS.map( name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined` );
+			const returnFields = [];
 			exportedSymbols.forEach( symbol => {
 
-				if ( ! LIFECYCLE_METHODS.includes( symbol.export ) ) {
-
-					returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
-
-				}
+				returnFields.push( `get "${symbol.export}"() { return typeof ${symbol.local} !== \'undefined\' ? ${symbol.local} : undefined; }` );
 
 			} );
 
@@ -1048,15 +1189,22 @@ class CodeRunner extends EventDispatcher {
 		} catch ( e ) {
 
 			// Parse error stack to find line/col
-			let line = e.customLineNumber !== undefined ? e.customLineNumber : null;
+			let line = ( e.customLineNumber !== undefined && e.customLineNumber !== null && ! isNaN( e.customLineNumber ) && e.customLineNumber > 0 )
+				? e.customLineNumber
+				: null;
 			let column = null;
 			if ( line === null && e.stack ) {
 
 				const pgMatch = e.stack.match( /playground-eval\.js:(\d+):(\d+)/ );
 				if ( pgMatch ) {
 
-					line = parseInt( pgMatch[ 1 ] ) - 2;
-					column = parseInt( pgMatch[ 2 ] );
+					const parsedLine = parseInt( pgMatch[ 1 ] ) - 2;
+					if ( parsedLine > 0 ) {
+
+						line = parsedLine;
+						column = parseInt( pgMatch[ 2 ] );
+
+					}
 
 				} else {
 
@@ -1064,8 +1212,13 @@ class CodeRunner extends EventDispatcher {
 					const match = e.stack.match( /<anonymous>:(\d+):(\d+)/ );
 					if ( match ) {
 
-						line = parseInt( match[ 1 ] ) - 2;
-						column = parseInt( match[ 2 ] );
+						const parsedLine = parseInt( match[ 1 ] ) - 2;
+						if ( parsedLine > 0 ) {
+
+							line = parsedLine;
+							column = parseInt( match[ 2 ] );
+
+						}
 
 					} else {
 
@@ -1073,8 +1226,13 @@ class CodeRunner extends EventDispatcher {
 						const ffMatch = e.stack.match( /Function:(\d+):(\d+)/ );
 						if ( ffMatch ) {
 
-							line = parseInt( ffMatch[ 1 ] ) - 2;
-							column = parseInt( ffMatch[ 2 ] );
+							const parsedLine = parseInt( ffMatch[ 1 ] ) - 2;
+							if ( parsedLine > 0 ) {
+
+								line = parsedLine;
+								column = parseInt( ffMatch[ 2 ] );
+
+							}
 
 						}
 
@@ -1085,7 +1243,7 @@ class CodeRunner extends EventDispatcher {
 			}
 
 			let displayMessage = e.message || e.toString();
-			if ( line !== null && line > 0 ) {
+			if ( line !== null && ! isNaN( line ) && line > 0 ) {
 
 				displayMessage = `Line ${line}: ${displayMessage}`;
 
@@ -1103,19 +1261,6 @@ class CodeRunner extends EventDispatcher {
 
 	}
 
-	dispose() {
-
-		for ( const baseName of Object.keys( this.scripts ) ) {
-
-			this.invalidateScript( baseName );
-
-		}
-
-		this.scripts = {};
-		this.activeScriptNames = [];
-
-	}
-
 }
 
-export { CodeRunner };
+export { CodeRunner, parseScript, isStandardModule, resolvePath };

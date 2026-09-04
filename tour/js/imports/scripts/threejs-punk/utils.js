@@ -6,16 +6,21 @@ import {
 	floor,
 	fract,
 	int,
+	interleavedGradientNoise,
 	length,
 	max,
 	normalize,
+	PI2,
+	screenCoordinate,
 	sin,
 	smoothstep,
 	sqrt,
-	uniform,
+	textureSize,
+	uv,
 	vec2,
 	vec3,
 	vec4,
+	vogelDiskSample
 } from 'three/tsl';
 
 // Grid search radius & hash constants for procedural ripples
@@ -65,16 +70,15 @@ export const blendNormalMaps = /*@__PURE__*/ Fn( ( [ n1, n2 ] ) => {
 
 /**
  * Generates procedural animated rain ripples and returns tangent-space normal perturbations (vec3).
+ * Inspired by: https://www.shadertoy.com/view/ldfyzl
  *
- * @param {Node<vec2>} uvCoord - Coordinate driving the ripple grid (e.g. positionWorld.xz * scale).
- * @param {Node<float>} uTime - Elapsed time driving propagation.
- * @param {Node<float>} uRippleSpeed - Ripple expansion speed multiplier.
- * @param {Node<float>} uRippleStep - Lifecycle spawn frequency multiplier.
+ * @param {Node<vec2>} coord - Coordinate driving the ripple grid (e.g. positionWorld.xz * scale).
+ * @param {Node<float>} time - Elapsed time driving propagation.
+ * @param {Node<float>} volume - Density/volume factor of active ripples (0.0 = calm, 1.0 = heavy).
  */
-export const ripples = /*@__PURE__*/ Fn( ( [ uvCoord, uTime = uniform( 0 ), uRippleSpeed = float( 3 ), uRippleStep = float( 0.3 ) ] ) => {
+export const ripples = /*@__PURE__*/ Fn( ( [ coord, time, volume ] ) => {
 
-	const p0 = floor( uvCoord );
-	const time = uTime.mul( uRippleSpeed );
+	const p0 = floor( coord );
 	const circles = vec2( 0 ).toVar();
 
 	// Check neighboring grid cells for nearby raindrop centers
@@ -89,8 +93,10 @@ export const ripples = /*@__PURE__*/ Fn( ( [ uvCoord, uTime = uniform( 0 ), uRip
 					const pi = p0.add( vec2( iNode, jNode ) );
 					const hsh = pi;
 					const p = pi.add( hash22( hsh ) );
-					const t = fract( float( uRippleStep ).mul( time ).add( hash12( hsh ) ) );
-					const v = p.sub( uvCoord );
+					const dropSeed = time.mul( 0.7 ).add( hash12( hsh ) );
+					const cycle = floor( dropSeed );
+					const t = fract( dropSeed );
+					const v = p.sub( coord );
 					const d = length( v ).sub( float( MAX_RADIUS + 1 ).mul( t ) );
 					const h = float( 0.001 );
 					const d1 = d.sub( h );
@@ -104,8 +110,11 @@ export const ripples = /*@__PURE__*/ Fn( ( [ uvCoord, uTime = uniform( 0 ), uRip
 						.mul( smoothstep( float( - 0.6 ), float( - 0.3 ), d2 ) )
 						.mul( smoothstep( float( 0 ), float( - 0.3 ), d2 ) );
 
-					// Quadratic fade out over ripple lifetime
-					const fade = float( 1 ).sub( t ).mul( float( 1 ).sub( t ) );
+					// Density check per cell cycle (volume controls percentage of active ripples)
+					const isCellActive = hash12( hsh.add( cycle.mul( 17.13 ) ) ).lessThanEqual( volume );
+
+					// Quadratic fade out over ripple lifetime gated by density volume
+					const fade = isCellActive.select( float( 1 ).sub( t ).mul( float( 1 ).sub( t ) ), float( 0 ) );
 
 					// Finite-difference derivative for normal slope
 					const derivative = p2.sub( p1 ).div( h.mul( 2 ) ).mul( fade );
@@ -122,4 +131,42 @@ export const ripples = /*@__PURE__*/ Fn( ( [ uvCoord, uTime = uniform( 0 ), uRip
 	const z = sqrt( max( float( 1 ).sub( dot( circles, circles ) ), float( 0 ) ) );
 	return vec3( circles, z );
 
-}, { uvCoord: 'vec2', uTime: 'float', uRippleSpeed: 'float', uRippleStep: 'float', return: 'vec3' } );
+}, { coord: 'vec2', time: 'float', volume: 'float', return: 'vec3' } );
+
+/**
+ * Percentage-Closer Filtering Soft (PCFSoft) for height and collision maps.
+ * Samples neighboring heights using a rotated Vogel disk distribution around the TextureNode's UV coordinates,
+ * producing a soft, anti-aliased occlusion mask without staircasing or banding artifacts.
+ *
+ * @param {TextureNode} input - TextureNode containing the height texture and UV coordinates.
+ * @param {Node<float>} compare - Reference height threshold (e.g. positionWorld.y.add( 0.5 )).
+ * @param {Node<float>|number} [radius=2.0] - Filter radius in texels.
+ * @param {Node<int>|number} [samples=16] - Number of Vogel disk filter samples.
+ * @return {Node<float>} Soft occlusion mask (1.0 = open ground / unoccluded, 0.0 = occluded).
+ */
+export const pcfSoft = /*@__PURE__*/ Fn( ( [ input, compare, radius = float( 2.0 ), samples = int( 16 ) ] ) => {
+
+	const uvNode = input.uvNode || uv();
+	const texelSize = vec2( 1 ).div( textureSize( input, 0 ) );
+	const scaledRadius = float( radius ).mul( texelSize );
+
+	const phi = interleavedGradientNoise( screenCoordinate.xy ).mul( PI2 );
+	const sum = float( 0 ).toVar();
+	const count = int( samples );
+
+	Loop( { start: int( 0 ), end: count, name: 'i', condition: '<' }, ( { i } ) => {
+
+		const offset = vogelDiskSample( i, count, phi ).mul( scaledRadius );
+		const sampleUV = uvNode.add( offset );
+		const sampleHeight = input.sample( sampleUV ).y;
+
+		// 1.0 when height <= compare (open ground), 0.0 when occluded
+		const unoccluded = sampleHeight.step( compare ).oneMinus();
+		sum.addAssign( unoccluded );
+
+	} );
+
+	return sum.div( count.toFloat() );
+
+} );
+

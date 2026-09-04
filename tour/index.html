@@ -237,8 +237,22 @@
 
 			import { Tour } from './js/Tour.js';
 
+			const libs = {
+				tour: 'content/Tour.md',
+				workshop: 'content/Workshop.md'
+			};
+
+			let file = libs.workshop;
+
+			if ( location.search.includes( 'tour' ) ) {
+
+				file = libs.tour;
+
+			}
+
 			const tour = new Tour();
-			tour.load( 'content/Workshop.md' );
+			tour.refreshOnPageChange = false;
+			tour.load( file );
 
 		</script>
 	</body>

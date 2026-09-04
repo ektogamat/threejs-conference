@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { positionWorld, vec2, vec3, vec4, float, uniform } from 'three/tsl';
+import { scene } from './scene.js';
 
 class CollisionHeight {
 
@@ -31,6 +32,8 @@ class CollisionHeight {
 	}
 
 	update() {
+
+		if ( ! scene ) return;
 
 		this.camera.position.set( this.position.x, this.position.y, this.position.z );
 		this.camera.lookAt( this.position.x, 0, this.position.z );
@@ -86,8 +89,6 @@ let collisionHeight;
 
 function init() {
 
-	console.log( 'init collision' );
-
 	collisionHeight = new CollisionHeight( 100, 100, 80 );
 	collisionHeight.position.set( - 128, 50, 33 );
 	collisionHeight.update();
@@ -107,8 +108,6 @@ function update() {
 }
 
 function dispose() {
-
-	collisionHeight.dispose();
 
 }
 

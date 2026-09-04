@@ -108,6 +108,13 @@ function serveTourDependencies() {
 				res.end( readFileSync( filePath ) );
 				return;
 
+			} else {
+
+				res.statusCode = 404;
+				res.setHeader( 'Content-Type', 'text/plain' );
+				res.end( `File not found: ${relativePath}` );
+				return;
+
 			}
 
 		}
