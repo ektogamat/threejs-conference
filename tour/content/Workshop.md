@@ -871,11 +871,10 @@ renderPipeline.outputNode = select( screenUV.x.greaterThan( .5 ), emissivePass, 
 
 <page name="Post-Processing">
 
-Assembles a complete cyberpunk post-processing pipeline combining selective neon bloom with depth attenuation, anamorphic lens flares, half-resolution Gaussian depth of field, color balance grading, chromatic aberration, anti-aliasing, and cinematic film grain.
+Assembles a complete cyberpunk post-processing pipeline combining selective neon bloom with depth attenuation, anamorphic lens flares, color balance grading, chromatic aberration, anti-aliasing, and cinematic film grain.
 
 - **Selective Depth-Faded Bloom**: Attenuates distant emissive materials using `getLinearDepthNode()` and applies `bloom()` exclusively to isolated neon glow without washing out diffuse surfaces.
 - **Lens Flare**: Generates cinematic ghost flares and light streaks from glowing lights using `lensflare()`.
-- **Depth of Field Blur**: Creates distance depth blur using `gaussianBlur()` at half resolution with `resolutionScale: 0.5` blended via `getLinearDepthNode()`.
 - **Cyberpunk Grading**: Shifts the color balance towards magenta/cyan tones using `vec3()`, enhances vibrancy with `saturation()`, and focuses the viewpoint using a radial `screenUV` vignette.
 - **Chromatic Aberration**: Adds radial lens color fringing using `chromaticAberration()` to separate RGB color channels towards the screen edges.
 - **Anti-Aliasing & Film Grain**: Cleans specular edges with `smaa()` and adds cinematic film texture using `film()`.
@@ -888,10 +887,9 @@ Assembles a complete cyberpunk post-processing pipeline combining selective neon
 
 ```tsl
 import * as THREE from 'three';
-import { emissive, mix, mrt, output, pass, saturation, screenUV, vec2, vec3, vec4 } from 'three/tsl';
+import { emissive, mrt, output, pass, saturation, screenUV, vec2, vec3, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
-import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js';
 import { chromaticAberration } from 'three/addons/tsl/display/ChromaticAberrationNode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import { film } from 'three/addons/tsl/display/FilmNode.js';
@@ -927,17 +925,12 @@ const flarePass = lensflare( bloomPass, {
 // 4. Composite bloom and lens flare on top of the main scene color
 const sceneComposite = mainPass.add( bloomPass ).add( flarePass.mul( 2 ) );
 
-// 5. Depth of Field with half-resolution Gaussian Blur
-const blurredScene = gaussianBlur( sceneComposite, .3, 4, { resolutionScale: 0.5 } );
-const dofFactor = mainPass.getLinearDepthNode().mul( 14 ).clamp();
-const dofComposite = mix( sceneComposite, blurredScene, dofFactor );
-
-// 6. Cyberpunk Color Grading (Color Balance + Vignette + Saturation)
+// 5. Cyberpunk Color Grading (Color Balance + Vignette + Saturation)
 const colorBalance = vec3( 1.05, 0.9, 1.4 );
 const vignette = screenUV.distance( .5 ).mul( 1.2 ).oneMinus().clamp();
-const gradedColor = saturation( dofComposite.rgb.mul( colorBalance ), 1.25 ).mul( vignette );
+const gradedColor = saturation( sceneComposite.rgb.mul( colorBalance ), 1.25 ).mul( vignette );
 
-// 7. Chromatic aberration, SMAA & subtle cinematic film grain
+// 6. Chromatic aberration, SMAA & subtle cinematic film grain
 const chromaticPass = chromaticAberration( gradedColor, 0.5, vec2( .5 ) );
 const smaaPass = smaa( chromaticPass );
 const finalPass = film( smaaPass, 0.15 );
