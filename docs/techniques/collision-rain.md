@@ -88,6 +88,10 @@ Compute shaders **must** use the same `getUV` as the pass that wrote the RT.
 
 `collisionRainFrameSkip` (default **1**): `update()` returns early on skipped frames. Compute still runs but reads a **slightly stale** height map — cheap tradeoff.
 
+### Texel-snapped caching
+
+The volume center snaps to the texel grid (`width / resolution`), and `update()` only re-renders when the snapped cell changes — plus a safety refresh every `refreshIntervalFrames` (default 60) for late-loaded content. An idle or slowly drifting camera costs no height pass at all; snapping also stops floor heights swimming as the camera moves. Call `invalidate()` after moving static geometry. The render loop passes `getHideObjects` so the hide list is only built on frames that actually render.
+
 ### Render loop integration
 
 [`createRenderLoop.js`](../../src/runtime/createRenderLoop.js) calls **before** `world.rain.update`:

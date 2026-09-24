@@ -78,16 +78,31 @@ export function createCollisionHeight({
   depth = 80,
   resolution = performanceProfile.collisionRainResolution,
   cameraHeight = 50,
+  // Static geometry only changes the map when the volume moves a texel; this
+  // re-render catches late-loaded or toggled scene content.
+  refreshIntervalFrames = 60,
 } = {}) {
   const collision = new CollisionHeight({ width, height, depth, resolution });
+  const texelX = width / resolution;
+  const texelZ = height / resolution;
+  const hiddenObjects = [];
+  const hiddenVisibility = [];
   let frameCounter = 0;
+  let framesSinceRender = Infinity;
+  let lastX = NaN;
+  let lastZ = NaN;
 
-  function update({ camera, hideObjects = [] } = {}) {
+  function invalidate() {
+    framesSinceRender = Infinity;
+  }
+
+  function update({ camera, hideObjects, getHideObjects } = {}) {
     if (!camera) {
       return;
     }
 
     frameCounter += 1;
+    framesSinceRender += 1;
     const frameSkip = Math.max(
       1,
       performanceProfile.collisionRainFrameSkip ?? 1,
@@ -96,7 +111,22 @@ export function createCollisionHeight({
       return;
     }
 
-    collision.position.set(camera.position.x, cameraHeight, camera.position.z);
+    // Snap to the texel grid so the map is stable while the camera drifts
+    // inside one cell, and only re-render when the snapped cell changes.
+    const x = Math.round(camera.position.x / texelX) * texelX;
+    const z = Math.round(camera.position.z / texelZ) * texelZ;
+    if (
+      x === lastX &&
+      z === lastZ &&
+      framesSinceRender < refreshIntervalFrames
+    ) {
+      return;
+    }
+    lastX = x;
+    lastZ = z;
+    framesSinceRender = 0;
+
+    collision.position.set(x, cameraHeight, z);
 
     collision.camera.position.set(
       collision.position.x,
@@ -106,11 +136,15 @@ export function createCollisionHeight({
     collision.camera.lookAt(collision.position.x, 0, collision.position.z);
     collision.camera.updateMatrixWorld(true);
 
-    const visibilityStates = hideObjects
-      .filter(Boolean)
-      .map((object) => ({ object, visible: object.visible }));
-
-    for (const { object } of visibilityStates) {
+    const toHide = hideObjects ?? getHideObjects?.() ?? [];
+    hiddenObjects.length = 0;
+    hiddenVisibility.length = 0;
+    for (const object of toHide) {
+      if (!object) {
+        continue;
+      }
+      hiddenObjects.push(object);
+      hiddenVisibility.push(object.visible);
       object.visible = false;
     }
 
@@ -127,9 +161,10 @@ export function createCollisionHeight({
     renderer.setRenderTarget(prevTarget);
     scene.overrideMaterial = prevOverride;
 
-    for (const { object, visible } of visibilityStates) {
-      object.visible = visible;
+    for (let i = 0; i < hiddenObjects.length; i += 1) {
+      hiddenObjects[i].visible = hiddenVisibility[i];
     }
+    hiddenObjects.length = 0;
   }
 
   function dispose() {
@@ -142,6 +177,7 @@ export function createCollisionHeight({
     getUV: (worldPos) => collision.getUV(worldPos),
     getPosition: (uvNode) => collision.getPosition(uvNode),
     update,
+    invalidate,
     dispose,
   };
 }

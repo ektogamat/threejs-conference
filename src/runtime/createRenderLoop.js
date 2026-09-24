@@ -14,6 +14,7 @@ export function createRenderLoop({
   onFrame,
 }) {
   const timer = new THREE.Timer();
+  const getCollisionHideObjects = () => collectCollisionHideObjects(world);
 
   function renderFrame() {
     timer.update();
@@ -24,7 +25,7 @@ export function createRenderLoop({
 
     world.collisionHeight?.update({
       camera,
-      hideObjects: collectCollisionHideObjects(world),
+      getHideObjects: getCollisionHideObjects,
     });
     world.rain?.update(delta, camera);
 
